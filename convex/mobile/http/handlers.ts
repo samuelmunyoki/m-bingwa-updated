@@ -432,3 +432,37 @@ export const updateBundle = httpAction(async (ctx, request) => {
     return createResponse("error", null, "An error occurred while updating the bundle. Please try again later.")
   }
 })
+
+
+// HTTP action to get all transactions by userId
+// HTTP action to get all transactions by storeOwnerId
+export const getStoreOwnerTransactions = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const storeOwnerId = url.searchParams.get("storeOwnerId");
+
+  if (!storeOwnerId) {
+    return createResponse("error", null, "Missing storeOwnerId parameter");
+  }
+
+  try {
+    // Fetch all transactions for the store owner
+    const transactions = await ctx.runQuery(api.features.transactions.getTransactionsByStoreOwnerId, { storeOwnerId });
+
+    return createResponse("success", { transactions }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch transactions");
+  }
+});
+
+
+// HTTP action to fetch all users
+export const getAllUsers = httpAction(async (ctx, request) => {
+  try {
+    const users = await ctx.runQuery(api.users.getAllUsers, {});
+    return createResponse("success", { users }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch users");
+  }
+});

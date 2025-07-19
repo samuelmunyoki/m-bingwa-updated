@@ -4,7 +4,7 @@ import {
   postSMSCallback,
   postStKPushCallback,
 } from "./http_handlers";
-import { createBundle, deleteBundle, downloadUserData, updateBundle, verifyOtpCode } from "./mobile/http/handlers";
+import { createBundle, deleteBundle, downloadUserData, updateBundle, verifyOtpCode, getAllUsers, getStoreOwnerTransactions } from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -19,12 +19,6 @@ http.route({
   method: "GET",
   handler: downloadUserData,
 });
-
-// http.route({
-//   pathPrefix: "/api/update-data/",
-//   method: "POST",
-//   handler: updateUserData,
-// });
 
 http.route({
   pathPrefix: "/api/verify-otp/",
@@ -52,6 +46,20 @@ http.route({
   pathPrefix: "/api/bundle/",
   method: "PATCH",
   handler: updateBundle,
+});
+
+// API Route to get all users
+http.route({
+  pathPrefix: "/api/all-users/",
+  method: "GET",
+  handler: getAllUsers,
+});
+
+// API Route to get store owner transactions
+http.route({
+  pathPrefix: "/api/store-owner-transactions/",
+  method: "GET",
+  handler: getStoreOwnerTransactions,
 });
 
 
