@@ -110,3 +110,34 @@ export const getReceivingNumberToday = query({
       .first();
   },
 });
+
+// Query to get all transactions by paying userId
+// Query to get all transactions by storeOwnerId, structured according to the transaction schema
+export const getTransactionsByStoreOwnerId = query({
+  args: { storeOwnerId: v.string() },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .order("desc")
+      .collect();
+
+    // Attach bundle info for each transaction
+    const transactionsWithBundleInfo = await Promise.all(
+      transactions.map(async (transaction) => {
+        const bundle = await ctx.db
+          .query("bundles")
+          .filter((q) => q.eq(q.field("_id"), transaction.bundlesID))
+          .first();
+
+        return {
+          ...transaction,
+          offerName: bundle?.offerName || "N/A",
+          duration: bundle?.duration || "N/A",
+        };
+      })
+    );
+
+    return transactionsWithBundleInfo;
+  },
+});
