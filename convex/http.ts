@@ -4,7 +4,10 @@ import {
   postSMSCallback,
   postStKPushCallback,
 } from "./http_handlers";
-import { createBundle, deleteBundle, downloadUserData, updateBundle, verifyOtpCode, getAllUsers, getStoreOwnerTransactions } from "./mobile/http/handlers";
+import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, 
+  verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
+  createStore, getStoreByStoreName, updateStore, deleteStore, 
+  getStoreByUserId} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -26,6 +29,12 @@ http.route({
   handler: verifyOtpCode,
 });
 
+// API Route to get all bundles
+http.route({
+  pathPrefix: "/api/bundles/",
+  method: "GET",
+  handler: getAllBundles,
+});
 
 // API Route to delete a bundle
 http.route({
@@ -62,7 +71,40 @@ http.route({
   handler: getStoreOwnerTransactions,
 });
 
+//API Route to create a store
+http.route({
+  pathPrefix: "/api/store/",
+  method: "POST",
+  handler: createStore,
+});
 
+//API Route to get store by store name
+http.route({
+  pathPrefix: "/api/store/",
+  method: "GET",
+  handler: getStoreByStoreName,
+});
+
+//API Route to get store by user ID
+http.route({
+  pathPrefix: "/api/store/user/",
+  method: "GET",
+  handler: getStoreByUserId,
+});
+
+//API Route to update a store
+http.route({
+  pathPrefix: "/api/store/",
+  method: "PUT",
+  handler: updateStore,
+});
+
+//API Route to delete a store
+http.route({
+  pathPrefix: "/api/store/",
+  method: "DELETE",
+  handler: deleteStore,
+});
 
 http.route({
   path: "/stkpush/callback",

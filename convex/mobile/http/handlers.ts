@@ -466,3 +466,206 @@ export const getAllUsers = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Failed to fetch users");
   }
 });
+
+// HTTP action to get Store by name
+export const getStoreByStoreName = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const storeName = url.searchParams.get("storeName");
+
+  if (!storeName) {
+    return createResponse("error", null, "Missing storeName parameter");
+  }
+
+  try {
+    // Call the correct API function
+    const storeData = await ctx.runQuery(api.features.stores.getStoreByStoreName, { 
+      storeName 
+    });
+    
+    if (!storeData) {
+      return createResponse("error", null, "Store not found");
+    }
+    
+    return createResponse("success", storeData, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch store");
+  }
+});
+
+// HTTP action to get store by userId
+export const getStoreByUserId = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const store = await ctx.runQuery(api.features.stores.getStore, { userId });
+    
+    if (!store) {
+      return createResponse("error", null, "Store not found");
+    }
+    
+    return createResponse("success", { store }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch store");
+  }
+});
+
+// HTTP action to update a store
+export const updateStore = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { 
+    userId, 
+    storeName, 
+    status, 
+    statusDescription, 
+    paymentAccount, 
+    paymentMethod 
+  } = body;
+
+  // Validate required fields
+  if (!userId || !storeName || !status || !paymentAccount || !paymentMethod) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  // Validate status
+  if (!["available", "disabled", "maintenance"].includes(status)) {
+    return createResponse("error", null, "Invalid status. Must be 'available', 'disabled', or 'maintenance'");
+  }
+
+  // Validate payment method
+  if (!["TILL", "PAYBILL"].includes(paymentMethod)) {
+    return createResponse("error", null, "Invalid paymentMethod. Must be 'TILL' or 'PAYBILL'");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.stores.updateStore, {
+      userId,
+      storeName,
+      status,
+      statusDescription: statusDescription || "",
+      paymentAccount,
+      paymentMethod
+    });
+
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+
+    return createResponse("success", { message: result.message }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update store");
+  }
+});
+
+// HTTP action to delete a store
+export const deleteStore = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId } = body;
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId in request body");
+  }
+
+  try {
+    await ctx.runMutation(api.features.stores.deleteStore, { userId });
+    return createResponse("success", { message: "Store deleted successfully" }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to delete store");
+  }
+});
+
+// HTTP action to create a store
+export const createStore = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { 
+    userId, 
+    storeName, 
+    status = "available", 
+    statusDescription = "", 
+    paymentAccount, 
+    paymentMethod 
+  } = body;
+
+  if (!userId || !storeName || !paymentAccount || !paymentMethod) {
+    return createResponse("error", null, "Missing required fields: userId, storeName, paymentAccount, paymentMethod");
+  }
+
+  // Validate status
+  if (!["available", "disabled", "maintenance"].includes(status)) {
+    return createResponse("error", null, "Invalid status. Must be 'available', 'disabled', or 'maintenance'");
+  }
+
+  // Validate payment method
+  if (!["TILL", "PAYBILL"].includes(paymentMethod)) {
+    return createResponse("error", null, "Invalid paymentMethod. Must be 'TILL' or 'PAYBILL'");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.stores.createStore, {
+      userId,
+      storeName,
+      status,
+      statusDescription,
+      paymentAccount,
+      paymentMethod
+    });
+
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+
+    return createResponse("success", { message: result.message }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to create store");
+  }
+});
+
+// HTTP action to get all bundles
+export const getAllBundles = httpAction(async (ctx, request) => {
+  try {
+    const bundles = await ctx.runQuery(api.features.bundles.getAllBundles, {});
+    return createResponse("success", { bundles }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch bundles");
+  }
+});
