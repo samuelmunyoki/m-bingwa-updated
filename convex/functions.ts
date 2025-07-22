@@ -5,7 +5,7 @@ import {
 } from "./_generated/server";
 /* eslint-enable no-restricted-imports */
 import type { DataModel } from "./_generated/dataModel";
-import { Triggers } from "convex-helpners/server/triggers";
+import { Triggers } from "convex-helpers/server/triggers";
 import {
   customCtx,
   customMutation,

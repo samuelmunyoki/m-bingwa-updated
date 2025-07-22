@@ -38,7 +38,7 @@ http.route({
 
 // API Route to delete a bundle
 http.route({
-  pathPrefix: "/api/bundles/delete",
+  pathPrefix: "/api/bundles/delete/",
   method: "DELETE",
   handler: deleteBundle,
 });
@@ -52,7 +52,7 @@ http.route({
 
 //API Route to update a bundle
 http.route({
-  pathPrefix: "/api/bundles/update",
+  pathPrefix: "/api/bundles/update/",
   method: "PATCH",
   handler: updateBundle,
 });
