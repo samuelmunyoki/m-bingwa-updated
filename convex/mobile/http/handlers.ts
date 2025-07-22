@@ -661,8 +661,15 @@ export const createStore = httpAction(async (ctx, request) => {
 
 // HTTP action to get all bundles
 export const getAllBundles = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
   try {
-    const bundles = await ctx.runQuery(api.features.bundles.getAllBundles, {});
+    const bundles = await ctx.runQuery(api.features.bundles.getAllBundles, { userId });
     return createResponse("success", { bundles }, null);
   } catch (error) {
     console.error(error);

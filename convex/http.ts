@@ -38,21 +38,21 @@ http.route({
 
 // API Route to delete a bundle
 http.route({
-  pathPrefix: "/api/bundle/",
+  pathPrefix: "/api/bundles/delete",
   method: "DELETE",
   handler: deleteBundle,
 });
 
 // API Route to create a bundle
 http.route({
-  pathPrefix: "/api/bundle/create/",
+  pathPrefix: "/api/bundles/create/",
   method: "POST",
   handler: createBundle,
 });
 
 //API Route to update a bundle
 http.route({
-  pathPrefix: "/api/bundle/",
+  pathPrefix: "/api/bundles/update",
   method: "PATCH",
   handler: updateBundle,
 });
@@ -73,35 +73,35 @@ http.route({
 
 //API Route to create a store
 http.route({
-  pathPrefix: "/api/store/",
+  pathPrefix: "/api/stores/create/",
   method: "POST",
   handler: createStore,
 });
 
 //API Route to get store by store name
 http.route({
-  pathPrefix: "/api/store/",
+  pathPrefix: "/api/stores/",
   method: "GET",
   handler: getStoreByStoreName,
 });
 
 //API Route to get store by user ID
 http.route({
-  pathPrefix: "/api/store/user/",
+  pathPrefix: "/api/stores/user/",
   method: "GET",
   handler: getStoreByUserId,
 });
 
 //API Route to update a store
 http.route({
-  pathPrefix: "/api/store/",
+  pathPrefix: "/api/stores/update/",
   method: "PUT",
   handler: updateStore,
 });
 
 //API Route to delete a store
 http.route({
-  pathPrefix: "/api/store/",
+  pathPrefix: "/api/stores/delete/",
   method: "DELETE",
   handler: deleteStore,
 });
