@@ -29,6 +29,7 @@ const getBundlesByUserId = query({
   },
 });
 
+//getStoreByStoreName query
 export const getStoreByStoreName = query({
   args: { storeName: v.string() },
   handler: async (ctx, args) => {
@@ -68,21 +69,41 @@ export const createStore = mutation({
     paymentMethod: v.union(v.literal("TILL"), v.literal("PAYBILL")),
   },
   handler: async (ctx, args) => {
+    console.log("🏪 CREATE STORE CALLED");
+    console.log("userId from Android:", args.userId);
+    console.log("storeName:", args.storeName);
+    console.log("timestamp:", new Date().toISOString());
+
     const existingStore = await ctx.db
       .query("stores")
       .withIndex("by_storeName", (q) => q.eq("storeName", args.storeName))
       .first();
 
     if (existingStore) {
+      console.log(" Store name already taken:", args.storeName);
       return {
         status: "error",
         message: `${args.storeName} already taken. Please use another store name.`,
       } as BackendResponse;
     }
+    console.log("Checking user phone number...");
+    console.log("Calling api.users.getUserById with userId:", args.userId);
+    
     const userData = await ctx.runQuery(api.users.getUserById, {
       userId: args.userId,
     });
+
+
+    console.log("userData result:", userData);
+    console.log("userData exists:", !!userData);
+    console.log("userData.phoneNumber:", userData?.phoneNumber);
+    console.log("phoneNumber is null:", userData?.phoneNumber == null);
+    console.log("phoneNumber is undefined:", userData?.phoneNumber === undefined);
+    console.log("phoneNumber is empty string:", userData?.phoneNumber === "");
+
+
     if (userData && userData.phoneNumber != null) {
+      console.log("Phone number exists, creating store...");
       await ctx.db.insert("stores", {
         storeName: args.storeName,
         storeOwnerId: args.userId,
@@ -91,11 +112,16 @@ export const createStore = mutation({
         paymentAccount: args.paymentAccount,
         paymentMethod: args.paymentMethod,
       });
+      console.log("Store created successfully!");
       return {
         status: "success",
         message: `${args.storeName} created successfully.`,
       } as BackendResponse;
     } else {
+      console.log("Phone number check failed:");
+      console.log("  - userData exists:", !!userData);
+      console.log("  - phoneNumber value:", userData?.phoneNumber);
+      console.log("  - phoneNumber type:", typeof userData?.phoneNumber);
       return {
         status: "error",
         message: "Please first set your agent phone number in Settings",

@@ -7,7 +7,7 @@ import {
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, 
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
   createStore, getStoreByStoreName, updateStore, deleteStore, 
-  getStoreByUserId} from "./mobile/http/handlers";
+  getStoreByUserId, createUserIfNotExists, getUserIdByPhone} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -38,7 +38,7 @@ http.route({
 
 // API Route to delete a bundle
 http.route({
-  pathPrefix: "/api/bundles/delete",
+  pathPrefix: "/api/bundles/delete/",
   method: "DELETE",
   handler: deleteBundle,
 });
@@ -52,7 +52,7 @@ http.route({
 
 //API Route to update a bundle
 http.route({
-  pathPrefix: "/api/bundles/update",
+  pathPrefix: "/api/bundles/update/",
   method: "PATCH",
   handler: updateBundle,
 });
@@ -104,6 +104,20 @@ http.route({
   pathPrefix: "/api/stores/delete/",
   method: "DELETE",
   handler: deleteStore,
+});
+
+//API Route to create user if not exists
+http.route({
+  pathPrefix: "/api/users/create-if-not-exists/",
+  method: "POST",
+  handler: createUserIfNotExists,
+});
+
+//API Route to get user ID by phone number
+http.route({
+  pathPrefix: "/api/users/get-id-by-phone/",
+  method: "GET",
+  handler: getUserIdByPhone,
 });
 
 http.route({

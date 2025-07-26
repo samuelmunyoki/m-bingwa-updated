@@ -73,15 +73,30 @@ export const internalgetUserById = internalQuery({
 export const getUserById = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
+    console.log("👤 getUserById CALLED");
+    console.log("searching for userId:", userId);
+    console.log("userId length:", userId.length);
+    console.log("userId type:", typeof userId);
+
     const user = await ctx.db
       .query("users")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
     if (!user) {
+      console.log("NO USER FOUND with userId:", userId);
       return null; // Return null if user is not found
     }
 
+    console.log("user._id:", user._id);
+    console.log("user.name:", user.name);
+    console.log("user.email:", user.email);
+    console.log("user.phoneNumber:", user.phoneNumber);
+    console.log("phoneNumber type:", typeof user.phoneNumber);
+
+    const allUsers = await ctx.db.query("users").collect();
+    console.log("Total users in database:", allUsers.length);
+    console.log("Existing userIds:", allUsers.map(u => u.userId));
     // Return only the necessary fields
     return user;
   },
@@ -152,16 +167,31 @@ export const updateAgentNumber = mutation({
   },
   handler: async (ctx, { userId, phoneNumber }) => {
     // Check if user exists
+
+    console.log("=== UPDATE AGENT NUMBER ===");
+    console.log("userId:", userId);
+    console.log("phoneNumber:", phoneNumber);
+
     const existingUser = await ctx.db
       .query("users")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
+    console.log("existingUser found:", !!existingUser);
+    if (existingUser) {
+      console.log("existing phoneNumber:", existingUser.phoneNumber);
+    }
     try {
+      
       if (existingUser) {
+        console.log("existing phoneNumber:", existingUser.phoneNumber);
         // Update existing user
         await ctx.db.patch(existingUser._id, {
           phoneNumber,
         });
+
+        // Verify the update
+        const updatedUser = await ctx.db.get(existingUser._id);
+        console.log("updated phoneNumber:", updatedUser?.phoneNumber);
         return {
           status: "success",
           message: "Agent data updated",
@@ -399,3 +429,129 @@ export const getFullUserData = query({
     };
   },
 });
+
+
+//Tony added these two functions on 2025-07-26
+// This function adds a phone number to the blacklist
+
+
+// Create user if doesn't exist from app side (call this before sending OTP)
+export const createUserIfNotExists = mutation({
+  args: {
+    phoneNumber: v.string(),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+  },
+  handler: async (ctx, { phoneNumber, name, email }) => {
+    console.log("createUserIfNotExists CALLED");
+    console.log("phoneNumber:", phoneNumber);
+    
+    // Check if user already exists
+    const existingUser = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .first();
+    
+    if (existingUser) {
+      console.log("User already exists with userId:", existingUser.userId);
+      return {
+        status: "success",
+        message: "User already exists",
+        userId: existingUser.userId,
+        isNewUser: false
+      };
+    }
+    
+    // Generate a unique userId
+    const userId = `user_${Math.random().toString(36).substr(2, 25)}`;
+    console.log("🆕 Creating new user with userId:", userId);
+    
+    try {
+      await ctx.db.insert("users", {
+        userId: userId,
+        phoneNumber: phoneNumber,
+        name: name || "",
+        email: email || "",
+        isAdmin: false,
+        isSubscribed: false,
+        profileImage: "",
+        suspended: false
+      });
+      
+      console.log("New user created successfully");
+      return {
+        status: "success",
+        message: "User created successfully",
+        userId: userId,
+        isNewUser: true
+      };
+    } catch (error) {
+      console.error("Error creating user:", error);
+      return {
+        status: "error",
+        message: "Failed to create user",
+        userId: null,
+        isNewUser: false
+      };
+    }
+  },
+});
+
+// Get userId by phone number for creating stores 
+// and bundles from app side (for login after OTP verification)
+export const getUserIdByPhone = query({
+  args: {
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, { phoneNumber }) => {
+    console.log("🔍 getUserIdByPhone QUERY called in users.ts");
+    console.log("phoneNumber:", phoneNumber);
+    
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .first();
+    
+    console.log("=== DATABASE QUERY RESULT ===");
+    console.log("User found:", !!user);
+    if (user) {
+      console.log("user._id:", user._id);
+      console.log("user.userId:", user.userId);
+      console.log("user.name:", user.name);
+      console.log("user.email:", user.email);
+      console.log("user.phoneNumber:", user.phoneNumber);
+      console.log("typeof user.userId:", typeof user.userId);
+
+      const successResponse = {
+        status: "success" as const,
+        userId: user.userId,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber
+      };
+
+      console.log("=== QUERY SUCCESS RESPONSE ===");
+      console.log("Response object:", successResponse);
+      console.log("Response userId:", successResponse.userId);
+      console.log("=== END QUERY RESPONSE ===");
+      
+      return successResponse;
+    } else {
+      console.log("❌ No user found in database");
+      
+      const allUsers = await ctx.db.query("users").collect();
+      console.log("Total users in database:", allUsers.length);
+      console.log("All phone numbers:", allUsers.map(u => u.phoneNumber));
+      
+      const errorResponse = {
+        status: "error" as const,
+        message: "User not found",
+        userId: null
+      };
+      
+      console.log("❌ Returning error response:", errorResponse);
+      return errorResponse;
+    }
+  },
+});
+
