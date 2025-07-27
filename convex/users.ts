@@ -445,19 +445,37 @@ export const createUserIfNotExists = mutation({
   handler: async (ctx, { phoneNumber, name, email }) => {
     console.log("createUserIfNotExists CALLED");
     console.log("phoneNumber:", phoneNumber);
+    console.log("name:", name);
+    console.log("email:", email);
     
-    // Check if user already exists
+    // Check if user already exists using the same logic as getUserIdByPhone
+    const allUsers = await ctx.db.query("users").collect();
+    console.log("Checking against", allUsers.length, "users");
+    
+    // Try direct query first
     const existingUser = await ctx.db
       .query("users")
       .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
       .first();
     
-    if (existingUser) {
-      console.log("User already exists with userId:", existingUser.userId);
+    // If direct query fails, try manual search
+    let finalExistingUser = existingUser || null;
+    if (!existingUser) {
+      console.log("Direct query failed, trying manual search...");
+      const manualMatch = allUsers.find(u => u.phoneNumber === phoneNumber);
+      finalExistingUser = manualMatch || null;
+      if (finalExistingUser) {
+        console.log("Manual search found existing user!");
+      }
+    }
+    
+    if (finalExistingUser) {
+      console.log("User already exists with userId:", finalExistingUser.userId);
+      console.log("User phoneNumber:", finalExistingUser.phoneNumber);
       return {
         status: "success",
         message: "User already exists",
-        userId: existingUser.userId,
+        userId: finalExistingUser.userId,
         isNewUser: false
       };
     }
@@ -474,7 +492,7 @@ export const createUserIfNotExists = mutation({
         email: email || "",
         isAdmin: false,
         isSubscribed: false,
-        profileImage: "",
+        profileImage: "https://img.clerk.com/default_profile_img",
         suspended: false
       });
       
@@ -497,6 +515,45 @@ export const createUserIfNotExists = mutation({
   },
 });
 
+// DEBUG FUNCTION: Add this to test the specific phone number
+export const debugPhoneNumber0706021479 = query({
+  args: {},
+  handler: async (ctx) => {
+    const targetPhone = "0706021479";
+    console.log("=== DEBUGGING PHONE NUMBER", targetPhone, "===");
+    
+    const allUsers = await ctx.db.query("users").collect();
+    console.log("Total users:", allUsers.length);
+    
+    const targetUser = allUsers.find(u => u.phoneNumber === targetPhone) || null;
+    
+    if (targetUser) {
+      console.log("✅ Found target user:");
+      console.log("_id:", targetUser._id);
+      console.log("userId:", targetUser.userId);
+      console.log("phoneNumber:", targetUser.phoneNumber);
+      console.log("name:", targetUser.name);
+      
+      return {
+        found: true,
+        user: {
+          _id: targetUser._id,
+          userId: targetUser.userId,
+          phoneNumber: targetUser.phoneNumber,
+          name: targetUser.name,
+          email: targetUser.email
+        }
+      };
+    } else {
+      console.log("❌ Target user not found");
+      return {
+        found: false,
+        allPhoneNumbers: allUsers.map(u => u.phoneNumber)
+      };
+    }
+  },
+});
+
 // Get userId by phone number for creating stores 
 // and bundles from app side (for login after OTP verification)
 export const getUserIdByPhone = query({
@@ -506,21 +563,44 @@ export const getUserIdByPhone = query({
   handler: async (ctx, { phoneNumber }) => {
     console.log("🔍 getUserIdByPhone QUERY called in users.ts");
     console.log("phoneNumber:", phoneNumber);
+    console.log("phoneNumber type:", typeof phoneNumber);
+    console.log("phoneNumber length:", phoneNumber.length);
     
+    // Debug: Let's see all users first
+    const allUsers = await ctx.db.query("users").collect();
+    console.log("=== ALL USERS DEBUG ===");
+    console.log("Total users in database:", allUsers.length);
+    allUsers.forEach((u, index) => {
+      console.log(`User ${index + 1}:`);
+      console.log(`  _id: ${u._id}`);
+      console.log(`  userId: ${u.userId}`);
+      console.log(`  phoneNumber: "${u.phoneNumber}"`);
+      console.log(`  phoneNumber type: ${typeof u.phoneNumber}`);
+      console.log(`  phoneNumber === "${phoneNumber}": ${u.phoneNumber === phoneNumber}`);
+      console.log(`  name: ${u.name}`);
+    });
+    console.log("=== END DEBUG ===");
+    
+    // Try the query
     const user = await ctx.db
       .query("users")
       .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
       .first();
     
     console.log("=== DATABASE QUERY RESULT ===");
-    console.log("User found:", !!user);
+    console.log("User found by query:", !!user);
+    
     if (user) {
+      console.log("✅ FOUND USER:");
       console.log("user._id:", user._id);
       console.log("user.userId:", user.userId);
       console.log("user.name:", user.name);
       console.log("user.email:", user.email);
       console.log("user.phoneNumber:", user.phoneNumber);
       console.log("typeof user.userId:", typeof user.userId);
+      console.log("userId is null?:", user.userId === null);
+      console.log("userId is undefined?:", user.userId === undefined);
+      console.log("userId is empty string?:", user.userId === "");
 
       const successResponse = {
         status: "success" as const,
@@ -537,16 +617,51 @@ export const getUserIdByPhone = query({
       
       return successResponse;
     } else {
-      console.log("❌ No user found in database");
+      console.log("❌ No user found by query");
       
-      const allUsers = await ctx.db.query("users").collect();
-      console.log("Total users in database:", allUsers.length);
-      console.log("All phone numbers:", allUsers.map(u => u.phoneNumber));
+      // Manual fallback search
+      console.log("🔧 Trying manual search...");
+      const manualMatch = allUsers.find(u => u.phoneNumber === phoneNumber) || null;
+      
+      if (manualMatch) {
+        console.log("🎯 MANUAL SEARCH FOUND USER!");
+        console.log("This means there's a query issue, but user exists");
+        console.log("Manual match userId:", manualMatch.userId);
+        
+        const successResponse = {
+          status: "success" as const,
+          userId: manualMatch.userId,
+          name: manualMatch.name,
+          email: manualMatch.email,
+          phoneNumber: manualMatch.phoneNumber
+        };
+        
+        console.log("Returning manual search result:", successResponse);
+        return successResponse;
+      }
+      
+      // Also try trimmed search
+      const trimmedMatch = allUsers.find(u => u.phoneNumber?.trim() === phoneNumber.trim()) || null;
+      if (trimmedMatch) {
+        console.log("🎯 TRIMMED SEARCH FOUND USER!");
+        return {
+          status: "success" as const,
+          userId: trimmedMatch.userId,
+          name: trimmedMatch.name,
+          email: trimmedMatch.email,
+          phoneNumber: trimmedMatch.phoneNumber
+        };
+      }
+      
+      console.log("❌ User truly not found");
       
       const errorResponse = {
         status: "error" as const,
         message: "User not found",
-        userId: null
+        userId: null,
+        name: null,
+        email: null,
+        phoneNumber: null
       };
       
       console.log("❌ Returning error response:", errorResponse);

@@ -682,46 +682,112 @@ export const getAllBundles = httpAction(async (ctx, request) => {
 
 export const createUserIfNotExists = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
-    return createResponse("error", null, "Method not allowed");
+    const errorResponse = {
+      status: "error",
+      message: "Method not allowed",
+      userId: null,
+      isNewUser: false
+    };
+    return new Response(JSON.stringify(errorResponse), {
+      status: 405,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   let body;
   try {
     body = await request.json();
   } catch (error) {
-    return createResponse("error", null, "Invalid JSON body");
+    const errorResponse = {
+      status: "error",
+      message: "Invalid JSON body",
+      userId: null,
+      isNewUser: false
+    };
+    return new Response(JSON.stringify(errorResponse), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   const { phoneNumber, name, email } = body;
 
   if (!phoneNumber) {
-    return createResponse("error", null, "Missing phoneNumber in request body");
+    const errorResponse = {
+      status: "error",
+      message: "Missing phoneNumber in request body",
+      userId: null,
+      isNewUser: false
+    };
+    return new Response(JSON.stringify(errorResponse), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   // Validate phone number format (basic validation)
   if (typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
-    return createResponse("error", null, "Invalid phoneNumber format");
+    const errorResponse = {
+      status: "error",
+      message: "Invalid phoneNumber format",
+      userId: null,
+      isNewUser: false
+    };
+    return new Response(JSON.stringify(errorResponse), {
+      status: 400,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 
   try {
     console.log("createUserIfNotExists HTTP called");
     console.log("phoneNumber:", phoneNumber);
+    console.log("name:", name);
+    console.log("email:", email);
     
-    // Call your existing Convex mutation (you'll need to create this)
+    // Call your Convex mutation
     const result = await ctx.runMutation(api.users.createUserIfNotExists, {
       phoneNumber,
       name,
       email
     });
     
-    return createResponse("success", {
-      message: result.message,
-      userId: result.userId,
-      isNewUser: result.isNewUser
-    }, null);
+    console.log("=== MUTATION RESULT ===");
+    console.log("Raw result:", JSON.stringify(result, null, 2));
+    console.log("Result status:", result?.status);
+    console.log("Result userId:", result?.userId);
+    console.log("Result isNewUser:", result?.isNewUser);
+    console.log("=== END MUTATION RESULT ===");
+    
+    // Return the result directly (don't wrap in another data object)
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    });
   } catch (error) {
     console.error("Exception in createUserIfNotExists:", error);
-    return createResponse("error", null, "Internal server error");
+    
+    const errorResponse = {
+      status: "error",
+      message: "Internal server error",
+      userId: null,
+      isNewUser: false
+    };
+    
+    return new Response(JSON.stringify(errorResponse), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS", 
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    });
   }
 });
 
@@ -748,25 +814,32 @@ export const getUserIdByPhone = httpAction(async (ctx, request) => {
 
   try {
     console.log("📞 Calling ctx.runQuery with phoneNumber:", phoneNumber);
-    // Call your existing Convex query (you'll need to create this)
+    
+    // Call your Convex query
     const result = await ctx.runQuery(api.users.getUserIdByPhone, {
       phoneNumber
     });
 
     console.log("=== QUERY RESULT FROM users.ts ===");
-    console.log("Raw result:", result);
+    console.log("Raw result:", JSON.stringify(result, null, 2));
     console.log("Result type:", typeof result);
     console.log("Result status:", result?.status);
+    console.log("Result userId:", result?.userId);
+    console.log("Result name:", result?.name);
+    console.log("Result email:", result?.email);
+    console.log("Result phoneNumber:", result?.phoneNumber);
     console.log("=== END QUERY RESULT ===");
     
     if (result && result.status === "success") {
-      console.log("✅ Success result:");
+      console.log("✅ Success result from Convex:");
       console.log("- userId:", result.userId);
       console.log("- name:", result.name);
       console.log("- email:", result.email);
       console.log("- phoneNumber:", result.phoneNumber);
 
+      // CRITICAL FIX: Make sure we're extracting the right fields
       const responseData = {
+        status: "success",
         userId: result.userId,
         name: result.name,
         email: result.email,
@@ -774,27 +847,67 @@ export const getUserIdByPhone = httpAction(async (ctx, request) => {
       };
       
       console.log("=== HTTP RESPONSE DATA ===");
-      console.log("Creating response with data:", responseData);
+      console.log("Creating response with data:", JSON.stringify(responseData, null, 2));
       console.log("ResponseData userId:", responseData.userId);
       console.log("=== END HTTP RESPONSE DATA ===");
       
-      return createResponse("success", responseData, null);
+      // Return the full response data, not wrapped in another data object
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
     } else {
-      console.log("❌ Query returned error status");
-      if (result && result.status === "error") {
-        console.log("Error message:", result.message);
-        return createResponse("error", null, result.message);
-      } else {
-        console.log("Unknown result structure:", result);
-        return createResponse("error", null, "User not found");
-      }
+      console.log("❌ Query returned error status or no result");
+      console.log("Result status:", result?.status);
+      console.log("Result message:", result?.message);
+      
+      const errorResponse = {
+        status: "error",
+        message: result?.message || "User not found",
+        userId: null,
+        name: null,
+        email: null,
+        phoneNumber: null
+      };
+      
+      return new Response(JSON.stringify(errorResponse), {
+        status: 200, // Still return 200 OK for application-level errors
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
     }
   } catch (error) {
     console.error("❌ Exception in getUserIdByPhone HTTP action:", error);
-    return createResponse("error", null, "Internal server error");
+    
+    const errorResponse = {
+      status: "error",
+      message: "Internal server error",
+      userId: null,
+      name: null,
+      email: null,
+      phoneNumber: null
+    };
+    
+    return new Response(JSON.stringify(errorResponse), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    });
   }
 });
-
 
 export const testLogging = httpAction(async (ctx, request) => {
   console.log("🚨 TEST LOG - This should appear in Convex console!");
@@ -867,5 +980,20 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   } catch (error) {
     console.error(error);
     return createResponse("error", null, "Failed to fetch mpesa messages");
+  }
+});
+
+export const debugPhoneTest = httpAction(async (ctx, request) => {
+  console.log("🐛 Debug phone test called");
+  
+  try {
+    const result = await ctx.runQuery(api.users.debugPhoneNumber0706021479);
+    
+    console.log("Debug result:", result);
+    
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error("Debug error:", error);
+    return createResponse("error", null, "Debug failed");
   }
 });
