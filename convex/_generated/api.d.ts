@@ -20,6 +20,7 @@ import type * as features_blacklist from "../features/blacklist.js";
 import type * as features_bundles from "../features/bundles.js";
 import type * as features_cooldown from "../features/cooldown.js";
 import type * as features_migration from "../features/migration.js";
+import type * as features_mpesaMessages from "../features/mpesaMessages.js";
 import type * as features_mpesa_transactions from "../features/mpesa_transactions.js";
 import type * as features_notifications from "../features/notifications.js";
 import type * as features_otps from "../features/otps.js";
@@ -31,12 +32,12 @@ import type * as features_transactions from "../features/transactions.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as http_handlers from "../http_handlers.js";
-import type * as migrations from "../migrations.js";
-import type * as mobile_actions_update_user_data from "../mobile/actions/update_user_data.js";
-import type * as mobile_http_handlers from "../mobile/http/handlers.js";
 import type * as m_pesa_initializer from "../m_pesa/initializer.js";
 import type * as m_pesa_types from "../m_pesa/types.js";
 import type * as m_pesa_utils from "../m_pesa/utils.js";
+import type * as migrations from "../migrations.js";
+import type * as mobile_actions_update_user_data from "../mobile/actions/update_user_data.js";
+import type * as mobile_http_handlers from "../mobile/http/handlers.js";
 import type * as users from "../users.js";
 
 import type {
@@ -65,6 +66,7 @@ declare const fullApi: ApiFromModules<{
   "features/bundles": typeof features_bundles;
   "features/cooldown": typeof features_cooldown;
   "features/migration": typeof features_migration;
+  "features/mpesaMessages": typeof features_mpesaMessages;
   "features/mpesa_transactions": typeof features_mpesa_transactions;
   "features/notifications": typeof features_notifications;
   "features/otps": typeof features_otps;
@@ -76,12 +78,12 @@ declare const fullApi: ApiFromModules<{
   functions: typeof functions;
   http: typeof http;
   http_handlers: typeof http_handlers;
-  migrations: typeof migrations;
-  "mobile/actions/update_user_data": typeof mobile_actions_update_user_data;
-  "mobile/http/handlers": typeof mobile_http_handlers;
   "m_pesa/initializer": typeof m_pesa_initializer;
   "m_pesa/types": typeof m_pesa_types;
   "m_pesa/utils": typeof m_pesa_utils;
+  migrations: typeof migrations;
+  "mobile/actions/update_user_data": typeof mobile_actions_update_user_data;
+  "mobile/http/handlers": typeof mobile_http_handlers;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
