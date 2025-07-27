@@ -167,4 +167,17 @@ export default defineSchema({
     .index("by_bundles_id", ["bundlesID"])
     .index("by_checkoutrequest_id", ["checkoutRequestID"])
     .index("by_store_owner_id", ["storeOwnerId"]),
+
+  mpesaMessages: defineTable({
+    name: v.string(),
+    amount: v.number(),
+    phoneNumber: v.string(),
+    senderId: v.string(),
+    time: v.number(),
+    userId: v.string(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_phone_number", ["phoneNumber"])
+    .index("by_sender_id", ["senderId"])
+    .index("by_time", ["time"]),
 });

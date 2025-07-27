@@ -806,3 +806,66 @@ export const testLogging = httpAction(async (ctx, request) => {
     timestamp: new Date().toISOString()
   }, null);
 });
+
+
+// HTTP action to create a new mpesa message
+export const createMpesaMessage = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, name, amount, phoneNumber, senderId, time } = body;
+
+  if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
+    return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
+  }
+
+  if (typeof amount !== "number") {
+    return createResponse("error", null, "Amount must be a number");
+  }
+
+  if (typeof time !== "number") {
+    return createResponse("error", null, "Time must be a number (timestamp)");
+  }
+
+  try {
+    await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
+      userId,
+      name,
+      amount,
+      phoneNumber,
+      senderId,
+      time
+    });
+
+    return createResponse("success", { message: "Mpesa message created successfully" }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to create mpesa message");
+  }
+});
+
+// HTTP action to get mpesa messages by userId
+export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const messages = await ctx.runQuery(api.features.mpesaMessages.getMpesaMessagesByUserId, { userId });
+    return createResponse("success", { messages }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch mpesa messages");
+  }
+});

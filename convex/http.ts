@@ -6,8 +6,8 @@ import {
 } from "./http_handlers";
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, 
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
-  createStore, getStoreByStoreName, updateStore, deleteStore, 
-  getStoreByUserId, createUserIfNotExists, getUserIdByPhone} from "./mobile/http/handlers";
+  createStore, getStoreByStoreName, updateStore, deleteStore,
+  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, getMpesaMessagesByUserId} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -118,6 +118,20 @@ http.route({
   pathPrefix: "/api/users/get-id-by-phone/",
   method: "GET",
   handler: getUserIdByPhone,
+});
+
+// API Route to create mpesa message
+http.route({
+  pathPrefix: "/api/mpesa-messages/create/",
+  method: "POST",
+  handler: createMpesaMessage,
+});
+
+// API Route to get mpesa messages by userId
+http.route({
+  pathPrefix: "/api/mpesa-messages/user/",
+  method: "GET",
+  handler: getMpesaMessagesByUserId,
 });
 
 http.route({
