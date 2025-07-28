@@ -615,17 +615,15 @@ export const deleteStore = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Method not allowed");
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch (error) {
-    return createResponse("error", null, "Invalid JSON body");
-  }
+  // CHANGED: Get userId from query parameter instead of body
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
 
-  const { userId } = body;
+  console.log("🗑️ DELETE STORE called");
+  console.log("userId from query:", userId);
 
   if (!userId) {
-    return createResponse("error", null, "Missing userId in request body");
+    return createResponse("error", null, "Missing userId parameter");
   }
 
   try {
