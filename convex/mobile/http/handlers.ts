@@ -498,20 +498,55 @@ export const getStoreByUserId = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId");
 
+  console.log("🏪 getStoreByUserId called");
+  console.log("userId:", userId);
+
   if (!userId) {
     return createResponse("error", null, "Missing userId parameter");
   }
 
   try {
+    console.log("Calling api.features.stores.getStore...");
     const store = await ctx.runQuery(api.features.stores.getStore, { userId });
     
+    console.log("Store query result:", store);
+    console.log("Store is null:", store === null);
+    console.log("Store is undefined:", store === undefined);
+    
     if (!store) {
-      return createResponse("error", null, "Store not found");
+      // FIXED: Return null instead of error when no store exists
+      console.log("No store found - returning null");
+      return new Response(JSON.stringify(null), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
     }
     
-    return createResponse("success", { store }, null);
+    console.log("Store found, returning store data");
+    console.log("Store details:", {
+      _id: store._id,
+      storeName: store.storeName,
+      storeOwnerId: store.storeOwnerId,
+      status: store.status
+    });
+    
+    // Return the store directly, not wrapped in a data object
+    return new Response(JSON.stringify(store), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    });
   } catch (error) {
-    console.error(error);
+    console.error("Exception in getStoreByUserId:", error);
     return createResponse("error", null, "Failed to fetch store");
   }
 });
