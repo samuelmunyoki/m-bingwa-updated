@@ -7,7 +7,10 @@ import {
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, 
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
   createStore, getStoreByStoreName, updateStore, deleteStore,
-  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, getMpesaMessagesByUserId, debugPhoneTest} from "./mobile/http/handlers";
+  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, 
+  getMpesaMessagesByUserId, getSubscriptionPrice,
+  updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
+  debugPhoneTest} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -95,7 +98,7 @@ http.route({
 //API Route to update a store
 http.route({
   pathPrefix: "/api/stores/update/",
-  method: "PUT",
+  method: "PATCH",
   handler: updateStore,
 });
 
@@ -134,6 +137,41 @@ http.route({
   handler: getMpesaMessagesByUserId,
 });
 
+//API Route to get subscription price
+http.route({
+  pathPrefix: "/api/subscription-price/",
+  method: "GET",
+  handler: getSubscriptionPrice,
+});
+
+//API Route to update subscription
+http.route({
+  pathPrefix: "/api/subscriptions/update/",
+  method: "POST",
+  handler: updateSubscription,
+});
+
+// Route to get user subscription status
+http.route({
+  pathPrefix: "/api/users/subscription/",
+  method: "GET", 
+  handler: getUserSubscription,
+});
+
+// Route to get user subscription by phone number
+http.route({
+  pathPrefix: "/api/subscription/by-phone/",
+  method: "GET",
+  handler: getUserSubscriptionByPhone,
+});
+
+// Route to handle subscription options (CORS preflight)
+http.route({
+  pathPrefix: "/api/subscription/",
+  method: "OPTIONS", 
+  handler: handleSubscriptionOptions,
+});
+
 
 http.route({
   pathPrefix: "/api/debug/phone-test/",
@@ -152,5 +190,6 @@ http.route({
   method: "POST",
   handler: postSMSCallback,
 });
+
 
 export default http;

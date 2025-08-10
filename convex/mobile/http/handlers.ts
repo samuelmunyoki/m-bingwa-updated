@@ -1016,6 +1016,245 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   }
 });
 
+// HTTP action to get subscription price
+export const getSubscriptionPrice = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  try {
+    // Correct path: features.subscription_price.querySubscriptionPrice
+    const price = await ctx.runQuery(api.features.subscription_price.querySubscriptionPrice);
+    
+    if (!price) {
+      return createResponse("error", null, "No subscription price found");
+    }
+    
+    return createResponse("success", { price }, null);
+  } catch (error: any) {
+    console.error("Error fetching subscription price:", error);
+    return createResponse("error", null, error.message || "Failed to fetch subscription price");
+  }
+});
+
+//HTTP action to update subscription
+// HTTP action to update subscription
+export const updateSubscription = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  // Validate required fields
+  if (!body || !body.userId || !body.phoneNumber || !body.amount || !body.subscriptionEnds) {
+    return createResponse(
+      "error", 
+      null, 
+      "Missing required fields: userId, phoneNumber, amount, subscriptionEnds"
+    );
+  }
+
+  // Validate data types
+  if (typeof body.subscriptionEnds !== "number") {
+    return createResponse("error", null, "subscriptionEnds must be a number (timestamp)");
+  }
+
+  if (typeof body.amount !== "string") {
+    return createResponse("error", null, "amount must be a string");
+  }
+
+  try {
+    const { userId, phoneNumber, amount, subscriptionEnds } = body;
+
+    // Call the updateSubscription action
+    await ctx.runAction(api.actions.subscriptions.updateSubscription, {
+      userId,
+      phoneNumber,
+      amount,
+      subscriptionEnds,
+    });
+
+    return createResponse(
+      "success", 
+      { 
+        message: "Subscription update initiated successfully",
+        userId,
+        subscriptionEnds 
+      }, 
+      null
+    );
+  } catch (error: any) {
+    console.error("Error updating subscription:", error);
+    return createResponse("error", null, error.message || "Failed to update subscription");
+  }
+});
+
+export const getUserSubscription = httpAction(async (ctx, request) => {
+  console.log("🔍 getUserSubscription HTTP ACTION called");
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/');
+  
+  // Extract userId from URL path: /api/users/{userId}/subscription/
+  let userId = null;
+  const userIdIndex = pathParts.indexOf('users') + 1;
+  if (userIdIndex > 0 && userIdIndex < pathParts.length) {
+    userId = pathParts[userIdIndex];
+  }
+  
+  // Fallback: try to get from query parameters
+  if (!userId) {
+    userId = url.searchParams.get('userId');
+  }
+
+  console.log("Request URL:", request.url);
+  console.log("Extracted userId:", userId);
+
+  if (!userId) {
+    console.log("❌ Missing userId parameter");
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    console.log("📊 Calling ctx.runAction for subscription status");
+    
+    // CHANGED: Use runAction instead of runQuery to call your action function
+    const result = await ctx.runAction(api.actions.subscriptions.getUserSubscriptionStatusAction, {
+      userId
+    });
+
+    console.log("=== SUBSCRIPTION ACTION RESULT ===");
+    console.log("Raw result:", JSON.stringify(result, null, 2));
+    console.log("Result status:", result?.status);
+    console.log("Result data:", result?.data);
+    console.log("=== END SUBSCRIPTION RESULT ===");
+    
+    if (result && result.status === "success") {
+      console.log("✅ Success result from subscription action");
+      console.log("- isSubscribed:", result.data?.isSubscribed);
+      console.log("- subscriptionEnds:", result.data?.subscriptionEnds);
+      console.log("- remainingDays:", result.data?.remainingDays);
+
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    } else {
+      console.log("❌ Action returned error status");
+      console.log("Error message:", result?.error);
+      
+      return new Response(JSON.stringify(result), {
+        status: 200, // Still return 200 OK for application-level errors
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+  } catch (error) {
+    console.error("❌ Exception in getUserSubscription:", error);
+    return createResponse("error", null, "Failed to fetch subscription status");
+  }
+});
+
+// HTTP action to get user subscription by phone number (alternative method)
+export const getUserSubscriptionByPhone = httpAction(async (ctx, request) => {
+  console.log("📱 getUserSubscriptionByPhone HTTP ACTION called");
+
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  console.log("Request URL:", request.url);
+  console.log("Extracted phoneNumber:", phoneNumber);
+
+  if (!phoneNumber) {
+    console.log("❌ Missing phoneNumber parameter");
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  // Validate phone number format
+  if (typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
+    console.log("❌ Invalid phoneNumber format");
+    return createResponse("error", null, "Invalid phoneNumber format");
+  }
+
+  try {
+    console.log("📞 Calling ctx.runAction for subscription by phone");
+    
+    // CHANGED: Use runAction instead of runQuery to call your action function
+    const result = await ctx.runAction(api.actions.subscriptions.getUserSubscriptionByPhoneAction, {
+      phoneNumber
+    });
+
+    console.log("=== SUBSCRIPTION BY PHONE ACTION RESULT ===");
+    console.log("Raw result:", JSON.stringify(result, null, 2));
+    console.log("Result status:", result?.status);
+    console.log("Result data:", result?.data);
+    console.log("=== END SUBSCRIPTION BY PHONE RESULT ===");
+    
+    if (result && result.status === "success") {
+      console.log("✅ Success result from subscription by phone action");
+      console.log("- isSubscribed:", result.data?.isSubscribed);
+      console.log("- userId:", result.data?.userId);
+
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    } else {
+      console.log("❌ Action returned error status");
+      console.log("Error message:", result?.error);
+      
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+  } catch (error) {
+    console.error("❌ Exception in getUserSubscriptionByPhone:", error);
+    return createResponse("error", null, "Failed to fetch subscription status by phone");
+  }
+});
+
+// HTTP action to handle CORS preflight requests for subscription endpoints
+export const handleSubscriptionOptions = httpAction(async (ctx, request) => {
+  console.log("🌐 CORS OPTIONS request for subscription endpoints");
+  
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+});
+
+// HTTP action for debugging phone number
 export const debugPhoneTest = httpAction(async (ctx, request) => {
   console.log("🐛 Debug phone test called");
   
