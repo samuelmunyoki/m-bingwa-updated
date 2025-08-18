@@ -180,4 +180,14 @@ export default defineSchema({
     .index("by_phone_number", ["phoneNumber"])
     .index("by_sender_id", ["senderId"])
     .index("by_time", ["time"]),
+
+  userSenderRelations: defineTable({
+    userId: v.string(),
+    senderId: v.string(),
+    lastUpdateTimeStamp: v.number(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_sender_id", ["senderId"])
+    .index("by_user_sender", ["userId", "senderId"])
+    .index("by_timestamp", ["lastUpdateTimeStamp"]),
 });
