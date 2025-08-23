@@ -12,7 +12,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
   createScheduledEvent, getScheduledEvents, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
-  debugPhoneTest} from "./mobile/http/handlers";
+  debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,
+  updateLastUpdateTimeStamp, deleteUserSenderRelation} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
