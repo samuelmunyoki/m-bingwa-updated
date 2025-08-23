@@ -1712,3 +1712,133 @@ export const debugPhoneTest = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Debug failed");
   }
 });
+
+// HTTP action to create or update user-sender relation
+export const createOrUpdateUserSenderRelation = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, senderId, lastUpdateTimeStamp } = body;
+
+  if (!userId || !senderId || lastUpdateTimeStamp === undefined) {
+    return createResponse("error", null, "Missing required fields: userId, senderId, lastUpdateTimeStamp");
+  }
+
+  if (typeof lastUpdateTimeStamp !== "number") {
+    return createResponse("error", null, "lastUpdateTimeStamp must be a number (timestamp)");
+  }
+
+  try {
+    const relationId = await ctx.runMutation(api.features.userSenderRelations.createOrUpdateUserSenderRelation, {
+      userId,
+      senderId,
+      lastUpdateTimeStamp
+    });
+
+    return createResponse("success", { 
+      message: "User-sender relation created/updated successfully", 
+      relationId 
+    }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to create/update user-sender relation");
+  }
+});
+
+// HTTP action to get user-sender relations by userId
+export const getUserSenderRelationsByUserId = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const relations = await ctx.runQuery(api.features.userSenderRelations.getUserSenderRelationsByUserId, { userId });
+    return createResponse("success", { relations }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch user-sender relations");
+  }
+});
+
+// HTTP action to update lastUpdateTimeStamp for a user-sender relation
+export const updateLastUpdateTimeStamp = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, senderId, lastUpdateTimeStamp } = body;
+
+  if (!userId || !senderId || lastUpdateTimeStamp === undefined) {
+    return createResponse("error", null, "Missing required fields: userId, senderId, lastUpdateTimeStamp");
+  }
+
+  if (typeof lastUpdateTimeStamp !== "number") {
+    return createResponse("error", null, "lastUpdateTimeStamp must be a number (timestamp)");
+  }
+
+  try {
+    const relationId = await ctx.runMutation(api.features.userSenderRelations.updateLastUpdateTimeStamp, {
+      userId,
+      senderId,
+      lastUpdateTimeStamp
+    });
+
+    return createResponse("success", { 
+      message: "LastUpdateTimeStamp updated successfully", 
+      relationId 
+    }, null);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message || "Failed to update lastUpdateTimeStamp");
+  }
+});
+
+// HTTP action to delete user-sender relation
+export const deleteUserSenderRelation = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, senderId } = body;
+
+  if (!userId || !senderId) {
+    return createResponse("error", null, "Missing required fields: userId, senderId");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.userSenderRelations.deleteUserSenderRelation, {
+      userId,
+      senderId
+    });
+
+    return createResponse("success", { message: result.message }, null);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message || "Failed to delete user-sender relation");
+  }
+});

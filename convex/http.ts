@@ -229,6 +229,34 @@ http.route({
   handler: debugPhoneTest,
 });
 
+// API Route to create or update user-sender relation
+http.route({
+  pathPrefix: "/api/user-sender-relations/create/",
+  method: "POST",
+  handler: createOrUpdateUserSenderRelation,
+});
+
+// API Route to get user-sender relations by userId
+http.route({
+  pathPrefix: "/api/user-sender-relations/user/",
+  method: "GET",
+  handler: getUserSenderRelationsByUserId,
+});
+
+// API Route to update lastUpdateTimeStamp
+http.route({
+  pathPrefix: "/api/user-sender-relations/update-timestamp/",
+  method: "PATCH",
+  handler: updateLastUpdateTimeStamp,
+});
+
+// API Route to delete user-sender relation
+http.route({
+  pathPrefix: "/api/user-sender-relations/delete/",
+  method: "DELETE",
+  handler: deleteUserSenderRelation,
+});
+
 http.route({
   path: "/stkpush/callback",
   method: "POST",
