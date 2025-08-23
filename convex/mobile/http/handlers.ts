@@ -1254,6 +1254,449 @@ export const handleSubscriptionOptions = httpAction(async (ctx, request) => {
   });
 });
 
+// HTTP action to create a new scheduled task
+export const createScheduledEvent = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only POST is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "POST",
+        },
+      }
+    );
+  }
+
+  try {
+    const { ussdCode, userId, repeatDays, status, scheduledTimeStamp, repeatDaily, messageId } = await request.json();
+
+    const result = await ctx.runMutation(api.features.scheduled_events.createScheduledEvent, {
+      ussdCode,
+      userId,
+      repeatDays,
+      status,
+      scheduledTimeStamp,
+      repeatDaily,
+      messageId,
+    });
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error creating scheduled event:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to create scheduled event",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
+// HTTP action to get all scheduled events by userId
+export const getScheduledEvents = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only GET is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "GET",
+        },
+      }
+    );
+  }
+
+  try {
+    const url = new URL(request.url);
+    const userId = url.searchParams.get("userId");
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "userId parameter is required",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    const events = await ctx.runQuery(api.features.scheduled_events.getScheduledEvents, {
+      userId,
+    });
+
+    return new Response(JSON.stringify({
+      status: "success",
+      data: events,
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error getting scheduled events:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to get scheduled events",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
+// HTTP action to get pending scheduled events by userId
+export const getPendingScheduledEvents = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only GET is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "GET",
+        },
+      }
+    );
+  }
+
+  try {
+    const events = await ctx.runQuery(api.features.scheduled_events.getPendingScheduledEvents, {});
+
+    return new Response(JSON.stringify({
+      status: "success",
+      data: events,
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error getting pending scheduled events:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to get pending scheduled events",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
+// HTTP action to get scheduled events by message ID
+export const getScheduledEventsByMessageID = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only GET is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "GET",
+        },
+      }
+    );
+  }
+
+  try {
+    const url = new URL(request.url);
+    const messageId = url.searchParams.get("messageId");
+
+    if (!messageId) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "messageId parameter is required",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    const event = await ctx.runQuery(api.features.scheduled_events.getScheduledEventsByMessageID, {
+      messageId,
+    });
+
+    return new Response(JSON.stringify({
+      status: "success",
+      data: event,
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error getting scheduled event by message ID:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to get scheduled event by message ID",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
+// HTTP action to handle update event status
+export const updateEventStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PUT") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only PUT is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "PUT",
+        },
+      }
+    );
+  }
+
+  try {
+    const { id, status, messageId } = await request.json();
+
+    if (!id || !status) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "id and status are required",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    await ctx.runMutation(api.features.scheduled_events.updateEventStatus, {
+      id,
+      status,
+      messageId,
+    });
+
+    return new Response(JSON.stringify({
+      status: "success",
+      message: "Event status updated successfully",
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error updating event status:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to update event status",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
+// HTTP action to check scheduled events
+export const checkScheduledEvents = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only GET is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "GET",
+        },
+      }
+    );
+  }
+
+  try {
+    await ctx.runMutation(api.features.scheduled_events.checkScheduledEvents, {});
+
+    return new Response(JSON.stringify({
+      status: "success",
+      message: "Scheduled events checked successfully",
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error checking scheduled events:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to check scheduled events",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
+// HTTP ation to delete a scheduled event
+export const deleteScheduledEvent = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only DELETE is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "DELETE",
+        },
+      }
+    );
+  }
+
+  try {
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id");
+
+    if (!id) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "id parameter is required",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.scheduled_events.deleteScheduledEvent, {
+      id: id as Id<"scheduled_events">,
+    });
+
+    return new Response(JSON.stringify({
+      status: "success",
+      message: "Scheduled event deleted successfully",
+      data: result,
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error deleting scheduled event:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to delete scheduled event",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
 // HTTP action for debugging phone number
 export const debugPhoneTest = httpAction(async (ctx, request) => {
   console.log("🐛 Debug phone test called");

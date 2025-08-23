@@ -10,6 +10,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, 
   getMpesaMessagesByUserId, getSubscriptionPrice,
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
+  createScheduledEvent, getScheduledEvents, getPendingScheduledEvents, getScheduledEventsByMessageID,
+  updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
   debugPhoneTest} from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -153,7 +155,7 @@ http.route({
 
 // Route to get user subscription status
 http.route({
-  pathPrefix: "/api/users/subscription/",
+  pathPrefix: "/api/users/",
   method: "GET", 
   handler: getUserSubscription,
 });
@@ -172,6 +174,54 @@ http.route({
   handler: handleSubscriptionOptions,
 });
 
+// Route to create a scheduled event
+http.route({
+  pathPrefix: "/api/scheduled-events/create/",
+  method: "POST",
+  handler: createScheduledEvent,
+});
+
+// Route to get scheduled events by user ID
+http.route({
+  pathPrefix: "/api/scheduled-events/",
+  method: "GET",
+  handler: getScheduledEvents,
+});
+
+// Route to get all pending scheduled events
+http.route({
+  pathPrefix: "/api/scheduled-events/pending/",
+  method: "GET",
+  handler: getPendingScheduledEvents,
+});
+
+// Route to get scheduled events by message ID
+http.route({
+  pathPrefix: "/api/scheduled-events/messageid/",
+  method: "GET",
+  handler: getScheduledEventsByMessageID,
+});
+
+// Route to update the status of a scheduled event
+http.route({
+  pathPrefix: "/api/scheduled-events/update-status/",
+  method: "PATCH",
+  handler: updateEventStatus,
+});
+
+// Route to check scheduled events
+http.route({
+  pathPrefix: "/api/scheduled-events/check/",
+  method: "GET",
+  handler: checkScheduledEvents,
+});
+
+// Route to delete a scheduled event
+http.route({
+  pathPrefix: "/api/scheduled-events/delete/",
+  method: "DELETE",
+  handler: deleteScheduledEvent,
+});
 
 http.route({
   pathPrefix: "/api/debug/phone-test/",

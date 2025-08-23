@@ -146,10 +146,7 @@ export const getUserSubscriptionStatusAction = action({
   },
 });
 
-/**
- * Action to get user subscription status by phone number
- * Following the same pattern as your updateSubscription action
- */
+
 export const getUserSubscriptionByPhoneAction = action({
   args: {
     phoneNumber: v.string(),
