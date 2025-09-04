@@ -27,7 +27,11 @@ export default defineSchema({
     bundlesUSSD: v.string(),
     duration: v.string(),
     price: v.number(),
+    commission: v.optional(v.number()),
     isMultiSession: v.boolean(),
+    isSimpleUSSD: v.optional(v.boolean()),
+    responseValidatorText: v.optional(v.string()),
+    autoReschedule: v.optional(v.string()),
     dialingSIM: v.union(v.literal("SIM1"), v.literal("SIM2")),
   }).index("by_user", ["userId"]),
 

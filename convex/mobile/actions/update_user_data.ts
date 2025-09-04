@@ -21,7 +21,11 @@ export const updateBundles = mutation({
         bundlesUSSD: v.string(),
         duration: v.string(),
         price: v.number(),
+        commission: v.optional(v.number()),
         isMultiSession: v.boolean(), // Add the new isMultiSession field
+        isSimpleUSSD: v.boolean(),
+        responseValidatorText: v.optional(v.string()),
+        autoReschedule: v.optional(v.string()),
         dialingSIM: v.union(v.literal("SIM1"), v.literal("SIM2")),
       })
     ),

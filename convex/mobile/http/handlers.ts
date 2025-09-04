@@ -153,6 +153,8 @@ export const downloadUserData = httpAction(async (ctx, request) => {
 //   }
 // });
 
+
+
 // HTTP Action for OTP Verification
 export const verifyOtpCode = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
@@ -238,6 +240,7 @@ export const deleteBundle = httpAction(async (ctx, request) => {
 });
 
 // HTTP Action for Bundle creation
+/**
 export const createBundle = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed")
@@ -327,7 +330,171 @@ export const createBundle = httpAction(async (ctx, request) => {
     return createResponse("error", null, "An error occurred while creating the bundle. Please try again later.")
   }
 })
+**/
+export const createBundle = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed")
+  }
 
+  let body
+  try {
+    body = await request.json()
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body")
+  }
+
+  const { 
+    userId, 
+    offerName, 
+    duration, 
+    bundlesUSSD, 
+    price, 
+    commission = 0,
+    status, 
+    isMultiSession, 
+    isSimpleUSSD,
+    responseValidatorText = "",
+    autoReschedule = "",
+    dialingSIM 
+  } = body
+
+  if (
+    !userId ||
+    !offerName ||
+    !duration ||
+    !bundlesUSSD ||
+    price === undefined ||
+    !status ||
+    isMultiSession === undefined ||
+    isSimpleUSSD === undefined ||
+    !dialingSIM
+  ) {
+    return createResponse("error", null, "Missing required fields in request body")
+  }
+
+  if (typeof price !== "number") {
+    return createResponse("error", null, "Price must be a number")
+  }
+
+  if (commission !== undefined && typeof commission !== "number") {
+    return createResponse("error", null, "Commission must be a number")
+  }
+
+  if (status !== "available" && status !== "disabled") {
+    return createResponse("error", null, "Invalid status. Must be 'available' or 'disabled'")
+  }
+
+  if (dialingSIM !== "SIM1" && dialingSIM !== "SIM2") {
+    return createResponse(
+      "error",
+      null,
+      "Invalid dialingSIM. Must be 'SIM1' or 'SIM2'"
+    );
+  }
+
+  if (typeof isMultiSession !== "boolean") {
+    return createResponse("error", null, "isMultiSession must be a boolean")
+  }
+
+  if (typeof isSimpleUSSD !== "boolean") {
+    return createResponse("error", null, "isSimpleUSSD must be a boolean")
+  }
+
+  // Validation: Ensure only one of isMultiSession or isSimpleUSSD is true
+  if (isMultiSession && isSimpleUSSD) {
+    return createResponse(
+      "error", 
+      null, 
+      "Bundle cannot be both Multi-session and Simple USSD. Please select only one option."
+    )
+  }
+
+  // If isMultiSession is false, responseValidatorText should be empty
+  if (!isMultiSession && responseValidatorText && responseValidatorText.trim() !== "") {
+    return createResponse(
+      "error", 
+      null, 
+      "Response Validator Text can only be set when Multi-session is enabled."
+    )
+  }
+
+  // Validate responseValidatorText format if provided
+  if (isMultiSession && responseValidatorText && responseValidatorText.trim() !== "") {
+    const parts = responseValidatorText.split(",");
+    if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
+      return createResponse(
+        "error", 
+        null, 
+        "Response Validator Text must be in format: 'step,validation_text' (e.g., '3,250Mbs for 24 hours')"
+      )
+    }
+    
+    // Validate step is a number
+    if (isNaN(parseInt(parts[0].trim()))) {
+      return createResponse(
+        "error", 
+        null, 
+        "Validator step must be a valid number."
+      )
+    }
+  }
+
+  // Validate time format if provided (12-hour format)
+  if (autoReschedule && autoReschedule.trim() !== "") {
+    const timePattern = /^(0?[1-9]|1[0-2]):([0-5][0-9])\s?(am|pm|AM|PM)$/
+    if (!timePattern.test(autoReschedule.trim())) {
+      return createResponse("error", null, "autoReschedule must be in 12-hour format (HH:MM am/pm)")
+    }
+  }
+
+  try {
+    // Check for existing bundle with the same name or price for this user
+    const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByUserAndNameOrPrice, {
+      userId,
+      offerName,
+      price,
+    })
+
+    if (existingBundle) {
+      if (existingBundle.offerName === offerName) {
+        return createResponse(
+          "error",
+          null,
+          `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+        )
+      } else {
+        return createResponse(
+          "error",
+          null,
+          `A bundle with the price ${price} already exists. Please choose a different price.`,
+        )
+      }
+    }
+
+    const newBundleId = await ctx.runMutation(api.features.bundles.createBundleFromAPI, {
+      userId,
+      offerName,
+      duration,
+      price,
+      commission,
+      status,
+      bundlesUSSD,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText,
+      autoReschedule,
+      dialingSIM
+    })
+
+    return createResponse("success", { bundleId: newBundleId }, null)
+  } catch (error) {
+    console.error("Error creating bundle:", error)
+    return createResponse("error", null, "An error occurred while creating the bundle. Please try again later.")
+  }
+})
+
+// HTTP Action for Bundle update
+/**
 export const updateBundle = httpAction(async (ctx, request) => {
   if (request.method !== "PATCH") {
     return createResponse("error", null, "Method not allowed")
@@ -432,7 +599,184 @@ export const updateBundle = httpAction(async (ctx, request) => {
     return createResponse("error", null, "An error occurred while updating the bundle. Please try again later.")
   }
 })
+**/
+export const updateBundle = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed")
+  }
 
+  let body
+  try {
+    body = await request.json()
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body")
+  }
+
+  const { 
+    id, 
+    userId, 
+    offerName, 
+    duration, 
+    bundlesUSSD, 
+    price, 
+    commission,
+    status, 
+    isMultiSession, 
+    isSimpleUSSD,
+    responseValidatorText,
+    autoReschedule,
+    dialingSIM 
+  } = body
+
+
+  if (!id || !userId) {
+    return createResponse("error", null, "Missing required fields: id and userId")
+  }
+
+  // Validate id
+  if (typeof id !== "string") {
+    return createResponse("error", null, "Invalid id format")
+  }
+
+  // Validate optional fields
+  if (offerName !== undefined && typeof offerName !== "string") {
+    return createResponse("error", null, "offerName must be a string")
+  }
+  if (duration !== undefined && typeof duration !== "string") {
+    return createResponse("error", null, "duration must be a string")
+  }
+  if (bundlesUSSD !== undefined && typeof bundlesUSSD !== "string") {
+    return createResponse("error", null, "bundlesUSSD must be a string")
+  }
+  if (price !== undefined && typeof price !== "number") {
+    return createResponse("error", null, "price must be a number")
+  }
+  if (commission !== undefined && typeof commission !== "number") {
+    return createResponse("error", null, "commission must be a number")
+  }
+  if (dialingSIM !== undefined && dialingSIM !== "SIM1" && dialingSIM !== "SIM2") {
+    return createResponse(
+      "error",
+      null,
+      "Invalid dialingSIM. Must be 'SIM1' or 'SIM2'"
+    );
+  }
+  if (status !== undefined && status !== "available" && status !== "disabled") {
+    return createResponse("error", null, "status must be 'available' or 'disabled'")
+  }
+  if (isMultiSession !== undefined && typeof isMultiSession !== "boolean") {
+    return createResponse("error", null, "isMultiSession must be a boolean")
+  }
+  if (isSimpleUSSD !== undefined && typeof isSimpleUSSD !== "boolean") {
+    return createResponse("error", null, "isSimpleUSSD must be a boolean")
+  }
+  if (responseValidatorText !== undefined && typeof responseValidatorText !== "string") {
+    return createResponse("error", null, "responseValidatorText must be a string")
+  }
+  if (autoReschedule !== undefined && typeof autoReschedule !== "string") {
+    return createResponse("error", null, "autoReschedule must be a string")
+  }
+
+  // Validate time format if provided (12-hour format)
+  if (autoReschedule && autoReschedule.trim() !== "") {
+    const timePattern = /^(0?[1-9]|1[0-2]):([0-5][0-9])\s?(am|pm|AM|PM)$/
+    if (!timePattern.test(autoReschedule.trim())) {
+      return createResponse("error", null, "autoReschedule must be in 12-hour format (HH:MM am/pm)")
+    }
+  }
+
+  try {
+    const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByBundleID, {
+      bundleId: id,
+    })
+    
+    if (!existingBundle) {
+      return createResponse("error", null, "Bundle not found.")
+    }
+    if (existingBundle.userId !== userId) {
+      return createResponse("error", null, "Permission denied.")
+    }
+
+    // Validation: Ensure only one of isMultiSession or isSimpleUSSD is true
+    const finalIsMultiSession = isMultiSession !== undefined ? isMultiSession : existingBundle.isMultiSession;
+    const finalIsSimpleUSSD = isSimpleUSSD !== undefined ? isSimpleUSSD : existingBundle.isSimpleUSSD;
+    
+    if (finalIsMultiSession && finalIsSimpleUSSD) {
+      return createResponse(
+        "error", 
+        null, 
+        "Bundle cannot be both Multi-session and Simple USSD. Please select only one option."
+      )
+    }
+
+    // If isMultiSession is false, responseValidatorText should be empty
+    const finalResponseValidatorText = responseValidatorText !== undefined ? responseValidatorText : existingBundle.responseValidatorText;
+    if (finalIsMultiSession && finalResponseValidatorText && finalResponseValidatorText.trim() !== "") {
+      const parts = finalResponseValidatorText.split(",");
+      if (parts.length !== 2 || !parts[0].trim() || !parts[1].trim()) {
+        return createResponse(
+          "error", 
+          null, 
+          "Response Validator Text must be in format: 'step,validation_text' (e.g., '3,250Mbs for 24 hours')"
+        )
+      }
+      
+      // Validate step is a number
+      if (isNaN(parseInt(parts[0].trim()))) {
+        return createResponse(
+          "error", 
+          null, 
+          "Validator step must be a valid number."
+        )
+      }
+    }
+    if (offerName || price !== undefined) {
+      const duplicateBundle = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
+        userId,
+        offerName,
+        price,
+        excludeId: id as Id<"bundles">,
+      })
+
+      if (duplicateBundle) {
+        if (offerName && duplicateBundle.offerName === offerName) {
+          return createResponse(
+            "error",
+            null,
+            `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+          )
+        } else {
+          return createResponse(
+            "error",
+            null,
+            `A bundle with the price ${price} already exists. Please choose a different price.`,
+          )
+        }
+      }
+    }
+
+    await ctx.runMutation(api.features.bundles.updateBundle, {
+      id: id as Id<"bundles">,
+      userId: userId,
+      bundlesUSSD: bundlesUSSD,
+      duration: duration,
+      offerName: offerName,
+      price: price,
+      commission: commission,
+      status: status,
+      isMultiSession: finalIsMultiSession,
+      isSimpleUSSD: finalIsSimpleUSSD,
+      responseValidatorText: finalResponseValidatorText,
+      autoReschedule: autoReschedule,
+      dialingSIM: dialingSIM
+    })
+
+    return createResponse("success", null, null)
+  } catch (error) {
+    console.error("Error updating bundle:", error)
+    return createResponse("error", null, "An error occurred while updating the bundle. Please try again later.")
+  }
+})
 
 // HTTP action to get all transactions by userId
 // HTTP action to get all transactions by storeOwnerId
@@ -454,7 +798,6 @@ export const getStoreOwnerTransactions = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Failed to fetch transactions");
   }
 });
-
 
 // HTTP action to fetch all users
 export const getAllUsers = httpAction(async (ctx, request) => {
