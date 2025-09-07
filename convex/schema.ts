@@ -173,12 +173,13 @@ export default defineSchema({
     .index("by_store_owner_id", ["storeOwnerId"]),
 
   mpesaMessages: defineTable({
-    name: v.string(),
-    amount: v.number(),
-    phoneNumber: v.string(),
-    senderId: v.string(),
-    time: v.number(),
-    userId: v.string(),
+  name: v.string(),
+  amount: v.number(),
+  phoneNumber: v.string(),
+  senderId: v.string(),
+  time: v.number(),
+  userId: v.string(),
+  transactionId: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])

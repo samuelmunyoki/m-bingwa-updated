@@ -13,7 +13,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   createScheduledEvent, getScheduledEvents, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
   debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,
-  updateLastUpdateTimeStamp, deleteUserSenderRelation} from "./mobile/http/handlers";
+  updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -138,6 +138,13 @@ http.route({
   pathPrefix: "/api/mpesa-messages/user/",
   method: "GET",
   handler: getMpesaMessagesByUserId,
+});
+
+// API Route to delete all mpesa messages for a specific user
+http.route({
+  pathPrefix: "/api/mpesa-messages/delete-all/",
+  method: "DELETE",
+  handler: deleteAllMpesaMessages,
 });
 
 //API Route to get subscription price
