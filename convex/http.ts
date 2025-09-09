@@ -4,7 +4,7 @@ import {
   postSMSCallback,
   postStKPushCallback,
 } from "./http_handlers";
-import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, 
+import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, toggleBundleStatus,
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
   createStore, getStoreByStoreName, updateStore, deleteStore,
   getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, 
@@ -61,6 +61,13 @@ http.route({
   pathPrefix: "/api/bundles/update/",
   method: "PATCH",
   handler: updateBundle,
+});
+
+//API route to toggle bundle active status
+http.route({
+  pathPrefix: "/api/bundles/toggleBundleStatus/",
+  method: "PATCH",
+  handler: toggleBundleStatus,
 });
 
 // API Route to get all users

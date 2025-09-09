@@ -231,106 +231,51 @@ export const deleteBundle = httpAction(async (ctx, request) => {
       userId,
     });
 
-    // On success, return the userId (or null if not provided).
-    return createResponse("success", null, null);
+    return createResponse("success", null, "Bundle deleted successfully");
   } catch (error: any) {
     console.error(error);
     return createResponse("error", null, error.message);
   }
 });
 
-// HTTP Action for Bundle creation
-/**
-export const createBundle = httpAction(async (ctx, request) => {
-  if (request.method !== "POST") {
-    return createResponse("error", null, "Method not allowed")
+// HTTP Action for toggling Bundle status
+export const toggleBundleStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
   }
 
-  let body
+  let body;
   try {
-    body = await request.json()
+    body = await request.json();
   } catch (error) {
-    return createResponse("error", null, "Invalid JSON body")
+    return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, offerName, duration, bundlesUSSD, price, status, isMultiSession, dialingSIM } = body
-
-  if (
-    !userId ||
-    !offerName ||
-    !duration ||
-    !bundlesUSSD ||
-    price === undefined ||
-    !status ||
-    isMultiSession === undefined ||
-    !dialingSIM
-  ) {
-    return createResponse("error", null, "Missing required fields in request body")
+  if (!body || !body.bundleId || !body.userId) {
+    return createResponse(
+      "error",
+      null,
+      "Missing bundleId or userId in request body"
+    );
   }
-
-  if (typeof price !== "number") {
-    return createResponse("error", null, "Price must be a number")
-  }
-
-  if (status !== "available" && status !== "disabled") {
-    return createResponse("error", null, "Invalid status. Must be 'available' or 'disabled'")
-  }
-
-   if (dialingSIM !== "SIM1" && dialingSIM !== "SIM2") {
-     return createResponse(
-       "error",
-       null,
-       "Invalid dialingSIM. Must be 'SIM1' or 'SIM2'"
-     );
-   }
-
-  if (typeof isMultiSession !== "boolean") {
-    return createResponse("error", null, "isMultiSession must be a boolean")
-  }
-
 
   try {
-    // Check for existing bundle with the same name or price for this user
-    const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByUserAndNameOrPrice, {
+    const { bundleId, userId } = body;
+
+    const result = await ctx.runMutation(api.features.bundles.toggleBundleStatusFromAPI, {
+      id: bundleId,
       userId,
-      offerName,
-      price,
-    })
+    });
 
-    if (existingBundle) {
-      if (existingBundle.offerName === offerName) {
-        return createResponse(
-          "error",
-          null,
-          `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-        )
-      } else {
-        return createResponse(
-          "error",
-          null,
-          `A bundle with the price ${price} already exists. Please choose a different price.`,
-        )
-      }
-    }
-
-    const newBundleId = await ctx.runMutation(api.features.bundles.createBundleFromAPI, {
-      userId,
-      offerName,
-      duration,
-      price,
-      status,
-      bundlesUSSD,
-      isMultiSession,
-      dialingSIM
-    })
-
-    return createResponse("success", { bundleId: newBundleId }, null)
+    return createResponse("success", { newStatus: result.newStatus }, result.message);
   } catch (error: any) {
-    console.error("Error creating bundle:", error)
-    return createResponse("error", null, "An error occurred while creating the bundle. Please try again later.")
+    console.error(error);
+    return createResponse("error", null, error.message);
   }
-})
-**/
+});
+
+
+// HTTP Action for Bundle creation
 export const createBundle = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed")
@@ -355,7 +300,8 @@ export const createBundle = httpAction(async (ctx, request) => {
     isSimpleUSSD,
     responseValidatorText = "",
     autoReschedule = "",
-    dialingSIM 
+    dialingSIM,
+    offerType = "Data"
   } = body
 
   if (
@@ -367,7 +313,8 @@ export const createBundle = httpAction(async (ctx, request) => {
     !status ||
     isMultiSession === undefined ||
     isSimpleUSSD === undefined ||
-    !dialingSIM
+    !dialingSIM ||
+    !offerType
   ) {
     return createResponse("error", null, "Missing required fields in request body")
   }
@@ -389,6 +336,15 @@ export const createBundle = httpAction(async (ctx, request) => {
       "error",
       null,
       "Invalid dialingSIM. Must be 'SIM1' or 'SIM2'"
+    );
+  }
+
+  const validOfferTypes = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"];
+  if (!validOfferTypes.includes(offerType)) {
+    return createResponse(
+      "error",
+      null,
+      "Invalid offerType. Must be one of: Data, SMS, Minutes, Airtime, Bundles, Other"
     );
   }
 
@@ -483,10 +439,11 @@ export const createBundle = httpAction(async (ctx, request) => {
       isSimpleUSSD,
       responseValidatorText,
       autoReschedule,
-      dialingSIM
+      dialingSIM,
+      offerType
     })
 
-    return createResponse("success", { bundleId: newBundleId }, null)
+    return createResponse("success", { bundleId: newBundleId }, "Bundle created successfully")
   } catch (error) {
     console.error("Error creating bundle:", error)
     return createResponse("error", null, "An error occurred while creating the bundle. Please try again later.")
@@ -494,112 +451,6 @@ export const createBundle = httpAction(async (ctx, request) => {
 })
 
 // HTTP Action for Bundle update
-/**
-export const updateBundle = httpAction(async (ctx, request) => {
-  if (request.method !== "PATCH") {
-    return createResponse("error", null, "Method not allowed")
-  }
-
-  let body
-  try {
-    body = await request.json()
-  } catch (error) {
-    return createResponse("error", null, "Invalid JSON body")
-  }
-
-  const { id, userId, offerName, duration, bundlesUSSD, price, status, isMultiSession, dialingSIM } = body
-
-  if (!id || !userId) {
-    return createResponse("error", null, "Missing required fields: id and userId")
-  }
-
-  // Validate id
-  if (typeof id !== "string") {
-    return createResponse("error", null, "Invalid id format")
-  }
-
-  // Validate optional fields
-  if (offerName !== undefined && typeof offerName !== "string") {
-    return createResponse("error", null, "offerName must be a string")
-  }
-  if (duration !== undefined && typeof duration !== "string") {
-    return createResponse("error", null, "duration must be a string")
-  }
-  if (bundlesUSSD !== undefined && typeof bundlesUSSD !== "string") {
-    return createResponse("error", null, "bundlesUSSD must be a string")
-  }
-  if (price !== undefined && typeof price !== "number") {
-    return createResponse("error", null, "price must be a number")
-  }
-    if (dialingSIM !== "SIM1" && dialingSIM !== "SIM2") {
-      return createResponse(
-        "error",
-        null,
-        "Invalid dialingSIM. Must be 'SIM1' or 'SIM2'"
-      );
-    }
-  if (status !== undefined && status !== "available" && status !== "disabled") {
-    return createResponse("error", null, "status must be 'available' or 'disabled'")
-  }
-  if (isMultiSession !== undefined && typeof isMultiSession !== "boolean") {
-    return createResponse("error", null, "isMultiSession must be a boolean")
-  }
-
-  try {
-    const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByBundleID, {
-      bundleId: id as Id<"bundles">,
-    })
-    if (!existingBundle) {
-      return createResponse("error", null, "Bundle not found.")
-    }
-    if (!existingBundle || existingBundle.userId !== userId) {
-      return createResponse("error", null, "Permission denied.")
-    }
-
-    if (offerName || price !== undefined) {
-      const duplicateBundle = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
-        userId,
-        offerName,
-        price,
-        excludeId: id as Id<"bundles">,
-      })
-
-      if (duplicateBundle) {
-        if (offerName && duplicateBundle.offerName === offerName) {
-          return createResponse(
-            "error",
-            null,
-            `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-          )
-        } else {
-          return createResponse(
-            "error",
-            null,
-            `A bundle with the price ${price} already exists. Please choose a different price.`,
-          )
-        }
-      }
-    }
-
-    const updatedBundle = await ctx.runMutation(api.features.bundles.updateBundle, {
-      id: id as Id<"bundles">,
-      userId: userId,
-      bundlesUSSD: bundlesUSSD,
-      duration: duration,
-      offerName: offerName,
-      price: price,
-      status: status,
-      isMultiSession: isMultiSession,
-      dialingSIM: dialingSIM
-    })
-
-    return createResponse("success", null, null)
-  } catch (error) {
-    console.error("Error updating bundle:", error)
-    return createResponse("error", null, "An error occurred while updating the bundle. Please try again later.")
-  }
-})
-**/
 export const updateBundle = httpAction(async (ctx, request) => {
   if (request.method !== "PATCH") {
     return createResponse("error", null, "Method not allowed")
@@ -625,9 +476,9 @@ export const updateBundle = httpAction(async (ctx, request) => {
     isSimpleUSSD,
     responseValidatorText,
     autoReschedule,
-    dialingSIM 
+    dialingSIM,
+    offerType
   } = body
-
 
   if (!id || !userId) {
     return createResponse("error", null, "Missing required fields: id and userId")
@@ -675,6 +526,16 @@ export const updateBundle = httpAction(async (ctx, request) => {
   }
   if (autoReschedule !== undefined && typeof autoReschedule !== "string") {
     return createResponse("error", null, "autoReschedule must be a string")
+  }
+  if (offerType !== undefined) {
+    const validOfferTypes = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"];
+    if (!validOfferTypes.includes(offerType)) {
+      return createResponse(
+        "error",
+        null,
+        "Invalid offerType. Must be one of: Data, SMS, Minutes, Airtime, Bundles, Other"
+      );
+    }
   }
 
   // Validate time format if provided (12-hour format)
@@ -730,6 +591,7 @@ export const updateBundle = httpAction(async (ctx, request) => {
         )
       }
     }
+    
     if (offerName || price !== undefined) {
       const duplicateBundle = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
         userId,
@@ -768,10 +630,11 @@ export const updateBundle = httpAction(async (ctx, request) => {
       isSimpleUSSD: finalIsSimpleUSSD,
       responseValidatorText: finalResponseValidatorText,
       autoReschedule: autoReschedule,
-      dialingSIM: dialingSIM
+      dialingSIM: dialingSIM,
+      offerType: offerType
     })
 
-    return createResponse("success", null, null)
+    return createResponse("success", null, "Bundle updated successfully")
   } catch (error) {
     console.error("Error updating bundle:", error)
     return createResponse("error", null, "An error occurred while updating the bundle. Please try again later.")
