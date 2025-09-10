@@ -1173,7 +1173,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1194,7 +1194,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       amount,
       phoneNumber,
       senderId,
-      time
+      time,transactionId
     });
 
     return createResponse("success", { message: "Mpesa message created successfully" }, null);
@@ -2001,19 +2001,20 @@ export const updateLastUpdateTimeStamp = httpAction(async (ctx, request) => {
   }
 
   try {
-    const relationId = await ctx.runMutation(api.features.userSenderRelations.updateLastUpdateTimeStamp, {
+    // Use createOrUpdateUserSenderRelation which handles both create and update cases
+    const relationId = await ctx.runMutation(api.features.userSenderRelations.createOrUpdateUserSenderRelation, {
       userId,
       senderId,
       lastUpdateTimeStamp
     });
 
     return createResponse("success", { 
-      message: "LastUpdateTimeStamp updated successfully", 
+      message: "LastUpdateTimeStamp updated/created successfully", 
       relationId 
     }, null);
   } catch (error: any) {
     console.error(error);
-    return createResponse("error", null, error.message || "Failed to update lastUpdateTimeStamp");
+    return createResponse("error", null, error.message || "Failed to update/create lastUpdateTimeStamp");
   }
 });
 
@@ -2046,5 +2047,32 @@ export const deleteUserSenderRelation = httpAction(async (ctx, request) => {
   } catch (error: any) {
     console.error(error);
     return createResponse("error", null, error.message || "Failed to delete user-sender relation");
+  }
+});
+
+// HTTP action to delete all mpesa messages for a specific user
+export const deleteAllMpesaMessages = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.mpesaMessages.deleteAllMpesaMessages, { userId });
+
+    return createResponse("success", {
+      message: result.message,
+      deletedCount: result.deletedCount,
+      userId: result.userId
+    }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to delete mpesa messages for user");
   }
 });

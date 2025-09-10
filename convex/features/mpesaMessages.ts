@@ -10,6 +10,7 @@ export const createMpesaMessage = mutation({
     phoneNumber: v.string(),
     senderId: v.string(),
     time: v.number(),
+    transactionId: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("mpesaMessages", {
@@ -19,6 +20,7 @@ export const createMpesaMessage = mutation({
       phoneNumber: args.phoneNumber,
       senderId: args.senderId,
       time: args.time,
+      transactionId: args.transactionId ?? undefined,
     });
   },
 });
@@ -109,5 +111,29 @@ export const getMpesaMessagesBySenderId = query({
       .filter((q) => q.eq(q.field("senderId"), args.senderId))
       .order("desc")
       .collect();
+  },
+});
+
+// Mutation to delete all mpesa messages for a specific user
+export const deleteAllMpesaMessages = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    // Get all mpesa messages for the specific user
+    const userMessages = await ctx.db
+      .query("mpesaMessages")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    // Delete each message for this user
+    for (const message of userMessages) {
+      await ctx.db.delete(message._id);
+    }
+
+    return {
+      success: true,
+      message: `Successfully deleted ${userMessages.length} mpesa messages for user ${args.userId}`,
+      deletedCount: userMessages.length,
+      userId: args.userId
+    };
   },
 });
