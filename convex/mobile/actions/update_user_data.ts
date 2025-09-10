@@ -27,6 +27,14 @@ export const updateBundles = mutation({
         responseValidatorText: v.optional(v.string()),
         autoReschedule: v.optional(v.string()),
         dialingSIM: v.union(v.literal("SIM1"), v.literal("SIM2")),
+        offerType: v.optional(v.union(
+              v.literal("Data"), 
+              v.literal("SMS"), 
+              v.literal("Minutes"), 
+              v.literal("Airtime"),
+              v.literal("Bundles"),
+              v.literal("Other")
+            )),
       })
     ),
   },
