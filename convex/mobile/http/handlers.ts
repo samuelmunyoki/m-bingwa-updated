@@ -202,6 +202,24 @@ export const verifyOtpCode = httpAction(async (ctx, request) => {
   }
 });
 
+// HTTP action to get all bundles
+export const getAllBundles = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const bundles = await ctx.runQuery(api.features.bundles.getAllBundles, { userId });
+    return createResponse("success", { bundles }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch bundles");
+  }
+});
+
 // HTTP Action for deleting Bundle with ID
 export const deleteBundle = httpAction(async (ctx, request) => {
   if (request.method !== "DELETE") {
@@ -898,24 +916,6 @@ export const createStore = httpAction(async (ctx, request) => {
   }
 });
 
-// HTTP action to get all bundles
-export const getAllBundles = httpAction(async (ctx, request) => {
-  const url = new URL(request.url);
-  const userId = url.searchParams.get("userId");
-
-  if (!userId) {
-    return createResponse("error", null, "Missing userId parameter");
-  }
-
-  try {
-    const bundles = await ctx.runQuery(api.features.bundles.getAllBundles, { userId });
-    return createResponse("success", { bundles }, null);
-  } catch (error) {
-    console.error(error);
-    return createResponse("error", null, "Failed to fetch bundles");
-  }
-});
-
 //Tony exposed these two functions on 2025-07-26 to be accessed via HTTP from the Android app
 // This function adds a phone number to the blacklist
 
@@ -1480,7 +1480,20 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
   }
 
   try {
-    const { ussdCode, userId, repeatDays, status, scheduledTimeStamp, repeatDaily, messageId } = await request.json();
+    const { 
+      ussdCode, 
+      userId, 
+      repeatDays, 
+      status, 
+      scheduledTimeStamp, 
+      repeatDaily, 
+      messageId,
+      offerId,
+      offerName,
+      offerDuration,
+      offerPrice,
+      offerNum
+    } = await request.json();
 
     const result = await ctx.runMutation(api.features.scheduled_events.createScheduledEvent, {
       ussdCode,
@@ -1490,6 +1503,11 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       scheduledTimeStamp,
       repeatDaily,
       messageId,
+      offerId,
+      offerName,
+      offerDuration,
+      offerPrice,
+      offerNum
     });
 
     return new Response(JSON.stringify(result), {

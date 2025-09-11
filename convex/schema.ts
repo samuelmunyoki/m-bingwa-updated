@@ -100,6 +100,11 @@ export default defineSchema({
     scheduledTimeStamp: v.number(),
     repeatDaily: v.boolean(),
     messageId: v.optional(v.string()),
+    offerId: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    offerDuration: v.optional(v.string()),
+    offerPrice: v.optional(v.number()),
+    offerNum: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_messageId", ["messageId"]),

@@ -89,6 +89,11 @@ export const createScheduledEvent = mutation({
     scheduledTimeStamp: v.number(),
     repeatDaily: v.boolean(),
     messageId: v.optional(v.string()),
+    offerId: v.string(),
+    offerName: v.string(),
+    offerDuration: v.string(),
+    offerPrice: v.number(),
+    offerNum: v.string(),
   },
   handler: async (
     ctx,
@@ -100,6 +105,11 @@ export const createScheduledEvent = mutation({
       scheduledTimeStamp,
       repeatDaily,
       messageId,
+      offerId,
+      offerName,
+      offerDuration,
+      offerPrice,
+      offerNum,
     }
   ): Promise<BackendResponse> => {
     try {
@@ -112,6 +122,11 @@ export const createScheduledEvent = mutation({
         scheduledTimeStamp,
         repeatDaily,
         messageId,
+        offerId,
+        offerName,
+        offerDuration,
+        offerPrice,
+        offerNum
       });
 
       return {
@@ -232,6 +247,11 @@ export const checkScheduledEvents = mutation({
               ussdCode: event.ussdCode,
               scheduledTimeStamp: nextScheduledTime,
               status: "PENDING",
+              ...(event.offerId && { offerId: event.offerId }),
+              ...(event.offerName && { offerName: event.offerName }),
+              ...(event.offerDuration && { offerDuration: event.offerDuration }),
+              ...(event.offerPrice && { offerPrice: event.offerPrice }),
+              ...(event.offerNum && { offerNum: event.offerNum }),
             });
           }
 
