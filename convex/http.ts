@@ -10,7 +10,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, 
   getMpesaMessagesByUserId, getSubscriptionPrice,
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
-  createScheduledEvent, getScheduledEvents, getPendingScheduledEvents, getScheduledEventsByMessageID,
+  createScheduledEvent, getScheduledEvents, updateScheduledEvent, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
   debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,
   updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages} from "./mobile/http/handlers";
@@ -215,6 +215,12 @@ http.route({
   pathPrefix: "/api/scheduled-events/messageid/",
   method: "GET",
   handler: getScheduledEventsByMessageID,
+});
+
+http.route({
+  pathPrefix: "/api/scheduled-events/update/",
+  method: "PUT",
+  handler: updateScheduledEvent,
 });
 
 // Route to update the status of a scheduled event

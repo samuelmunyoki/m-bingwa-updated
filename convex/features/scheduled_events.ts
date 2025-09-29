@@ -111,9 +111,10 @@ export const createScheduledEvent = mutation({
       offerPrice,
       offerNum,
     }
-  ): Promise<BackendResponse> => {
+  ) => {
     try {
-      await ctx.db.insert("scheduled_events", {
+      // Insert and capture the ID
+      const scheduleId = await ctx.db.insert("scheduled_events", {
         ussdCode,
         userId,
         repeatDays,
@@ -129,17 +130,21 @@ export const createScheduledEvent = mutation({
         offerNum
       });
 
+      // Get the created schedule to return it
+      const createdSchedule = await ctx.db.get(scheduleId);
+
       return {
         status: "success",
         message: "Scheduled event created successfully.",
-      } as BackendResponse;
+        data: createdSchedule
+      };
 
     } catch (error) {
       console.error("Error creating scheduled event:", error);
       return {
         status: "error",
         message: "Unexpected error. Scheduled event not created.",
-      } as BackendResponse;
+      };
     }
   },
 });
@@ -209,6 +214,74 @@ export const updateEventStatus = mutation({
 
       // Update the SMS record
       await ctx.db.patch(ev._id, updateFields);
+    }
+  },
+});
+
+export const updateScheduledEvent = mutation({
+  args: {
+    id: v.string(),
+    status: v.optional(v.union(
+      v.literal("PENDING"),
+      v.literal("SUCCESS"),
+      v.literal("ERRORED"),
+      v.literal("CANCELLED"),
+      v.literal("QUEUED")
+    )),
+    messageId: v.optional(v.string()),
+    userId: v.optional(v.string()),
+    ussdCode: v.optional(v.string()),
+    isDynamicUSSD: v.optional(v.boolean()),
+    scheduleTime: v.optional(v.number()),
+    isRepetitive: v.optional(v.boolean()),
+    repeatDays: v.optional(v.number()),
+    offerId: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    offerDuration: v.optional(v.string()),
+    offerPrice: v.optional(v.number()),
+    offerNum: v.optional(v.string())
+  },
+  handler: async (ctx, args): Promise<{ status: string; message: string }> => {
+    try {
+      const ev = await ctx.db
+        .query("scheduled_events")
+        .filter((q) => q.eq(q.field("_id"), args.id))
+        .first();
+        
+      if (!ev) {
+        throw new Error("Scheduled event not found");
+      }
+
+      const updateFields: any = {};
+      
+      // Only include fields that are provided (not undefined)
+      if (args.status !== undefined) updateFields.status = args.status;
+      if (args.messageId !== undefined) updateFields.messageId = args.messageId;
+      if (args.ussdCode !== undefined) updateFields.ussdCode = args.ussdCode;
+      if (args.isDynamicUSSD !== undefined) updateFields.isDynamicUSSD = args.isDynamicUSSD;
+      if (args.scheduleTime !== undefined) updateFields.scheduledTimeStamp = args.scheduleTime;
+      if (args.isRepetitive !== undefined) updateFields.repeatDaily = args.isRepetitive;
+      if (args.repeatDays !== undefined) updateFields.repeatDays = args.repeatDays;
+      if (args.offerId !== undefined) updateFields.offerId = args.offerId;
+      if (args.offerName !== undefined) updateFields.offerName = args.offerName;
+      if (args.offerDuration !== undefined) updateFields.offerDuration = args.offerDuration;
+      if (args.offerPrice !== undefined) updateFields.offerPrice = args.offerPrice;
+      if (args.offerNum !== undefined) updateFields.offerNum = args.offerNum;
+
+      // Update the scheduled event
+      await ctx.db.patch(ev._id, updateFields);
+
+      return {
+        status: "success",
+        message: "Scheduled event updated successfully"
+      };
+
+    } catch (error) {
+      console.error("Error updating scheduled event:", error);
+      return {
+        status: "error",
+        message: "Failed to update scheduled event"
+      };
     }
   },
 });
@@ -292,6 +365,6 @@ export const deleteScheduledEvent = mutation({
   args: { id: v.id("scheduled_events") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
-    return { success: true };
+    return { success: true, message: "Deleted successfully" };
   },
 });

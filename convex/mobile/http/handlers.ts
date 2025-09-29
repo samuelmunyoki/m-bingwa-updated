@@ -1243,9 +1243,9 @@ export const getSubscriptionPrice = httpAction(async (ctx, request) => {
   }
 });
 
-//HTTP action to update subscription
+
 // HTTP action to update subscription
-export const updateSubscription = httpAction(async (ctx, request) => {
+/**export const updateSubscription = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed");
   }
@@ -1295,6 +1295,70 @@ export const updateSubscription = httpAction(async (ctx, request) => {
       }, 
       null
     );
+  } catch (error: any) {
+    console.error("Error updating subscription:", error);
+    return createResponse("error", null, error.message || "Failed to update subscription");
+  }
+});**/
+
+export const updateSubscription = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.userId || !body.phoneNumber || !body.amount || !body.subscriptionEnds) {
+    return createResponse(
+      "error", 
+      null, 
+      "Missing required fields: userId, phoneNumber, amount, subscriptionEnds"
+    );
+  }
+
+  if (typeof body.subscriptionEnds !== "number") {
+    return createResponse("error", null, "subscriptionEnds must be a number (timestamp)");
+  }
+
+  if (typeof body.amount !== "string") {
+    return createResponse("error", null, "amount must be a string");
+  }
+
+  try {
+    const { userId, phoneNumber, amount, subscriptionEnds } = body;
+
+    // Call the action and GET the response
+    const result = await ctx.runAction(api.actions.subscriptions.updateSubscription, {
+      userId,
+      phoneNumber,
+      amount,
+      subscriptionEnds,
+    });
+
+    // Check if STK push was successful
+    if (result.success) {
+      return createResponse(
+        "success", 
+        { 
+          message: result.customerMessage || "STK push sent successfully",
+          checkoutRequestID: result.checkoutRequestID,
+          merchantRequestID: result.merchantRequestID,
+          responseCode: result.responseCode
+        }, 
+        null
+      );
+    } else {
+      return createResponse(
+        "error", 
+        null, 
+        result.responseDescription || "Failed to initiate STK push"
+      );
+    }
   } catch (error: any) {
     console.error("Error updating subscription:", error);
     return createResponse("error", null, error.message || "Failed to update subscription");
@@ -1510,7 +1574,12 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       offerNum
     });
 
-    return new Response(JSON.stringify(result), {
+    // Format response to match what Android expects
+    return new Response(JSON.stringify({
+      status: result.status,
+      message: result.message,
+      data: result.data ? [result.data] : null  // Wrap in array
+    }), {
       status: 200,
       headers: {
         "Content-Type": "application/json",
@@ -1799,6 +1868,103 @@ export const updateEventStatus = httpAction(async (ctx, request) => {
   }
 });
 
+export const updateScheduledEvent = httpAction(async (ctx, request) => {
+  if (request.method !== "PUT") {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Method not allowed. Only PUT is supported.",
+      }),
+      {
+        status: 405,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Allow": "PUT",
+        },
+      }
+    );
+  }
+
+  try {
+    const { 
+      id, 
+      status, 
+      messageId, 
+      userId,
+      ussdCode,
+      isDynamicUSSD,
+      scheduleTime,
+      isRepetitive,
+      repeatDays,
+      offerId,
+      offerName,
+      offerDuration,
+      offerPrice,
+      offerNum
+    } = await request.json();
+
+    if (!id) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "id is required",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.scheduled_events.updateScheduledEvent, {
+      id,
+      status,
+      messageId,
+      userId,
+      ussdCode,
+      isDynamicUSSD,
+      scheduleTime,
+      isRepetitive,
+      repeatDays,
+      offerId,
+      offerName,
+      offerDuration,
+      offerPrice,
+      offerNum
+    });
+
+    return new Response(JSON.stringify({
+      status: result.status,
+      message: result.message,
+    }), {
+      status: result.status === "success" ? 200 : 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
+  } catch (error) {
+    console.error("Error updating scheduled event:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        message: "Failed to update scheduled event",
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+});
+
 // HTTP action to check scheduled events
 export const checkScheduledEvents = httpAction(async (ctx, request) => {
   if (request.method !== "GET") {
@@ -1892,17 +2058,19 @@ export const deleteScheduledEvent = httpAction(async (ctx, request) => {
       id: id as Id<"scheduled_events">,
     });
 
+    console.log("Mutation result:", result);
+
     return new Response(JSON.stringify({
-      status: "success",
-      message: "Scheduled event deleted successfully",
-      data: result,
-    }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
+    status: "success",
+    message: "Scheduled event deleted successfully",
+    data: null,
+  }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
   } catch (error) {
     console.error("Error deleting scheduled event:", error);
     return new Response(

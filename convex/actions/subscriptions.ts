@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { action } from "../_generated/server";
 import { api } from "../_generated/api";
 
-export const updateSubscription = action({
+/**export const updateSubscription = action({
   // Define the expected arguments for the action
   args: {
     userId: v.string(),
@@ -19,45 +19,117 @@ export const updateSubscription = action({
     );
 
     // Check if subscription settings exist before proceeding
-    if (subscriptionSettings) {
+    if (!subscriptionSettings) {
+      throw new Error("Subscription settings not found");
+    }
       // Initiate an STK push request for payment
-      const stkPushResponse = await ctx.runAction(
-        api.m_pesa.initializer.initiateSTKPush,
-        {
-          phoneNumber: args.phoneNumber,
-          amount: args.amount,
-          accountReference: "Subscription",
-          transactionDesc: "Payment for subscription",
-          paymentmethod: subscriptionSettings.paymentMethod,
-          paymentAccount: subscriptionSettings.paymentAccount,
-        }
-      );
+    const stkPushResponse = await ctx.runAction(
+      api.m_pesa.initializer.initiateSTKPush,
+      {
+        phoneNumber: args.phoneNumber,
+        amount: args.amount,
+        accountReference: "Subscription",
+        transactionDesc: "Payment for subscription",
+        paymentmethod: subscriptionSettings.paymentMethod,
+        paymentAccount: subscriptionSettings.paymentAccount,
+      }
+    );
 
       // Store the STK push transaction details in the database
-      await ctx.runMutation(
-        api.features.mpesa_transactions.createMpesaTransaction,
-        {
-          phoneNumber: args.phoneNumber,
-          accountReference: "Subscription",
-          transactionDesc: "Payment for subscription",
-          paymentAccount: "4151713",
-          checkoutRequestID: stkPushResponse.CheckoutRequestID,
-          merchantRequestID: stkPushResponse.MerchantRequestID,
-          paymentFor: "SUBSCRIPTION",
-          paymentMethod: "PAYBILL",
-          resultCode: parseFloat(stkPushResponse.ResponseCode),
-          resultDesc: stkPushResponse.ResponseDescription,
-        }
-      );
-
+    await ctx.runMutation(
+      api.features.mpesa_transactions.createMpesaTransaction,
+      {
+        phoneNumber: args.phoneNumber,
+        accountReference: "Subscription",
+        transactionDesc: "Payment for subscription",
+        paymentAccount: subscriptionSettings.paymentAccount,
+        checkoutRequestID: stkPushResponse.CheckoutRequestID,
+        merchantRequestID: stkPushResponse.MerchantRequestID,
+        paymentFor: "SUBSCRIPTION",
+        paymentMethod: subscriptionSettings.paymentMethod,
+        resultCode: parseFloat(stkPushResponse.ResponseCode),
+        resultDesc: stkPushResponse.ResponseDescription,
+      }
+    );
+    return {
+      success: stkPushResponse.ResponseCode === "0",
+      checkoutRequestID: stkPushResponse.CheckoutRequestID,
+      merchantRequestID: stkPushResponse.MerchantRequestID,
+      responseCode: stkPushResponse.ResponseCode,
+      responseDescription: stkPushResponse.ResponseDescription,
+      customerMessage: stkPushResponse.CustomerMessage,
+    };
       // Update the user's subscription details in the database
-      await ctx.runMutation(api.users.updateSubscription, {
-        userId: args.userId,
-        subscriptionId: stkPushResponse.CheckoutRequestID,
-        subscriptionEnds: args.subscriptionEnds,
-        isSubscribed: false,
-      });
+  },
+});
+**/
+
+export const updateSubscription = action({
+  args: {
+    userId: v.string(),
+    phoneNumber: v.string(),
+    amount: v.string(),
+    subscriptionEnds: v.number(),
+  },
+  handler: async (ctx, args): Promise<{
+    success: boolean;
+    checkoutRequestID: string;
+    merchantRequestID: string;
+    responseCode: string;
+    responseDescription: string;
+    customerMessage: string;
+  }> => {
+    const subscriptionSettings = await ctx.runQuery(
+      api.features.subscription_price.querySubscriptionSettings
+    );
+
+    if (!subscriptionSettings) {
+      throw new Error("Subscription settings not found");
     }
+
+    const stkPushResponse = await ctx.runAction(
+      api.m_pesa.initializer.initiateSTKPush,
+      {
+        phoneNumber: args.phoneNumber,
+        amount: args.amount,
+        accountReference: "Subscription",
+        transactionDesc: "Payment for subscription",
+        paymentmethod: subscriptionSettings.paymentMethod,
+        paymentAccount: subscriptionSettings.paymentAccount,
+      }
+    );
+
+    await ctx.runMutation(
+      api.features.mpesa_transactions.createMpesaTransaction,
+      {
+        phoneNumber: args.phoneNumber,
+        accountReference: "Subscription",
+        transactionDesc: "Payment for subscription",
+        paymentAccount: subscriptionSettings.paymentAccount,
+        checkoutRequestID: stkPushResponse.CheckoutRequestID,
+        merchantRequestID: stkPushResponse.MerchantRequestID,
+        paymentFor: "SUBSCRIPTION",
+        paymentMethod: subscriptionSettings.paymentMethod,
+        resultCode: parseFloat(stkPushResponse.ResponseCode),
+        resultDesc: stkPushResponse.ResponseDescription,
+      }
+    );
+
+    await ctx.runMutation(api.users.updateSubscription, {
+      userId: args.userId,
+      subscriptionId: stkPushResponse.CheckoutRequestID,
+      subscriptionEnds: args.subscriptionEnds,
+      isSubscribed: false,
+    });
+
+    return {
+      success: stkPushResponse.ResponseCode === "0",
+      checkoutRequestID: stkPushResponse.CheckoutRequestID,
+      merchantRequestID: stkPushResponse.MerchantRequestID,
+      responseCode: stkPushResponse.ResponseCode,
+      responseDescription: stkPushResponse.ResponseDescription,
+      customerMessage: stkPushResponse.CustomerMessage,
+    };
   },
 });
 
