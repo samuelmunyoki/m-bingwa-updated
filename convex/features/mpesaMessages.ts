@@ -25,16 +25,18 @@ export const createMpesaMessage = mutation({
   },
 });
 
-// Query to get all mpesa messages by userId
+// Query to get all mpesa messages by userId ordered by time (earliest to latest)
 export const getMpesaMessagesByUserId = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const { userId } = args;
-    const mpesaMessages = await ctx.db
+    let mpesaMessages = await ctx.db
       .query("mpesaMessages")
       .filter((q) => q.eq(q.field("userId"), userId))
-      .order("desc")
       .collect();
+    
+    // Sort by time from earliest to latest
+    mpesaMessages = mpesaMessages.sort((a, b) => a.time - b.time);
 
     return mpesaMessages;
   },
