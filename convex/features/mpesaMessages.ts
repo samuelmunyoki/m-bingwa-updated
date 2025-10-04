@@ -57,7 +57,36 @@ export const getAllMpesaMessages = query({
 export const getMpesaMessageById = query({
   args: { messageId: v.id("mpesaMessages") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.messageId);
+    const message = await ctx.db.get(args.messageId);
+    
+    // Debug: Log the message to see what fields are present
+    console.log("getMpesaMessageById result:", JSON.stringify(message, null, 2));
+    
+    return message;
+  },
+});
+
+// Debug query to check if processed field exists in messages
+export const debugMpesaMessages = query({
+  args: { userId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    let query = ctx.db.query("mpesaMessages");
+    
+    if (args.userId) {
+      query = query.filter((q) => q.eq(q.field("userId"), args.userId));
+    }
+    
+    const messages = await query.take(5); // Get first 5 messages
+    
+    console.log("Debug - Sample messages:", JSON.stringify(messages, null, 2));
+    
+    return messages.map(msg => ({
+      _id: msg._id,
+      userId: msg.userId,
+      name: msg.name,
+      processed: msg.processed,
+      hasProcessedField: msg.processed !== undefined
+    }));
   },
 });
 
@@ -158,6 +187,38 @@ export const updateMpesaMessageProcessedStatus = mutation({
       success: true,
       message: `Successfully updated message processed status to ${processed}`,
       messageId
+    };
+  },
+});
+
+// Mutation to manually set processed field to pending for messages that don't have it
+export const manuallySetProcessedToPending = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Get all mpesa messages
+    const allMessages = await ctx.db.query("mpesaMessages").collect();
+    
+    console.log(`Found ${allMessages.length} total messages`);
+    
+    let updatedCount = 0;
+    
+    // Update messages that don't have processed field
+    for (const message of allMessages) {
+      if (message.processed === undefined) {
+        await ctx.db.patch(message._id, {
+          processed: "pending"
+        });
+        updatedCount++;
+      }
+    }
+    
+    console.log(`Updated ${updatedCount} messages to have processed="pending"`);
+    
+    return {
+      success: true,
+      totalMessages: allMessages.length,
+      updatedMessages: updatedCount,
+      message: `Successfully updated ${updatedCount} out of ${allMessages.length} messages`
     };
   },
 });
