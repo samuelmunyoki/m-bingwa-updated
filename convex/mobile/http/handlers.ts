@@ -1173,7 +1173,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time, transactionId } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1187,6 +1187,11 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Time must be a number (timestamp)");
   }
 
+  // Validate processed field if provided
+  if (processed && !["pending", "successful", "failed"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', or 'failed'");
+  }
+
   try {
     await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
       userId,
@@ -1194,7 +1199,9 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       amount,
       phoneNumber,
       senderId,
-      time,transactionId
+      time,
+      transactionId,
+      processed: processed || "pending" // Use provided value or default to "pending"
     });
 
     return createResponse("success", { message: "Mpesa message created successfully" }, null);

@@ -11,6 +11,7 @@ export const createMpesaMessage = mutation({
     senderId: v.string(),
     time: v.number(),
     transactionId: v.optional(v.union(v.string(), v.null())),
+    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"))),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("mpesaMessages", {
@@ -21,7 +22,7 @@ export const createMpesaMessage = mutation({
       senderId: args.senderId,
       time: args.time,
       transactionId: args.transactionId ?? undefined,
-      processed: "pending",
+      processed: args.processed ?? "pending", // Default to "pending" if not provided
     });
   },
 });
@@ -220,6 +221,33 @@ export const manuallySetProcessedToPending = mutation({
       updatedMessages: updatedCount,
       message: `Successfully updated ${updatedCount} out of ${allMessages.length} messages`
     };
+  },
+});
+
+// Test mutation to verify processed field is always set
+export const testCreateMpesaMessage = mutation({
+  args: {
+    userId: v.string(),
+    name: v.string(),
+    amount: v.number(),
+    phoneNumber: v.string(),
+    senderId: v.string(),
+    time: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const messageId = await ctx.db.insert("mpesaMessages", {
+      userId: args.userId,
+      name: args.name,
+      amount: args.amount,
+      phoneNumber: args.phoneNumber,
+      senderId: args.senderId,
+      time: args.time,
+      processed: "pending", // Always set default
+    });
+    
+    // Return the created message to verify processed field
+    const createdMessage = await ctx.db.get(messageId);
+    return createdMessage;
   },
 });
 
