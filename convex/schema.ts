@@ -195,12 +195,17 @@ export default defineSchema({
   time: v.float64(),//time: v.number(),
   userId: v.string(),
   transactionId: v.optional(v.string()),
-  processed: v.optional(v.string())
+  processed: v.optional(v.union(
+    v.literal("pending"),
+    v.literal("successful"),
+    v.literal("failed")
+  )),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_sender_id", ["senderId"])
-    .index("by_time", ["time"]),
+    .index("by_time", ["time"])
+    .index("by_processed", ["processed"]),
 
   userSenderRelations: defineTable({
     userId: v.string(),

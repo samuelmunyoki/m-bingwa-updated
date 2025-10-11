@@ -13,4 +13,13 @@ export const setIsMultiSessionFalse = migrations.define({
   },
 });
 
+export const setMpesaMessagesProcessedToPending = migrations.define({
+  table: "mpesaMessages",
+  migrateOne: async (ctx, message) => {
+    if (message.processed === undefined) {
+      return { processed: "pending" as "pending" };
+    }
+  },
+});
+
 export const run = migrations.runner();

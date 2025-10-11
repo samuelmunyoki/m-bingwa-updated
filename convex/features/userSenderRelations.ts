@@ -39,16 +39,19 @@ export const createOrUpdateUserSenderRelation = mutation({
 
 
 
-// Query to get all user-sender relations by userId
+// Query to get all user-sender relations by userId ordered by lastUpdateTimeStamp (earliest to latest)
 export const getUserSenderRelationsByUserId = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const { userId } = args;
-    const relations = await ctx.db
+    // Get all relations for this userId
+    let relations = await ctx.db
       .query("userSenderRelations")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .order("desc")
       .collect();
+
+    // Sort by lastUpdateTimeStamp from earliest to latest
+    relations = relations.sort((a, b) => a.lastUpdateTimeStamp - b.lastUpdateTimeStamp);
 
     return relations;
   },
