@@ -103,7 +103,7 @@ export const postStKPushCallback = httpAction(async (ctx, request) => {
     });
   } catch (error) {
     console.error("Error processing M-Pesa callback:", error);
-    return new Response(body, {
+    return new Response(JSON.stringify(body), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

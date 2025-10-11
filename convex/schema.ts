@@ -62,6 +62,8 @@ export default defineSchema({
     amount: v.optional(v.number()),
     mpesaReceiptNumber: v.optional(v.string()),
     paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
+    subscriptionEnds: v.optional(v.number()), // ADD THIS
+    userId: v.optional(v.string()), // ADD THIS
   })
     .index("by_checkoutRequestID", ["checkoutRequestID"])
     .index("by_paymentAccount", ["paymentAccount"])
@@ -187,12 +189,13 @@ export default defineSchema({
 
   mpesaMessages: defineTable({
   name: v.string(),
-  amount: v.number(),
+  amount: v.float64(),//amount: v.number(),
   phoneNumber: v.string(),
   senderId: v.string(),
-  time: v.number(),
+  time: v.float64(),//time: v.number(),
   userId: v.string(),
   transactionId: v.optional(v.string()),
+  processed: v.optional(v.string())
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
@@ -202,7 +205,7 @@ export default defineSchema({
   userSenderRelations: defineTable({
     userId: v.string(),
     senderId: v.string(),
-    lastUpdateTimeStamp: v.number(),
+    lastUpdateTimeStamp: v.float64()
   })
     .index("by_user_id", ["userId"])
     .index("by_sender_id", ["senderId"])

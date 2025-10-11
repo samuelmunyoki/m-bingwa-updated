@@ -73,14 +73,19 @@ export const initiateSTKPush = action({
         body: JSON.stringify(requestBody),
       });
 
+      const responseText = await response.text(); // Read once
+      
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)} Access Token: ${accessToken} Password: ${password}`
-        );
+        throw new Error(`MPESA_ERROR: Status ${response.status}, Body: ${responseText}`);
       }
 
-      const data = (await response.json()) as MPesaExpressResponse;
+      const data = JSON.parse(responseText) as MPesaExpressResponse;
+      
+      // Force logging of success response
+      if (data.ResponseCode !== "0") {
+        throw new Error(`MPESA_REJECTED: Code ${data.ResponseCode}, Desc: ${data.ResponseDescription}`);
+      }
      
       return data;
     } catch (error) {

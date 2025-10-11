@@ -18,6 +18,10 @@ export const generateOAuthToken = action({
     const consumerKey = process.env.MPESA_CONSUMER_KEY;
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
 
+    console.log("Consumer Key exists:", !!consumerKey);
+    console.log("Consumer Secret exists:", !!consumerSecret);
+    console.log("Consumer Key length:", consumerKey?.length);
+
      const url =
        "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
 
@@ -31,8 +35,36 @@ export const generateOAuthToken = action({
         },
       });
 
-      if (!response.ok) {
+      
+      const responseText = await response.text();
+      console.log("Response status:", response.status);
+      console.log("Response body:", responseText);
+
+      /**if (!response.ok) {
         const errorData = (await response.json()) as SafaricomErrorResponse;
+        switch (errorData.errorCode) {
+          case "400.008.02":
+            throw new Error(
+              "Invalid grant type passed. Please select grant type as client credentials."
+            );
+          case "400.008.01":
+            throw new Error(
+              "Invalid Authentication passed. Please use Basic Auth."
+            );
+          default:
+            throw new Error(
+              `HTTP error! status: ${response.status}, message: ${errorData.errorMessage}`
+            );
+        }
+      }**/
+     if (!response.ok) {
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText) as SafaricomErrorResponse;
+        } catch {
+          throw new Error(`HTTP error ${response.status}: ${responseText}`);
+        }
+        
         switch (errorData.errorCode) {
           case "400.008.02":
             throw new Error(
@@ -49,7 +81,7 @@ export const generateOAuthToken = action({
         }
       }
 
-      const data = (await response.json()) as SafaricomOAuthResponse;
+      const data = JSON.parse(responseText) as SafaricomOAuthResponse;
 
       return {
         accessToken: data.access_token,

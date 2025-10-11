@@ -112,15 +112,17 @@ export const updateSubscription = action({
         paymentMethod: subscriptionSettings.paymentMethod,
         resultCode: parseFloat(stkPushResponse.ResponseCode),
         resultDesc: stkPushResponse.ResponseDescription,
+        subscriptionEnds: args.subscriptionEnds, // ADD THIS
+        userId: args.userId, // ADD THIS
       }
     );
 
-    await ctx.runMutation(api.users.updateSubscription, {
+    /**await ctx.runMutation(api.users.updateSubscription, {
       userId: args.userId,
       subscriptionId: stkPushResponse.CheckoutRequestID,
       subscriptionEnds: args.subscriptionEnds,
       isSubscribed: false,
-    });
+    });**/
 
     return {
       success: stkPushResponse.ResponseCode === "0",

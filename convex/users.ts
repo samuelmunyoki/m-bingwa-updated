@@ -216,7 +216,32 @@ export const activateSubscription = mutation({
   },
   handler: async (ctx, args) => {
     try {
+      const transaction = await ctx.db
+        .query("mpesa_transactions")
+        .withIndex("by_checkoutRequestID", (q) =>
+          q.eq("checkoutRequestID", args.checkoutRequestID)
+        )
+        .first();
+
+      if (!transaction || !transaction.subscriptionEnds || !transaction.userId) {
+        console.log("Transaction or subscription data not found");
+        return;
+      }
+
       const user = await ctx.db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", transaction.userId!))
+        .first();
+
+      if (user) {
+        await ctx.db.patch(user._id, {
+          isSubscribed: true,
+          subscriptionEnds: transaction.subscriptionEnds,
+          subscriptionId: args.checkoutRequestID,
+        });
+      }
+
+      /**const user = await ctx.db
         .query("users")
         .withIndex("by_checkoutRequestID", (q) =>
           q.eq("subscriptionId", args.checkoutRequestID)
@@ -227,7 +252,8 @@ export const activateSubscription = mutation({
         await ctx.db.patch(user._id, {
           isSubscribed: true,
         });
-      }
+      }**/
+
     } catch (error) {
       console.log("Error Activating User Subscription: ", error);
     }

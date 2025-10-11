@@ -14,6 +14,8 @@ export const createMpesaTransaction = mutation({
     paymentMethod: v.string(),
     paymentAccount: v.string(),
     paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
+    subscriptionEnds: v.optional(v.number()), // ADD THIS
+    userId: v.optional(v.string()), // ADD THIS
   },
   handler: async (ctx, args) => {
     try {
@@ -28,6 +30,8 @@ export const createMpesaTransaction = mutation({
         paymentMethod: args.paymentMethod,
         paymentAccount: args.paymentAccount,
         paymentFor: args.paymentFor,
+        subscriptionEnds: args.subscriptionEnds, // ADD THIS
+        userId: args.userId, // ADD THIS
       };
 
       await ctx.db.insert("mpesa_transactions", createFields);
