@@ -1229,6 +1229,84 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   }
 });
 
+// HTTP action to update mpesa message
+export const updateMpesaMessage = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { messageId, name, amount, phoneNumber, senderId, time, processed } = body;
+
+  if (!messageId) {
+    return createResponse("error", null, "Missing messageId parameter");
+  }
+
+  // Validate processed field if provided
+  if (processed && !["pending", "successful", "failed"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be pending, successful, or failed");
+  }
+
+  try {
+    const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessage, {
+      messageId,
+      name,
+      amount,
+      phoneNumber,
+      senderId,
+      time,
+      processed
+    });
+    
+    return createResponse("success", { message: updatedMessage }, null);
+  } catch (error: any) {
+    console.error("Error updating mpesa message:", error);
+    return createResponse("error", null, error.message || "Failed to update mpesa message");
+  }
+});
+
+// HTTP action to update mpesa message processed status
+export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { messageId, processed } = body;
+
+  if (!messageId) {
+    return createResponse("error", null, "Missing messageId parameter");
+  }
+
+  if (!processed || !["pending", "successful", "failed"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be pending, successful, or failed");
+  }
+
+  try {
+    const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessageProcessedStatus, {
+      messageId,
+      processed
+    });
+    
+    return createResponse("success", { message: updatedMessage }, null);
+  } catch (error: any) {
+    console.error("Error updating mpesa message processed status:", error);
+    return createResponse("error", null, error.message || "Failed to update mpesa message processed status");
+  }
+});
+
 // HTTP action to get subscription price
 export const getSubscriptionPrice = httpAction(async (ctx, request) => {
   if (request.method !== "GET") {

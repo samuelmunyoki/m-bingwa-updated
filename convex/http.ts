@@ -8,7 +8,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
   createStore, getStoreByStoreName, updateStore, deleteStore,
   getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, 
-  getMpesaMessagesByUserId, getSubscriptionPrice,
+  getMpesaMessagesByUserId, updateMpesaMessage, updateMpesaMessageProcessedStatus, getSubscriptionPrice,
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
   createScheduledEvent, getScheduledEvents, updateScheduledEvent, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
@@ -145,6 +145,20 @@ http.route({
   pathPrefix: "/api/mpesa-messages/user/",
   method: "GET",
   handler: getMpesaMessagesByUserId,
+});
+
+// API Route to update mpesa message
+http.route({
+  pathPrefix: "/api/mpesa-messages/update/",
+  method: "PATCH",
+  handler: updateMpesaMessage,
+});
+
+// API Route to update mpesa message processed status
+http.route({
+  pathPrefix: "/api/mpesa-messages/update-processed/",
+  method: "PATCH",
+  handler: updateMpesaMessageProcessedStatus,
 });
 
 // API Route to delete all mpesa messages for a specific user
