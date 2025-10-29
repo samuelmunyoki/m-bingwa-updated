@@ -5,9 +5,9 @@ import {
   postStKPushCallback,
 } from "./http_handlers";
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, toggleBundleStatus,
-  verifyOtpCode, getAllUsers, getStoreOwnerTransactions,
+  verifyOtpCode, getAllUsers, getStoreOwnerTransactions, createStoreOwnerTransaction, updateStoreOwnerTransaction,
   createStore, getStoreByStoreName, updateStore, deleteStore,
-  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage, 
+  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage,
   getMpesaMessagesByUserId, updateMpesaMessage, updateMpesaMessageProcessedStatus, getSubscriptionPrice,
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
   createScheduledEvent, getScheduledEvents, updateScheduledEvent, getPendingScheduledEvents, getScheduledEventsByMessageID,
@@ -82,6 +82,20 @@ http.route({
   pathPrefix: "/api/store-owner-transactions/",
   method: "GET",
   handler: getStoreOwnerTransactions,
+});
+
+// API Route to create a store owner transaction
+http.route({
+  pathPrefix: "/api/store-owner-transactions/create/",
+  method: "POST",
+  handler: createStoreOwnerTransaction,
+});
+
+// API Route to update a store owner transaction
+http.route({
+  pathPrefix: "/api/store-owner-transactions/update/",
+  method: "PATCH",
+  handler: updateStoreOwnerTransaction,
 });
 
 //API Route to create a store

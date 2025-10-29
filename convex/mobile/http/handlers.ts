@@ -680,6 +680,118 @@ export const getStoreOwnerTransactions = httpAction(async (ctx, request) => {
   }
 });
 
+// HTTP action to create a store owner transaction
+export const createStoreOwnerTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const {
+    storeId,
+    storeOwnerId,
+    bundlesID,
+    bundlesPrice,
+    payingNumber,
+    receivingNumber,
+    paymentMethod,
+    paymentAccount,
+    CheckoutRequestID
+  } = body;
+
+  // Validate required fields
+  if (!storeId || !storeOwnerId || !bundlesID || bundlesPrice === undefined ||
+      !payingNumber || !receivingNumber || !paymentMethod || !paymentAccount || !CheckoutRequestID) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: storeId, storeOwnerId, bundlesID, bundlesPrice, payingNumber, receivingNumber, paymentMethod, paymentAccount, CheckoutRequestID"
+    );
+  }
+
+  // Validate bundlesPrice is a number
+  if (typeof bundlesPrice !== "number") {
+    return createResponse("error", null, "bundlesPrice must be a number");
+  }
+
+  // Validate payment method
+  if (!["TILL", "PAYBILL"].includes(paymentMethod)) {
+    return createResponse("error", null, "Invalid paymentMethod. Must be 'TILL' or 'PAYBILL'");
+  }
+
+  try {
+    await ctx.runMutation(api.features.transactions.createBundlesTransaction, {
+      storeId,
+      storeOwnerId,
+      bundlesID,
+      bundlesPrice,
+      payingNumber,
+      receivingNumber,
+      paymentMethod,
+      paymentAccount,
+      CheckoutRequestID
+    });
+
+    return createResponse("success", { message: "Transaction created successfully" }, null);
+  } catch (error: any) {
+    console.error("Error creating transaction:", error);
+    return createResponse("error", null, error.message || "Failed to create transaction");
+  }
+});
+
+// HTTP action to update a store owner transaction status
+export const updateStoreOwnerTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { checkoutRequestID, paymentStatus } = body;
+
+  // Validate required fields
+  if (!checkoutRequestID || !paymentStatus) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: checkoutRequestID, paymentStatus"
+    );
+  }
+
+  // Validate payment status
+  const validStatuses = ["PENDING", "CANCELLED", "TIMEDOUT", "CONFIRMED", "ERRORED"];
+  if (!validStatuses.includes(paymentStatus)) {
+    return createResponse(
+      "error",
+      null,
+      "Invalid paymentStatus. Must be one of: PENDING, CANCELLED, TIMEDOUT, CONFIRMED, ERRORED"
+    );
+  }
+
+  try {
+    await ctx.runMutation(api.features.transactions.updateTransactionStatus, {
+      checkoutRequestID,
+      paymentStatus
+    });
+
+    return createResponse("success", { message: "Transaction status updated successfully" }, null);
+  } catch (error: any) {
+    console.error("Error updating transaction status:", error);
+    return createResponse("error", null, error.message || "Failed to update transaction status");
+  }
+});
+
 // HTTP action to fetch all users
 export const getAllUsers = httpAction(async (ctx, request) => {
   try {
@@ -1193,7 +1305,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
   }
 
   try {
-    await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
+    const createdMessage = await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
       userId,
       name,
       amount,
@@ -1204,7 +1316,10 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       processed: processed || "pending" // Use provided value or default to "pending"
     });
 
-    return createResponse("success", { message: "Mpesa message created successfully" }, null);
+    return createResponse("success", {
+      message: "Mpesa message created successfully",
+      data: createdMessage
+    }, null);
   } catch (error) {
     console.error(error);
     return createResponse("error", null, "Failed to create mpesa message");

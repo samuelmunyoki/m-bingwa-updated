@@ -14,7 +14,7 @@ export const createMpesaMessage = mutation({
     processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"))),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("mpesaMessages", {
+    const messageId = await ctx.db.insert("mpesaMessages", {
       userId: args.userId,
       name: args.name,
       amount: args.amount,
@@ -24,6 +24,10 @@ export const createMpesaMessage = mutation({
       transactionId: args.transactionId ?? undefined,
       processed: args.processed ?? "pending", // Default to "pending" if not provided
     });
+
+    // Return the full message object with ID
+    const message = await ctx.db.get(messageId);
+    return message;
   },
 });
 
@@ -271,6 +275,45 @@ export const deleteAllMpesaMessages = mutation({
       message: `Successfully deleted ${userMessages.length} mpesa messages for user ${args.userId}`,
       deletedCount: userMessages.length,
       userId: args.userId
+    };
+  },
+});
+
+// Mutation to delete mpesa messages older than 30 days
+// This is intended to be run as a cron job to clean up old data
+export const deleteOldMpesaMessages = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("🗑️ Starting deleteOldMpesaMessages cron job...");
+
+    // Calculate the timestamp for 30 days ago
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const cutoffDate = new Date(thirtyDaysAgo).toISOString();
+
+    console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
+
+    // Get all mpesa messages older than 30 days
+    const oldMessages = await ctx.db
+      .query("mpesaMessages")
+      .filter((q) => q.lt(q.field("time"), thirtyDaysAgo))
+      .collect();
+
+    console.log(`Found ${oldMessages.length} messages older than 30 days`);
+
+    // Delete each old message
+    let deletedCount = 0;
+    for (const message of oldMessages) {
+      await ctx.db.delete(message._id);
+      deletedCount++;
+    }
+
+    console.log(`✅ Cron job completed: Deleted ${deletedCount} mpesa messages older than 30 days`);
+
+    return {
+      success: true,
+      message: `Successfully deleted ${deletedCount} mpesa messages older than 30 days`,
+      deletedCount,
+      cutoffDate
     };
   },
 });
