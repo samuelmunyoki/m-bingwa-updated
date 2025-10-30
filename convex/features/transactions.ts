@@ -141,3 +141,56 @@ export const getTransactionsByStoreOwnerId = query({
     return transactionsWithBundleInfo;
   },
 });
+
+export const deleteAllStoreOwnerTransactions = mutation({
+  args: { 
+    storeOwnerId: v.string(),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 20; // Small batch to avoid timeout
+    
+    // Get a limited number of transactions
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .take(limit);
+
+    // Delete this batch
+    for (const transaction of transactions) {
+      await ctx.db.delete(transaction._id);
+    }
+
+    // Check if there are more transactions remaining
+    const remainingTransactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .take(1);
+
+    const hasMore = remainingTransactions.length > 0;
+
+    return {
+      status: "success",
+      message: `Deleted ${transactions.length} transaction(s) for store owner`,
+      deletedCount: transactions.length,
+      hasMore: hasMore,
+      totalProcessed: transactions.length
+    };
+  },
+});
+
+// Alternative: Get count of transactions for a store owner
+export const getStoreOwnerTransactionCount = query({
+  args: { storeOwnerId: v.string() },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .collect();
+    
+    return {
+      count: transactions.length,
+      storeOwnerId: args.storeOwnerId
+    };
+  },
+});

@@ -792,6 +792,72 @@ export const updateStoreOwnerTransaction = httpAction(async (ctx, request) => {
   }
 });
 
+// HTTP action to delete all store owner transactions
+export const deleteAllStoreOwnerTransactions = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const storeOwnerId = url.searchParams.get("storeOwnerId");
+  const limitParam = url.searchParams.get("limit");
+  
+  if (!storeOwnerId) {
+    return createResponse("error", null, "Missing storeOwnerId parameter");
+  }
+
+  // Parse limit parameter (default to 20 if not provided or invalid)
+  let limit = 20;
+  if (limitParam) {
+    const parsedLimit = parseInt(limitParam, 10);
+    if (!isNaN(parsedLimit) && parsedLimit > 0 && parsedLimit <= 100) {
+      limit = parsedLimit;
+    }
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.transactions.deleteAllStoreOwnerTransactions, {
+      storeOwnerId,
+      limit
+    });
+
+    return createResponse("success", { 
+      message: result.message, 
+      deletedCount: result.deletedCount,
+      hasMore: result.hasMore,
+      totalProcessed: result.totalProcessed
+    }, null);
+  } catch (error: any) {
+    console.error("Error deleting store owner transactions:", error);
+    return createResponse("error", null, error.message || "Failed to delete store owner transactions");
+  }
+});
+
+// HTTP action to get store owner transaction count
+export const getStoreOwnerTransactionCount = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const storeOwnerId = url.searchParams.get("storeOwnerId");
+
+  if (!storeOwnerId) {
+    return createResponse("error", null, "Missing storeOwnerId parameter");
+  }
+
+  try {
+    const result = await ctx.runQuery(api.features.transactions.getStoreOwnerTransactionCount, {
+      storeOwnerId
+    });
+
+    return createResponse("success", result, null);
+  } catch (error: any) {
+    console.error("Error getting store owner transaction count:", error);
+    return createResponse("error", null, error.message || "Failed to get transaction count");
+  }
+});
+
 // HTTP action to fetch all users
 export const getAllUsers = httpAction(async (ctx, request) => {
   try {

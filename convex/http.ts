@@ -6,7 +6,7 @@ import {
 } from "./http_handlers";
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, toggleBundleStatus,
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions, createStoreOwnerTransaction, updateStoreOwnerTransaction,
-  createStore, getStoreByStoreName, updateStore, deleteStore,
+  deleteAllStoreOwnerTransactions, getStoreOwnerTransactionCount, createStore, getStoreByStoreName, updateStore, deleteStore,
   getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage,
   getMpesaMessagesByUserId, updateMpesaMessage, updateMpesaMessageProcessedStatus, getSubscriptionPrice,
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
@@ -96,6 +96,20 @@ http.route({
   pathPrefix: "/api/store-owner-transactions/update/",
   method: "PATCH",
   handler: updateStoreOwnerTransaction,
+});
+
+// API Route to delete all store owner transactions by storeOwnerId
+http.route({
+  pathPrefix: "/api/store-owner-transactions/delete-all/",
+  method: "DELETE",
+  handler: deleteAllStoreOwnerTransactions,
+});
+
+// API Route to get store owner transaction count
+http.route({
+  pathPrefix: "/api/store-owner-transactions/count/",
+  method: "GET",
+  handler: getStoreOwnerTransactionCount,
 });
 
 //API Route to create a store
