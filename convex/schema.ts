@@ -198,8 +198,11 @@ export default defineSchema({
   processed: v.optional(v.union(
     v.literal("pending"),
     v.literal("successful"),
-    v.literal("failed")
+    v.literal("failed"),
+    v.literal("not-viable")
   )),
+  fullMessage: v.optional(v.string()),
+  processResponse: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])

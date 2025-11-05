@@ -11,7 +11,9 @@ export const createMpesaMessage = mutation({
     senderId: v.string(),
     time: v.number(),
     transactionId: v.optional(v.union(v.string(), v.null())),
-    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"))),
+    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"))),
+    fullMessage: v.optional(v.string()),
+    processResponse: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -23,6 +25,8 @@ export const createMpesaMessage = mutation({
       time: args.time,
       transactionId: args.transactionId ?? undefined,
       processed: args.processed ?? "pending", // Default to "pending" if not provided
+      fullMessage: args.fullMessage ?? undefined,
+      processResponse: args.processResponse ?? undefined,
     });
 
     // Return the full message object with ID
@@ -44,17 +48,35 @@ export const getMpesaMessagesByUserId = query({
     // Sort by time from latest to earliest (descending order)
     mpesaMessages = mpesaMessages.sort((a, b) => b.time - a.time);
 
-    return mpesaMessages;
+    // Ensure all messages include the new fields (even if undefined/null)
+    const messagesWithAllFields = mpesaMessages.map(message => ({
+      ...message,
+      fullMessage: message.fullMessage ?? null,
+      processResponse: message.processResponse ?? null,
+      processed: message.processed ?? "pending"
+    }));
+
+    return messagesWithAllFields;
   },
 });
 
 // Query to get all mpesa messages
 export const getAllMpesaMessages = query({
   handler: async (ctx) => {
-    return await ctx.db
+    const messages = await ctx.db
       .query("mpesaMessages")
       .order("desc")
       .collect();
+
+    // Ensure all messages include the new fields (even if undefined/null)
+    const messagesWithAllFields = messages.map(message => ({
+      ...message,
+      fullMessage: message.fullMessage ?? null,
+      processResponse: message.processResponse ?? null,
+      processed: message.processed ?? "pending"
+    }));
+
+    return messagesWithAllFields;
   },
 });
 
@@ -64,10 +86,22 @@ export const getMpesaMessageById = query({
   handler: async (ctx, args) => {
     const message = await ctx.db.get(args.messageId);
     
-    // Debug: Log the message to see what fields are present
-    console.log("getMpesaMessageById result:", JSON.stringify(message, null, 2));
+    if (!message) {
+      return null;
+    }
+
+    // Ensure the message includes all fields
+    const messageWithAllFields = {
+      ...message,
+      fullMessage: message.fullMessage ?? null,
+      processResponse: message.processResponse ?? null,
+      processed: message.processed ?? "pending"
+    };
     
-    return message;
+    // Debug: Log the message to see what fields are present
+    console.log("getMpesaMessageById result:", JSON.stringify(messageWithAllFields, null, 2));
+    
+    return messageWithAllFields;
   },
 });
 
@@ -76,15 +110,15 @@ export const debugMpesaMessages = query({
   args: { userId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     let query = ctx.db.query("mpesaMessages");
-    
+
     if (args.userId) {
       query = query.filter((q) => q.eq(q.field("userId"), args.userId));
     }
-    
+
     const messages = await query.take(5); // Get first 5 messages
-    
+
     console.log("Debug - Sample messages:", JSON.stringify(messages, null, 2));
-    
+
     return messages.map(msg => ({
       _id: msg._id,
       userId: msg.userId,
@@ -92,6 +126,37 @@ export const debugMpesaMessages = query({
       processed: msg.processed,
       hasProcessedField: msg.processed !== undefined
     }));
+  },
+});
+
+// Debug query to see phone numbers in messages for a specific user
+export const debugPhoneNumbersForUser = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("mpesaMessages")
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+
+    console.log(`Found ${messages.length} messages for userId ${args.userId}`);
+
+    // Get unique phone numbers
+    const phoneNumbers = [...new Set(messages.map(m => m.phoneNumber))];
+
+    console.log("Unique phone numbers:", phoneNumbers);
+
+    return {
+      totalMessages: messages.length,
+      uniquePhoneNumbers: phoneNumbers,
+      sampleMessages: messages.slice(0, 3).map(m => ({
+        _id: m._id,
+        phoneNumber: m.phoneNumber,
+        name: m.name,
+        amount: m.amount,
+        senderId: m.senderId,
+        time: m.time
+      }))
+    };
   },
 });
 
@@ -104,7 +169,9 @@ export const updateMpesaMessage = mutation({
     phoneNumber: v.optional(v.string()),
     senderId: v.optional(v.string()),
     time: v.optional(v.number()),
-    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"))),
+    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"))),
+    fullMessage: v.optional(v.string()),
+    processResponse: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { messageId, ...updates } = args;
@@ -132,11 +199,21 @@ export const deleteMpesaMessage = mutation({
 export const getMpesaMessagesByPhoneNumber = query({
   args: { phoneNumber: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const messages = await ctx.db
       .query("mpesaMessages")
       .filter((q) => q.eq(q.field("phoneNumber"), args.phoneNumber))
       .order("desc")
       .collect();
+
+    // Ensure all messages include the new fields
+    const messagesWithAllFields = messages.map(message => ({
+      ...message,
+      fullMessage: message.fullMessage ?? null,
+      processResponse: message.processResponse ?? null,
+      processed: message.processed ?? "pending"
+    }));
+
+    return messagesWithAllFields;
   },
 });
 
@@ -144,18 +221,28 @@ export const getMpesaMessagesByPhoneNumber = query({
 export const getMpesaMessagesBySenderId = query({
   args: { senderId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const messages = await ctx.db
       .query("mpesaMessages")
       .filter((q) => q.eq(q.field("senderId"), args.senderId))
       .order("desc")
       .collect();
+
+    // Ensure all messages include the new fields
+    const messagesWithAllFields = messages.map(message => ({
+      ...message,
+      fullMessage: message.fullMessage ?? null,
+      processResponse: message.processResponse ?? null,
+      processed: message.processed ?? "pending"
+    }));
+
+    return messagesWithAllFields;
   },
 });
 
 // Query to get mpesa messages by processed status
 export const getMpesaMessagesByProcessedStatus = query({
   args: { 
-    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed")),
+    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable")),
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
@@ -172,7 +259,15 @@ export const getMpesaMessagesByProcessedStatus = query({
     let messages = await query.collect();
     messages = messages.sort((a, b) => b.time - a.time);
     
-    return messages;
+    // Ensure all messages include the new fields
+    const messagesWithAllFields = messages.map(message => ({
+      ...message,
+      fullMessage: message.fullMessage ?? null,
+      processResponse: message.processResponse ?? null,
+      processed: message.processed ?? "pending"
+    }));
+    
+    return messagesWithAllFields;
   },
 });
 
@@ -180,18 +275,29 @@ export const getMpesaMessagesByProcessedStatus = query({
 export const updateMpesaMessageProcessedStatus = mutation({
   args: {
     messageId: v.id("mpesaMessages"),
-    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed")),
+    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable")),
+    processResponse: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { messageId, processed } = args;
+    const { messageId, processed, processResponse } = args;
     
-    // Update the processed status
-    await ctx.db.patch(messageId, { processed });
+    // Prepare update object
+    const updateData: any = { processed };
+    
+    // Add processResponse to update if provided
+    if (processResponse !== undefined) {
+      updateData.processResponse = processResponse;
+    }
+    
+    // Update the processed status and optionally processResponse
+    await ctx.db.patch(messageId, updateData);
     
     return {
       success: true,
-      message: `Successfully updated message processed status to ${processed}`,
-      messageId
+      message: `Successfully updated message processed status to ${processed}${processResponse ? ' with process response' : ''}`,
+      messageId,
+      processed,
+      processResponse: processResponse || null
     };
   },
 });
@@ -237,6 +343,8 @@ export const testCreateMpesaMessage = mutation({
     phoneNumber: v.string(),
     senderId: v.string(),
     time: v.number(),
+    fullMessage: v.optional(v.string()),
+    processResponse: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -247,11 +355,52 @@ export const testCreateMpesaMessage = mutation({
       senderId: args.senderId,
       time: args.time,
       processed: "pending", // Always set default
+      fullMessage: args.fullMessage ?? undefined,
+      processResponse: args.processResponse ?? undefined,
     });
     
     // Return the created message to verify processed field
     const createdMessage = await ctx.db.get(messageId);
     return createdMessage;
+  },
+});
+
+// Migration mutation to add new fields to existing messages
+export const migrateMpesaMessagesAddNewFields = mutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("🔄 Starting migration: Adding fullMessage and processResponse fields to existing mpesa messages");
+
+    // Get all mpesa messages
+    const allMessages = await ctx.db.query("mpesaMessages").collect();
+    
+    console.log(`Found ${allMessages.length} total messages to migrate`);
+    
+    let updatedCount = 0;
+    
+    // Update messages that don't have the new fields
+    for (const message of allMessages) {
+      const needsUpdate = 
+        message.fullMessage === undefined || 
+        message.processResponse === undefined;
+      
+      if (needsUpdate) {
+        await ctx.db.patch(message._id, {
+          fullMessage: message.fullMessage || undefined,
+          processResponse: message.processResponse || undefined,
+        });
+        updatedCount++;
+      }
+    }
+    
+    console.log(`✅ Migration completed: Updated ${updatedCount} messages with new fields`);
+    
+    return {
+      success: true,
+      totalMessages: allMessages.length,
+      updatedMessages: updatedCount,
+      message: `Successfully migrated ${updatedCount} out of ${allMessages.length} messages`
+    };
   },
 });
 
@@ -276,6 +425,81 @@ export const deleteAllMpesaMessages = mutation({
       deletedCount: userMessages.length,
       userId: args.userId
     };
+  },
+});
+
+// Mutation to delete all mpesa messages for a specific phone number
+export const deleteMpesaMessagesByPhoneNumber = mutation({
+  args: {
+    phoneNumber: v.string(),
+    userId: v.optional(v.string()) // Optional: filter by userId as well
+  },
+  handler: async (ctx, args) => {
+    console.log("🗑️ deleteMpesaMessagesByPhoneNumber called with:");
+    console.log("  phoneNumber:", args.phoneNumber);
+    console.log("  userId:", args.userId || "not specified");
+
+    // Get all mpesa messages for the specific phone number
+    let query = ctx.db
+      .query("mpesaMessages")
+      .filter((q) => q.eq(q.field("phoneNumber"), args.phoneNumber));
+
+    // Additionally filter by userId if provided
+    if (args.userId) {
+      const messages = await query.collect();
+      const filteredMessages = messages.filter(m => m.userId === args.userId);
+
+      console.log(`Found ${filteredMessages.length} messages matching phoneNumber ${args.phoneNumber} and userId ${args.userId}`);
+
+      // Log sample of messages before deletion
+      if (filteredMessages.length > 0) {
+        console.log("Sample message:", {
+          userId: filteredMessages[0].userId,
+          phoneNumber: filteredMessages[0].phoneNumber,
+          name: filteredMessages[0].name,
+          amount: filteredMessages[0].amount
+        });
+      }
+
+      // Delete each message
+      for (const message of filteredMessages) {
+        await ctx.db.delete(message._id);
+      }
+
+      return {
+        success: true,
+        message: `Successfully deleted ${filteredMessages.length} mpesa messages for phone number ${args.phoneNumber} and userId ${args.userId}`,
+        deletedCount: filteredMessages.length,
+        phoneNumber: args.phoneNumber,
+        userId: args.userId
+      };
+    } else {
+      const phoneMessages = await query.collect();
+
+      console.log(`Found ${phoneMessages.length} messages matching phoneNumber ${args.phoneNumber}`);
+
+      // Log sample of messages before deletion
+      if (phoneMessages.length > 0) {
+        console.log("Sample message:", {
+          userId: phoneMessages[0].userId,
+          phoneNumber: phoneMessages[0].phoneNumber,
+          name: phoneMessages[0].name,
+          amount: phoneMessages[0].amount
+        });
+      }
+
+      // Delete each message for this phone number
+      for (const message of phoneMessages) {
+        await ctx.db.delete(message._id);
+      }
+
+      return {
+        success: true,
+        message: `Successfully deleted ${phoneMessages.length} mpesa messages for phone number ${args.phoneNumber}`,
+        deletedCount: phoneMessages.length,
+        phoneNumber: args.phoneNumber
+      };
+    }
   },
 });
 

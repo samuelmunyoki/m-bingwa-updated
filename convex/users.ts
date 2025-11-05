@@ -582,6 +582,31 @@ export const debugPhoneNumber0706021479 = query({
 
 // Get userId by phone number for creating stores 
 // and bundles from app side (for login after OTP verification)
+// Helper function to normalize phone numbers for comparison
+// Handles formats like: +254712345678, 254712345678, 0712345678, 712345678
+function normalizePhoneNumber(phone: string): string {
+  // Remove all non-digit characters
+  const digitsOnly = phone.replace(/\D/g, '');
+
+  // If starts with 254, keep as is
+  if (digitsOnly.startsWith('254')) {
+    return digitsOnly;
+  }
+
+  // If starts with 0, replace with 254
+  if (digitsOnly.startsWith('0')) {
+    return '254' + digitsOnly.substring(1);
+  }
+
+  // If starts with 7 or 1 (assuming Kenyan number), add 254
+  if (digitsOnly.startsWith('7') || digitsOnly.startsWith('1')) {
+    return '254' + digitsOnly;
+  }
+
+  // Return as is for other cases
+  return digitsOnly;
+}
+
 export const getUserIdByPhone = query({
   args: {
     phoneNumber: v.string(),
@@ -591,7 +616,7 @@ export const getUserIdByPhone = query({
     console.log("phoneNumber:", phoneNumber);
     console.log("phoneNumber type:", typeof phoneNumber);
     console.log("phoneNumber length:", phoneNumber.length);
-    
+
     // Debug: Let's see all users first
     const allUsers = await ctx.db.query("users").collect();
     console.log("=== ALL USERS DEBUG ===");
@@ -606,16 +631,16 @@ export const getUserIdByPhone = query({
       console.log(`  name: ${u.name}`);
     });
     console.log("=== END DEBUG ===");
-    
+
     // Try the query
     const user = await ctx.db
       .query("users")
       .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
       .first();
-    
+
     console.log("=== DATABASE QUERY RESULT ===");
     console.log("User found by query:", !!user);
-    
+
     if (user) {
       console.log("✅ FOUND USER:");
       console.log("user._id:", user._id);
@@ -640,20 +665,20 @@ export const getUserIdByPhone = query({
       console.log("Response object:", successResponse);
       console.log("Response userId:", successResponse.userId);
       console.log("=== END QUERY RESPONSE ===");
-      
+
       return successResponse;
     } else {
       console.log("❌ No user found by query");
-      
+
       // Manual fallback search
       console.log("🔧 Trying manual search...");
       const manualMatch = allUsers.find(u => u.phoneNumber === phoneNumber) || null;
-      
+
       if (manualMatch) {
         console.log("🎯 MANUAL SEARCH FOUND USER!");
         console.log("This means there's a query issue, but user exists");
         console.log("Manual match userId:", manualMatch.userId);
-        
+
         const successResponse = {
           status: "success" as const,
           userId: manualMatch.userId,
@@ -661,11 +686,11 @@ export const getUserIdByPhone = query({
           email: manualMatch.email,
           phoneNumber: manualMatch.phoneNumber
         };
-        
+
         console.log("Returning manual search result:", successResponse);
         return successResponse;
       }
-      
+
       // Also try trimmed search
       const trimmedMatch = allUsers.find(u => u.phoneNumber?.trim() === phoneNumber.trim()) || null;
       if (trimmedMatch) {
@@ -678,9 +703,9 @@ export const getUserIdByPhone = query({
           phoneNumber: trimmedMatch.phoneNumber
         };
       }
-      
+
       console.log("❌ User truly not found");
-      
+
       const errorResponse = {
         status: "error" as const,
         message: "User not found",
@@ -689,10 +714,71 @@ export const getUserIdByPhone = query({
         email: null,
         phoneNumber: null
       };
-      
+
       console.log("❌ Returning error response:", errorResponse);
       return errorResponse;
     }
+  },
+});
+
+// New query to get user by phone number with normalization (handles any format)
+export const getUserByPhoneNormalized = query({
+  args: {
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, { phoneNumber }) => {
+    console.log("📱 getUserByPhoneNormalized called");
+    console.log("Original phoneNumber:", phoneNumber);
+
+    // Normalize the input phone number
+    const normalizedInput = normalizePhoneNumber(phoneNumber);
+    console.log("Normalized input:", normalizedInput);
+
+    // Get all users and normalize their phone numbers for comparison
+    const allUsers = await ctx.db.query("users").collect();
+
+    console.log(`Searching through ${allUsers.length} users`);
+
+    // Find user by normalized phone number
+    const matchedUser = allUsers.find(user => {
+      if (!user.phoneNumber) return false;
+      const normalizedUserPhone = normalizePhoneNumber(user.phoneNumber);
+      console.log(`Comparing: ${normalizedUserPhone} === ${normalizedInput}`);
+      return normalizedUserPhone === normalizedInput;
+    });
+
+    if (matchedUser) {
+      console.log("✅ User found!");
+      console.log("User details:", {
+        userId: matchedUser.userId,
+        name: matchedUser.name,
+        phoneNumber: matchedUser.phoneNumber
+      });
+
+      return {
+        status: "success" as const,
+        userId: matchedUser.userId,
+        name: matchedUser.name,
+        email: matchedUser.email,
+        phoneNumber: matchedUser.phoneNumber,
+        isSubscribed: matchedUser.isSubscribed,
+        subscriptionEnds: matchedUser.subscriptionEnds,
+        suspended: matchedUser.suspended
+      };
+    }
+
+    console.log("❌ No user found with phone number:", phoneNumber);
+    return {
+      status: "error" as const,
+      message: "User not found",
+      userId: null,
+      name: null,
+      email: null,
+      phoneNumber: null,
+      isSubscribed: null,
+      subscriptionEnds: null,
+      suspended: null
+    };
   },
 });
 
