@@ -203,6 +203,8 @@ export default defineSchema({
   )),
   fullMessage: v.optional(v.string()),
   processResponse: v.optional(v.string()),
+  offerName: v.optional(v.string()),
+  processedUSSD: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])

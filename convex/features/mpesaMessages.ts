@@ -14,6 +14,8 @@ export const createMpesaMessage = mutation({
     processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"))),
     fullMessage: v.optional(v.string()),
     processResponse: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    processedUSSD: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -27,6 +29,8 @@ export const createMpesaMessage = mutation({
       processed: args.processed ?? "pending", // Default to "pending" if not provided
       fullMessage: args.fullMessage ?? undefined,
       processResponse: args.processResponse ?? undefined,
+      offerName: args.offerName ?? "", // Default to empty string if not provided
+      processedUSSD: args.processedUSSD ?? "", // Default to empty string if not provided
     });
 
     // Return the full message object with ID
@@ -53,7 +57,9 @@ export const getMpesaMessagesByUserId = query({
       ...message,
       fullMessage: message.fullMessage ?? null,
       processResponse: message.processResponse ?? null,
-      processed: message.processed ?? "pending"
+      processed: message.processed ?? "pending",
+      offerName: message.offerName ?? "",
+      processedUSSD: message.processedUSSD ?? ""
     }));
 
     return messagesWithAllFields;
@@ -73,7 +79,9 @@ export const getAllMpesaMessages = query({
       ...message,
       fullMessage: message.fullMessage ?? null,
       processResponse: message.processResponse ?? null,
-      processed: message.processed ?? "pending"
+      processed: message.processed ?? "pending",
+      offerName: message.offerName ?? "",
+      processedUSSD: message.processedUSSD ?? ""
     }));
 
     return messagesWithAllFields;
@@ -95,7 +103,9 @@ export const getMpesaMessageById = query({
       ...message,
       fullMessage: message.fullMessage ?? null,
       processResponse: message.processResponse ?? null,
-      processed: message.processed ?? "pending"
+      processed: message.processed ?? "pending",
+      offerName: message.offerName ?? "",
+      processedUSSD: message.processedUSSD ?? ""
     };
     
     // Debug: Log the message to see what fields are present
@@ -172,6 +182,8 @@ export const updateMpesaMessage = mutation({
     processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"))),
     fullMessage: v.optional(v.string()),
     processResponse: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    processedUSSD: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const { messageId, ...updates } = args;
@@ -210,7 +222,9 @@ export const getMpesaMessagesByPhoneNumber = query({
       ...message,
       fullMessage: message.fullMessage ?? null,
       processResponse: message.processResponse ?? null,
-      processed: message.processed ?? "pending"
+      processed: message.processed ?? "pending",
+      offerName: message.offerName ?? "",
+      processedUSSD: message.processedUSSD ?? ""
     }));
 
     return messagesWithAllFields;
@@ -232,7 +246,9 @@ export const getMpesaMessagesBySenderId = query({
       ...message,
       fullMessage: message.fullMessage ?? null,
       processResponse: message.processResponse ?? null,
-      processed: message.processed ?? "pending"
+      processed: message.processed ?? "pending",
+      offerName: message.offerName ?? "",
+      processedUSSD: message.processedUSSD ?? ""
     }));
 
     return messagesWithAllFields;
@@ -264,7 +280,9 @@ export const getMpesaMessagesByProcessedStatus = query({
       ...message,
       fullMessage: message.fullMessage ?? null,
       processResponse: message.processResponse ?? null,
-      processed: message.processed ?? "pending"
+      processed: message.processed ?? "pending",
+      offerName: message.offerName ?? "",
+      processedUSSD: message.processedUSSD ?? ""
     }));
     
     return messagesWithAllFields;
@@ -277,9 +295,11 @@ export const updateMpesaMessageProcessedStatus = mutation({
     messageId: v.id("mpesaMessages"),
     processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable")),
     processResponse: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    processedUSSD: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const { messageId, processed, processResponse } = args;
+    const { messageId, processed, processResponse, offerName, processedUSSD } = args;
     
     // Prepare update object
     const updateData: any = { processed };
@@ -289,15 +309,27 @@ export const updateMpesaMessageProcessedStatus = mutation({
       updateData.processResponse = processResponse;
     }
     
-    // Update the processed status and optionally processResponse
+    // Add offerName to update if provided
+    if (offerName !== undefined) {
+      updateData.offerName = offerName;
+    }
+    
+    // Add processedUSSD to update if provided
+    if (processedUSSD !== undefined) {
+      updateData.processedUSSD = processedUSSD;
+    }
+    
+    // Update the processed status and optionally other fields
     await ctx.db.patch(messageId, updateData);
     
     return {
       success: true,
-      message: `Successfully updated message processed status to ${processed}${processResponse ? ' with process response' : ''}`,
+      message: `Successfully updated message processed status to ${processed}${processResponse ? ' with process response' : ''}${offerName ? ' with offer name' : ''}${processedUSSD ? ' with processed USSD' : ''}`,
       messageId,
       processed,
-      processResponse: processResponse || null
+      processResponse: processResponse || null,
+      offerName: offerName || null,
+      processedUSSD: processedUSSD || null
     };
   },
 });
@@ -345,6 +377,8 @@ export const testCreateMpesaMessage = mutation({
     time: v.number(),
     fullMessage: v.optional(v.string()),
     processResponse: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    processedUSSD: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -357,6 +391,8 @@ export const testCreateMpesaMessage = mutation({
       processed: "pending", // Always set default
       fullMessage: args.fullMessage ?? undefined,
       processResponse: args.processResponse ?? undefined,
+      offerName: args.offerName ?? "", // Default to empty string
+      processedUSSD: args.processedUSSD ?? "", // Default to empty string
     });
     
     // Return the created message to verify processed field
@@ -369,7 +405,7 @@ export const testCreateMpesaMessage = mutation({
 export const migrateMpesaMessagesAddNewFields = mutation({
   args: {},
   handler: async (ctx) => {
-    console.log("🔄 Starting migration: Adding fullMessage and processResponse fields to existing mpesa messages");
+    console.log("🔄 Starting migration: Adding fullMessage, processResponse, and offerName fields to existing mpesa messages");
 
     // Get all mpesa messages
     const allMessages = await ctx.db.query("mpesaMessages").collect();
@@ -382,12 +418,14 @@ export const migrateMpesaMessagesAddNewFields = mutation({
     for (const message of allMessages) {
       const needsUpdate = 
         message.fullMessage === undefined || 
-        message.processResponse === undefined;
+        message.processResponse === undefined ||
+        message.offerName === undefined;
       
       if (needsUpdate) {
         await ctx.db.patch(message._id, {
           fullMessage: message.fullMessage || undefined,
           processResponse: message.processResponse || undefined,
+          offerName: message.offerName || "", // Default to empty string
         });
         updatedCount++;
       }

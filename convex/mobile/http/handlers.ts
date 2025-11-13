@@ -1351,7 +1351,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1379,6 +1379,14 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processResponse must be a string");
   }
 
+  if (offerName && typeof offerName !== "string") {
+    return createResponse("error", null, "offerName must be a string");
+  }
+
+  if (processedUSSD && typeof processedUSSD !== "string") {
+    return createResponse("error", null, "processedUSSD must be a string");
+  }
+
   try {
     const createdMessage = await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
       userId,
@@ -1390,7 +1398,9 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       transactionId,
       processed: processed || "pending", // Use provided value or default to "pending"
       fullMessage,
-      processResponse
+      processResponse,
+      offerName,
+      processedUSSD
     });
 
     return createResponse("success", {
@@ -1434,7 +1444,7 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse } = body;
+  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1454,6 +1464,14 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processResponse must be a string");
   }
 
+  if (offerName !== undefined && typeof offerName !== "string") {
+    return createResponse("error", null, "offerName must be a string");
+  }
+
+  if (processedUSSD !== undefined && typeof processedUSSD !== "string") {
+    return createResponse("error", null, "processedUSSD must be a string");
+  }
+
   try {
     const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessage, {
       messageId,
@@ -1464,7 +1482,9 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
       time,
       processed,
       fullMessage,
-      processResponse
+      processResponse,
+      offerName,
+      processedUSSD
     });
     
     return createResponse("success", { message: updatedMessage }, null);
@@ -1487,7 +1507,7 @@ export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request)
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, processed, processResponse } = body;
+  const { messageId, processed, processResponse, offerName, processedUSSD } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1507,6 +1527,16 @@ export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request)
     // Add processResponse if provided
     if (processResponse !== undefined) {
       mutationArgs.processResponse = processResponse;
+    }
+    
+    // Add offerName if provided
+    if (offerName !== undefined) {
+      mutationArgs.offerName = offerName;
+    }
+    
+    // Add processedUSSD if provided
+    if (processedUSSD !== undefined) {
+      mutationArgs.processedUSSD = processedUSSD;
     }
     
     const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessageProcessedStatus, mutationArgs);
