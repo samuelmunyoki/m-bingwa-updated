@@ -7,13 +7,14 @@ import {
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, toggleBundleStatus,
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions, createStoreOwnerTransaction, updateStoreOwnerTransaction,
   deleteAllStoreOwnerTransactions, getStoreOwnerTransactionCount, createStore, getStoreByStoreName, updateStore, deleteStore,
-  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, createMpesaMessage,
+  getStoreByUserId, createUserIfNotExists, getUserIdByPhone, getUserByPhoneNormalized, createMpesaMessage,
   getMpesaMessagesByUserId, updateMpesaMessage, updateMpesaMessageProcessedStatus, getSubscriptionPrice,
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
   createScheduledEvent, getScheduledEvents, updateScheduledEvent, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
   debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,
-  updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages} from "./mobile/http/handlers";
+  updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages, deleteMpesaMessagesByPhoneNumber,
+  migrateMpesaMessages} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -161,6 +162,13 @@ http.route({
   handler: getUserIdByPhone,
 });
 
+//API Route to get user by phone number (normalized - handles any phone format)
+http.route({
+  pathPrefix: "/api/users/get-by-phone/",
+  method: "GET",
+  handler: getUserByPhoneNormalized,
+});
+
 // API Route to create mpesa message
 http.route({
   pathPrefix: "/api/mpesa-messages/create/",
@@ -194,6 +202,20 @@ http.route({
   pathPrefix: "/api/mpesa-messages/delete-all/",
   method: "DELETE",
   handler: deleteAllMpesaMessages,
+});
+
+// API Route to delete all mpesa messages for a specific phone number
+http.route({
+  pathPrefix: "/api/mpesa-messages/delete-by-phone/",
+  method: "DELETE",
+  handler: deleteMpesaMessagesByPhoneNumber,
+});
+
+// API Route to run mpesa messages migration
+http.route({
+  pathPrefix: "/api/mpesa-messages/migrate/",
+  method: "POST",
+  handler: migrateMpesaMessages,
 });
 
 //API Route to get subscription price

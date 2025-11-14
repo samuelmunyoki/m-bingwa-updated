@@ -1351,7 +1351,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1366,8 +1366,25 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
   }
 
   // Validate processed field if provided
-  if (processed && !["pending", "successful", "failed"].includes(processed)) {
-    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', or 'failed'");
+  if (processed && !["pending", "successful", "failed", "not-viable"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', or 'not-viable'");
+  }
+
+  // Validate optional string fields
+  if (fullMessage && typeof fullMessage !== "string") {
+    return createResponse("error", null, "fullMessage must be a string");
+  }
+
+  if (processResponse && typeof processResponse !== "string") {
+    return createResponse("error", null, "processResponse must be a string");
+  }
+
+  if (offerName && typeof offerName !== "string") {
+    return createResponse("error", null, "offerName must be a string");
+  }
+
+  if (processedUSSD && typeof processedUSSD !== "string") {
+    return createResponse("error", null, "processedUSSD must be a string");
   }
 
   try {
@@ -1379,7 +1396,11 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       senderId,
       time,
       transactionId,
-      processed: processed || "pending" // Use provided value or default to "pending"
+      processed: processed || "pending", // Use provided value or default to "pending"
+      fullMessage,
+      processResponse,
+      offerName,
+      processedUSSD
     });
 
     return createResponse("success", {
@@ -1423,15 +1444,32 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, name, amount, phoneNumber, senderId, time, processed } = body;
+  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
   }
 
   // Validate processed field if provided
-  if (processed && !["pending", "successful", "failed"].includes(processed)) {
-    return createResponse("error", null, "Invalid processed status. Must be pending, successful, or failed");
+  if (processed && !["pending", "successful", "failed", "not-viable"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', or 'not-viable'");
+  }
+
+  // Validate optional string fields
+  if (fullMessage !== undefined && typeof fullMessage !== "string") {
+    return createResponse("error", null, "fullMessage must be a string");
+  }
+
+  if (processResponse !== undefined && typeof processResponse !== "string") {
+    return createResponse("error", null, "processResponse must be a string");
+  }
+
+  if (offerName !== undefined && typeof offerName !== "string") {
+    return createResponse("error", null, "offerName must be a string");
+  }
+
+  if (processedUSSD !== undefined && typeof processedUSSD !== "string") {
+    return createResponse("error", null, "processedUSSD must be a string");
   }
 
   try {
@@ -1442,7 +1480,11 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
       phoneNumber,
       senderId,
       time,
-      processed
+      processed,
+      fullMessage,
+      processResponse,
+      offerName,
+      processedUSSD
     });
     
     return createResponse("success", { message: updatedMessage }, null);
@@ -1465,21 +1507,39 @@ export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request)
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, processed } = body;
+  const { messageId, processed, processResponse, offerName, processedUSSD } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
   }
 
-  if (!processed || !["pending", "successful", "failed"].includes(processed)) {
-    return createResponse("error", null, "Invalid processed status. Must be pending, successful, or failed");
+  if (!processed || !["pending", "successful", "failed", "not-viable"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', or 'not-viable'");
   }
 
   try {
-    const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessageProcessedStatus, {
+    // Prepare mutation arguments
+    const mutationArgs: any = {
       messageId,
       processed
-    });
+    };
+    
+    // Add processResponse if provided
+    if (processResponse !== undefined) {
+      mutationArgs.processResponse = processResponse;
+    }
+    
+    // Add offerName if provided
+    if (offerName !== undefined) {
+      mutationArgs.offerName = offerName;
+    }
+    
+    // Add processedUSSD if provided
+    if (processedUSSD !== undefined) {
+      mutationArgs.processedUSSD = processedUSSD;
+    }
+    
+    const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessageProcessedStatus, mutationArgs);
     
     return createResponse("success", { message: updatedMessage }, null);
   } catch (error: any) {
@@ -2526,5 +2586,174 @@ export const deleteAllMpesaMessages = httpAction(async (ctx, request) => {
   } catch (error) {
     console.error(error);
     return createResponse("error", null, "Failed to delete mpesa messages for user");
+  }
+});
+
+// HTTP action to run migration for mpesa messages
+export const migrateMpesaMessages = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.mpesaMessages.migrateMpesaMessagesAddNewFields);
+    
+    return createResponse("success", {
+      message: result.message,
+      totalMessages: result.totalMessages,
+      updatedMessages: result.updatedMessages
+    }, null);
+  } catch (error) {
+    console.error("Migration error:", error);
+    return createResponse("error", null, "Failed to run migration");
+  }
+});
+
+// HTTP action to get user by phone number (with normalization to handle any format)
+export const getUserByPhoneNormalized = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  console.log("📱 getUserByPhoneNormalized HTTP ACTION called");
+  console.log("Request URL:", request.url);
+  console.log("Extracted phoneNumber:", phoneNumber);
+
+  if (!phoneNumber) {
+    console.log("❌ Missing phoneNumber parameter");
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  // Validate phone number format
+  if (typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
+    console.log("❌ Invalid phoneNumber format");
+    return createResponse("error", null, "Invalid phoneNumber format");
+  }
+
+  try {
+    console.log("📞 Calling ctx.runQuery with phoneNumber:", phoneNumber);
+
+    // Call the Convex query
+    const result = await ctx.runQuery(api.users.getUserByPhoneNormalized, {
+      phoneNumber
+    });
+
+    console.log("=== QUERY RESULT ===");
+    console.log("Raw result:", JSON.stringify(result, null, 2));
+    console.log("Result status:", result?.status);
+    console.log("=== END QUERY RESULT ===");
+
+    if (result && result.status === "success") {
+      console.log("✅ Success result:");
+      console.log("- userId:", result.userId);
+      console.log("- name:", result.name);
+      console.log("- phoneNumber:", result.phoneNumber);
+
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    } else {
+      console.log("❌ Query returned error status or no result");
+      console.log("Result message:", result?.message);
+
+      return new Response(JSON.stringify(result), {
+        status: 200, // Still return 200 OK for application-level errors
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+  } catch (error) {
+    console.error("❌ Exception in getUserByPhoneNormalized:", error);
+
+    const errorResponse = {
+      status: "error",
+      message: "Internal server error",
+      userId: null,
+      name: null,
+      email: null,
+      phoneNumber: null
+    };
+
+    return new Response(JSON.stringify(errorResponse), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    });
+  }
+});
+
+// HTTP action to delete all mpesa messages for a specific phone number
+// This endpoint: 1) Gets userId by phone number, 2) Deletes all mpesa messages for that userId
+export const deleteMpesaMessagesByPhoneNumber = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  // Validate phone number format
+  if (typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
+    return createResponse("error", null, "Invalid phoneNumber format");
+  }
+
+  console.log("🗑️ Deleting mpesa messages by phone number:");
+  console.log("  phoneNumber:", phoneNumber);
+
+  try {
+    // Step 1: Get user by phone number (with normalization)
+    console.log("Step 1: Looking up user by phone number...");
+    const userResult = await ctx.runQuery(api.users.getUserByPhoneNormalized, {
+      phoneNumber
+    });
+
+    if (!userResult || userResult.status !== "success" || !userResult.userId) {
+      console.log("❌ User not found for phone number:", phoneNumber);
+      return createResponse("error", null, `No user found with phone number: ${phoneNumber}`);
+    }
+
+    const userId = userResult.userId;
+    console.log("✅ User found:");
+    console.log("  userId:", userId);
+    console.log("  name:", userResult.name);
+    console.log("  phoneNumber:", userResult.phoneNumber);
+
+    // Step 2: Delete all mpesa messages for this userId
+    console.log("Step 2: Deleting all mpesa messages for userId:", userId);
+    const deleteResult = await ctx.runMutation(api.features.mpesaMessages.deleteAllMpesaMessages, {
+      userId
+    });
+
+    console.log("✅ Deletion result:");
+    console.log("  deletedCount:", deleteResult.deletedCount);
+    console.log("  message:", deleteResult.message);
+
+    return createResponse("success", {
+      message: `Successfully deleted ${deleteResult.deletedCount} mpesa messages for phone number ${phoneNumber}`,
+      deletedCount: deleteResult.deletedCount,
+      phoneNumber: phoneNumber,
+      userId: userId,
+      userName: userResult.name
+    }, null);
+  } catch (error) {
+    console.error("❌ Error deleting mpesa messages:", error);
+    return createResponse("error", null, "Failed to delete mpesa messages for phone number");
   }
 });
