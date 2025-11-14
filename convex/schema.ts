@@ -107,6 +107,10 @@ export default defineSchema({
     offerDuration: v.optional(v.string()),
     offerPrice: v.optional(v.number()),
     offerNum: v.optional(v.string()),
+    dialingSim: v.string(),
+    isMultiSession: v.boolean(),
+    isSimpleUSSD: v.boolean(),
+    responseValidatorText: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_messageId", ["messageId"]),

@@ -1882,7 +1882,11 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       offerName,
       offerDuration,
       offerPrice,
-      offerNum
+      offerNum,
+      dialingSim,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText
     } = await request.json();
 
     const result = await ctx.runMutation(api.features.scheduled_events.createScheduledEvent, {
@@ -1897,7 +1901,11 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       offerName,
       offerDuration,
       offerPrice,
-      offerNum
+      offerNum,
+      dialingSim,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText
     });
 
     // Format response to match what Android expects
@@ -2227,7 +2235,11 @@ export const updateScheduledEvent = httpAction(async (ctx, request) => {
       offerName,
       offerDuration,
       offerPrice,
-      offerNum
+      offerNum,
+      dialingSim,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText
     } = await request.json();
 
     if (!id) {
@@ -2260,7 +2272,11 @@ export const updateScheduledEvent = httpAction(async (ctx, request) => {
       offerName,
       offerDuration,
       offerPrice,
-      offerNum
+      offerNum,
+      dialingSim,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText
     });
 
     return new Response(JSON.stringify({

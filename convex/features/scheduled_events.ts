@@ -94,6 +94,10 @@ export const createScheduledEvent = mutation({
     offerDuration: v.string(),
     offerPrice: v.number(),
     offerNum: v.string(),
+    dialingSim: v.string(),
+    isMultiSession: v.boolean(),
+    isSimpleUSSD: v.boolean(),
+    responseValidatorText: v.optional(v.string()),
   },
   handler: async (
     ctx,
@@ -110,6 +114,10 @@ export const createScheduledEvent = mutation({
       offerDuration,
       offerPrice,
       offerNum,
+      dialingSim,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText,
     }
   ) => {
     try {
@@ -127,7 +135,11 @@ export const createScheduledEvent = mutation({
         offerName,
         offerDuration,
         offerPrice,
-        offerNum
+        offerNum,
+        dialingSim,
+        isMultiSession,
+        isSimpleUSSD,
+        responseValidatorText,
       });
 
       // Get the created schedule to return it
@@ -239,7 +251,11 @@ export const updateScheduledEvent = mutation({
     offerName: v.optional(v.string()),
     offerDuration: v.optional(v.string()),
     offerPrice: v.optional(v.number()),
-    offerNum: v.optional(v.string())
+    offerNum: v.optional(v.string()),
+    dialingSim: v.optional(v.string()),
+    isMultiSession: v.optional(v.boolean()),
+    isSimpleUSSD: v.optional(v.boolean()),
+    responseValidatorText: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<{ status: string; message: string }> => {
     try {
@@ -267,6 +283,10 @@ export const updateScheduledEvent = mutation({
       if (args.offerDuration !== undefined) updateFields.offerDuration = args.offerDuration;
       if (args.offerPrice !== undefined) updateFields.offerPrice = args.offerPrice;
       if (args.offerNum !== undefined) updateFields.offerNum = args.offerNum;
+      if (args.dialingSim !== undefined) updateFields.dialingSim = args.dialingSim;
+      if (args.isMultiSession !== undefined) updateFields.isMultiSession = args.isMultiSession;
+      if (args.isSimpleUSSD !== undefined) updateFields.isSimpleUSSD = args.isSimpleUSSD;
+      if (args.responseValidatorText !== undefined) updateFields.responseValidatorText = args.responseValidatorText;
 
       // Update the scheduled event
       await ctx.db.patch(ev._id, updateFields);
@@ -320,11 +340,16 @@ export const checkScheduledEvents = mutation({
               ussdCode: event.ussdCode,
               scheduledTimeStamp: nextScheduledTime,
               status: "PENDING",
-              ...(event.offerId && { offerId: event.offerId }),
-              ...(event.offerName && { offerName: event.offerName }),
-              ...(event.offerDuration && { offerDuration: event.offerDuration }),
-              ...(event.offerPrice && { offerPrice: event.offerPrice }),
-              ...(event.offerNum && { offerNum: event.offerNum }),
+              offerId: event.offerId || "",
+              offerName: event.offerName || "",
+              offerDuration: event.offerDuration || "",
+              offerPrice: event.offerPrice || 0,
+              offerNum: event.offerNum || "",
+              // NEW FIELDS WITH DEFAULTS
+              dialingSim: event.dialingSim || "SIM1",
+              isMultiSession: event.isMultiSession ?? false,
+              isSimpleUSSD: event.isSimpleUSSD ?? false,
+              responseValidatorText: event.responseValidatorText || undefined,
             });
           }
 
