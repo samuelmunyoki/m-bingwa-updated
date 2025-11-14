@@ -94,55 +94,34 @@ export const createScheduledEvent = mutation({
     offerDuration: v.string(),
     offerPrice: v.number(),
     offerNum: v.string(),
-    dialingSim: v.string(),
-    isMultiSession: v.boolean(),
-    isSimpleUSSD: v.boolean(),
+    dialingSim: v.optional(v.string()),
+    isMultiSession: v.optional(v.boolean()),
+    isSimpleUSSD: v.optional(v.boolean()),
     responseValidatorText: v.optional(v.string()),
   },
-  handler: async (
-    ctx,
-    {
-      ussdCode,
-      userId,
-      repeatDays,
-      status,
-      scheduledTimeStamp,
-      repeatDaily,
-      messageId,
-      offerId,
-      offerName,
-      offerDuration,
-      offerPrice,
-      offerNum,
-      dialingSim,
-      isMultiSession,
-      isSimpleUSSD,
-      responseValidatorText,
-    }
-  ) => {
+  handler: async (ctx, args) => {
     try {
-      // Insert and capture the ID
       const scheduleId = await ctx.db.insert("scheduled_events", {
-        ussdCode,
-        userId,
-        repeatDays,
-        status,
-        unscheduled: scheduledTimeStamp === undefined,
-        scheduledTimeStamp,
-        repeatDaily,
-        messageId,
-        offerId,
-        offerName,
-        offerDuration,
-        offerPrice,
-        offerNum,
-        dialingSim,
-        isMultiSession,
-        isSimpleUSSD,
-        responseValidatorText,
+        ussdCode: args.ussdCode,
+        userId: args.userId,
+        repeatDays: args.repeatDays,
+        status: args.status,
+        unscheduled: args.scheduledTimeStamp === undefined,
+        scheduledTimeStamp: args.scheduledTimeStamp,
+        repeatDaily: args.repeatDaily,
+        messageId: args.messageId,
+        offerId: args.offerId,
+        offerName: args.offerName,
+        offerDuration: args.offerDuration,
+        offerPrice: args.offerPrice,
+        offerNum: args.offerNum,
+        // USE DEFAULTS IF NOT PROVIDED
+        dialingSim: args.dialingSim || "SIM1",
+        isMultiSession: args.isMultiSession ?? false,
+        isSimpleUSSD: args.isSimpleUSSD ?? false,
+        responseValidatorText: args.responseValidatorText,
       });
 
-      // Get the created schedule to return it
       const createdSchedule = await ctx.db.get(scheduleId);
 
       return {
