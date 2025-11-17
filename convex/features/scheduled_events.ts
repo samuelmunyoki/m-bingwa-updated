@@ -84,7 +84,9 @@ export const createScheduledEvent = mutation({
       v.literal("SUCCESS"),
       v.literal("ERRORED"),
       v.literal("CANCELLED"),
-      v.literal("QUEUED")
+      v.literal("QUEUED"),
+      v.literal("EXECUTED"),
+      v.literal("FAILED")
     ),
     scheduledTimeStamp: v.number(),
     repeatDaily: v.boolean(),
@@ -188,7 +190,9 @@ export const updateEventStatus = mutation({
       v.literal("SUCCESS"),
       v.literal("ERRORED"),
       v.literal("CANCELLED"),
-      v.literal("QUEUED")
+      v.literal("QUEUED"),
+      v.literal("EXECUTED"),
+      v.literal("FAILED")
     ),
     messageId: v.optional(v.string()),
   },
@@ -217,7 +221,9 @@ export const updateScheduledEvent = mutation({
       v.literal("SUCCESS"),
       v.literal("ERRORED"),
       v.literal("CANCELLED"),
-      v.literal("QUEUED")
+      v.literal("QUEUED"),
+      v.literal("EXECUTED"),
+      v.literal("FAILED")
     )),
     messageId: v.optional(v.string()),
     userId: v.optional(v.string()),

@@ -96,7 +96,9 @@ export default defineSchema({
       v.literal("SUCCESS"),
       v.literal("ERRORED"),
       v.literal("CANCELLED"),
-      v.literal("QUEUED")
+      v.literal("QUEUED"),
+      v.literal("EXECUTED"),
+      v.literal("FAILED")
     ),
     unscheduled: v.boolean(),
     scheduledTimeStamp: v.number(),
