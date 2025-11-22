@@ -2578,6 +2578,50 @@ export const deleteUserSenderRelation = httpAction(async (ctx, request) => {
   }
 });
 
+// HTTP action to delete mpesa message by ID
+export const deleteMpesaMessage = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { messageId } = body;
+
+  if (!messageId) {
+    return createResponse("error", null, "Missing messageId parameter");
+  }
+
+  try {
+    // First check if the message exists
+    const message = await ctx.runQuery(api.features.mpesaMessages.getMpesaMessageById, {
+      messageId
+    });
+
+    if (!message) {
+      return createResponse("error", null, "Message not found");
+    }
+
+    // Delete the message
+    await ctx.runMutation(api.features.mpesaMessages.deleteMpesaMessage, {
+      messageId
+    });
+
+    return createResponse("success", {
+      message: "Mpesa message deleted successfully",
+      deletedMessageId: messageId
+    }, null);
+  } catch (error: any) {
+    console.error("Error deleting mpesa message:", error);
+    return createResponse("error", null, error.message || "Failed to delete mpesa message");
+  }
+});
+
 // HTTP action to delete all mpesa messages for a specific user
 export const deleteAllMpesaMessages = httpAction(async (ctx, request) => {
   if (request.method !== "DELETE") {
