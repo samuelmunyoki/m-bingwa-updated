@@ -208,6 +208,13 @@ http.route({
   handler: updateMpesaMessageProcessedStatus,
 });
 
+// API Route to delete mpesa message by ID
+http.route({
+  pathPrefix: "/api/mpesa-messages/delete/",
+  method: "DELETE",
+  handler: deleteMpesaMessage,
+});
+
 // API Route to delete all mpesa messages for a specific user
 http.route({
   pathPrefix: "/api/mpesa-messages/delete-all/",
