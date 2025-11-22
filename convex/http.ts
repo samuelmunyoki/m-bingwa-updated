@@ -12,7 +12,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
   createScheduledEvent, getScheduledEvents, updateScheduledEvent, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
-  debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,
+  debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,deleteMpesaMessage,
   updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages, deleteMpesaMessagesByPhoneNumber,
   migrateMpesaMessages, 
   createPromoCode,
