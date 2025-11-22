@@ -227,4 +227,54 @@ export default defineSchema({
     .index("by_sender_id", ["senderId"])
     .index("by_user_sender", ["userId", "senderId"])
     .index("by_timestamp", ["lastUpdateTimeStamp"]),
+
+
+  promoCodes: defineTable({
+     promoCode: v.string(), 
+     validDays: v.number(), 
+     endDate: v.number(), 
+     createdAt: v.number(),
+     isActive: v.boolean(), 
+     description: v.optional(v.string()), 
+     maxUsages: v.optional(v.number()), 
+     currentUsages: v.optional(v.number()),
+  })
+    .index("by_code", ["promoCode"])
+    .index("by_active", ["isActive"])
+    .index("by_end_date", ["endDate"]),
+
+  promoUsers: defineTable({
+     userId: v.string(),
+     promoCode: v.string(),
+     usedAt: v.number(),
+     subscriptionExtended: v.number(), 
+     subscriptionEnds: v.number(), 
+  })
+    .index("by_user", ["userId"])
+    .index("by_code", ["promoCode"])
+    .index("by_user_and_code", ["userId", "promoCode"]),
+
+  airtimeTransactions: defineTable({
+     userId: v.string(),
+     phoneNumber: v.string(),
+     recipientNumber: v.string(), // 0743020413
+     amount: v.number(),
+     transactionDate: v.number(), 
+     ussdCode: v.string(),
+     ussdResponse: v.string(), 
+     parsedAmount: v.optional(v.number()), 
+     parsedRecipient: v.optional(v.string()), 
+     status: v.union(v.literal("PENDING"), v.literal("SUCCESS"), v.literal("FAILED")),
+     subscriptionEnds: v.number(), 
+     subscriptionDays: v.number(), 
+     paidDays: v.number(), 
+     promoDays: v.optional(v.number()), 
+     promoCode: v.optional(v.string()), 
+     failureReason: v.optional(v.string()), 
+     simSlot: v.string(), 
+})
+     .index("by_user", ["userId"])
+     .index("by_status", ["status"])
+     .index("by_date", ["transactionDate"])
+     .index("by_user_and_status", ["userId", "status"]),
 });

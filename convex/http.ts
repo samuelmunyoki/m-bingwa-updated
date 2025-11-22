@@ -14,7 +14,18 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
   debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,
   updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages, deleteMpesaMessagesByPhoneNumber,
-  migrateMpesaMessages} from "./mobile/http/handlers";
+  migrateMpesaMessages, 
+  createPromoCode,
+  recordPromoCodeUsage,
+  validatePromoCode,
+  getAllPromoCodes,
+  getPromoCodeByCode,
+  getPromoCodeStats,
+  applyPromoCodeStandalone,
+  createAirtimeTransaction,
+  getUserAirtimeTransactions,
+  handlePromoCodeOptions,
+  handleAirtimeTransactionOptions} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -354,5 +365,79 @@ http.route({
   handler: postSMSCallback,
 });
 
+
+// Route to validate promo code
+http.route({
+  pathPrefix: "/api/promo-codes/validate/",
+  method: "GET",
+  handler: validatePromoCode,
+});
+
+// CORS preflight for promo codes
+http.route({
+  pathPrefix: "/api/promo-codes/",
+  method: "OPTIONS",
+  handler: handlePromoCodeOptions,
+});
+
+http.route({
+  pathPrefix: "/api/promo-codes/create/",
+  method: "POST",
+  handler: createPromoCode,
+});
+
+http.route({
+  pathPrefix: "/api/promo-codes/record-usage/",
+  method: "POST",
+  handler: recordPromoCodeUsage,
+});
+
+http.route({
+  pathPrefix: "/api/promo-codes/all/",
+  method: "GET",
+  handler: getAllPromoCodes,
+});
+
+// Get specific promo code
+http.route({
+  pathPrefix: "/api/promo-codes/get/",
+  method: "GET",
+  handler: getPromoCodeByCode,
+});
+
+// Get promo code statistics
+http.route({
+  pathPrefix: "/api/promo-codes/stats/",
+  method: "GET",
+  handler: getPromoCodeStats,
+});
+
+// Route to apply promo code in standalone mode
+http.route({
+  pathPrefix: "/api/promo-codes/apply-standalone/",
+  method: "POST",
+  handler: applyPromoCodeStandalone,
+});
+
+// Route to create airtime transaction
+http.route({
+  pathPrefix: "/api/airtime-transactions/create/",
+  method: "POST",
+  handler: createAirtimeTransaction,
+});
+
+// Route to get user's airtime transactions
+http.route({
+  pathPrefix: "/api/airtime-transactions/user/",
+  method: "GET",
+  handler: getUserAirtimeTransactions,
+});
+
+// CORS preflight for airtime transactions
+http.route({
+  pathPrefix: "/api/airtime-transactions/",
+  method: "OPTIONS",
+  handler: handleAirtimeTransactionOptions,
+});
 
 export default http;

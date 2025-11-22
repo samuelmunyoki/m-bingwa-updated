@@ -54,107 +54,6 @@ export const downloadUserData = httpAction(async (ctx, request) => {
   }
 });
 
-// HTTP action to update user data
-// export const updateUserData = httpAction(async (ctx, request) => {
-//   if (request.method !== "POST") {
-//     return createResponse("error", null, "Method not allowed");
-//   }
-
-//   let body;
-//   try {
-//     body = await request.json();
-//   } catch (error) {
-//     return createResponse("error", null, "Invalid JSON body");
-//   }
-
-//   const { data } = body;
-//   if (!data || !data.user || !data.user.userId) {
-//     return createResponse(
-//       "error",
-//       null,
-//       "Missing user data or userId in request body"
-//     );
-//   }
-
-//   const { user, bundles, stores, scheduledEvents } = data;
-
-//   try {
-//     const updateResults: {
-//       bundles?: {
-//         updatedBundles: any[];
-//         errors: any[];
-//       };
-//       stores?: {
-//         updatedStores: any[];
-//         errors: any[];
-//       };
-//       scheduledEvents?: {
-//         updatedEvents: any[];
-//         errors: any[];
-//       };
-//     } = {};
-
-//     // Update bundles if provided
-//     if (Array.isArray(bundles)) {
-//       updateResults.bundles = await ctx.runMutation(
-//         api.mobile.actions.update_user_data.updateBundles,
-//         {
-//           userId: user.userId,
-//           bundles,
-//         }
-//       );
-//       if (updateResults.bundles.errors.length > 0) {
-//         console.error("Errors updating bundles:", updateResults.bundles.errors);
-//       }
-//     }
-
-//     // Update stores if provided
-//     if (Array.isArray(stores)) {
-//       updateResults.stores = await ctx.runMutation(
-//         api.mobile.actions.update_user_data.updateStores,
-//         {
-//           userId: user.userId,
-//           stores,
-//         }
-//       );
-//       if (updateResults.stores.errors.length > 0) {
-//         console.error("Errors updating stores:", updateResults.stores.errors);
-//       }
-//     }
-
-//     // Update scheduled events if provided
-//     if (Array.isArray(scheduledEvents)) {
-//       updateResults.scheduledEvents = await ctx.runMutation(
-//         api.mobile.actions.update_user_data.updateScheduledEvents,
-//         {
-//           userId: user.userId,
-//           scheduledEvents,
-//         }
-//       );
-//       if (updateResults.scheduledEvents.errors.length > 0) {
-//         console.error(
-//           "Errors updating scheduled events:",
-//           updateResults.scheduledEvents.errors
-//         );
-//       }
-//     }
-
-//     return createResponse("success", {
-//       message: "User data updated",
-//       results: updateResults,
-//     });
-//   } catch (error: any) {
-//     console.error(error);
-//     return createResponse(
-//       "error",
-//       null,
-//       `Failed to update user data: ${error.message}`
-//     );
-//   }
-// });
-
-
-
 // HTTP Action for OTP Verification
 export const verifyOtpCode = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
@@ -1570,63 +1469,6 @@ export const getSubscriptionPrice = httpAction(async (ctx, request) => {
 });
 
 
-// HTTP action to update subscription
-/**export const updateSubscription = httpAction(async (ctx, request) => {
-  if (request.method !== "POST") {
-    return createResponse("error", null, "Method not allowed");
-  }
-
-  let body;
-  try {
-    body = await request.json();
-  } catch (error) {
-    return createResponse("error", null, "Invalid JSON body");
-  }
-
-  // Validate required fields
-  if (!body || !body.userId || !body.phoneNumber || !body.amount || !body.subscriptionEnds) {
-    return createResponse(
-      "error", 
-      null, 
-      "Missing required fields: userId, phoneNumber, amount, subscriptionEnds"
-    );
-  }
-
-  // Validate data types
-  if (typeof body.subscriptionEnds !== "number") {
-    return createResponse("error", null, "subscriptionEnds must be a number (timestamp)");
-  }
-
-  if (typeof body.amount !== "string") {
-    return createResponse("error", null, "amount must be a string");
-  }
-
-  try {
-    const { userId, phoneNumber, amount, subscriptionEnds } = body;
-
-    // Call the updateSubscription action
-    await ctx.runAction(api.actions.subscriptions.updateSubscription, {
-      userId,
-      phoneNumber,
-      amount,
-      subscriptionEnds,
-    });
-
-    return createResponse(
-      "success", 
-      { 
-        message: "Subscription update initiated successfully",
-        userId,
-        subscriptionEnds 
-      }, 
-      null
-    );
-  } catch (error: any) {
-    console.error("Error updating subscription:", error);
-    return createResponse("error", null, error.message || "Failed to update subscription");
-  }
-});**/
-
 export const updateSubscription = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed");
@@ -2773,3 +2615,451 @@ export const deleteMpesaMessagesByPhoneNumber = httpAction(async (ctx, request) 
     return createResponse("error", null, "Failed to delete mpesa messages for phone number");
   }
 });
+
+/**
+ * Create a new promo code
+ * POST /api/promo-codes/create/
+ */
+export const createPromoCode = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { promoCode, validDays, description, endDate, maxUsages } = body;
+
+  // Validate required fields
+  if (!promoCode || typeof promoCode !== "string") {
+    return createResponse("error", null, "Missing or invalid promoCode");
+  }
+
+  if (!validDays || typeof validDays !== "number") {
+    return createResponse("error", null, "Missing or invalid validDays");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.promo_codes.createPromoCode, {
+      promoCode,
+      validDays,
+      description: description || undefined,
+      endDate: endDate || undefined,
+      maxUsages: maxUsages || undefined,
+    });
+
+    return createResponse("success", result, null);
+  } catch (error: any) {
+    console.error("Error creating promo code:", error);
+    return createResponse("error", null, error.message || "Failed to create promo code");
+  }
+});
+
+/**
+ * Validate promo code
+ * GET /api/promo-codes/validate?code={CODE}&userId={USER_ID}
+ */
+export const validatePromoCode = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const promoCode = url.searchParams.get("code");
+  const userId = url.searchParams.get("userId");
+
+  if (!promoCode || !userId) {
+    return createResponse("error", null, "Missing promoCode or userId parameter");
+  }
+
+  try {
+    const result = await ctx.runQuery(api.features.promo_codes.validatePromoCode, {
+      promoCode,
+      userId,
+    });
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  } catch (error: any) {
+    console.error("Error validating promo code:", error);
+    return createResponse("error", null, error.message || "Failed to validate promo code");
+  }
+});
+
+/**
+ * Get all promo codes
+ * GET /api/promo-codes/all
+ */
+export const getAllPromoCodes = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  try {
+    const promoCodes = await ctx.runQuery(api.features.promo_codes.getAllPromoCodes, {});
+
+    return createResponse("success", { promoCodes }, null);
+  } catch (error: any) {
+    console.error("Error fetching promo codes:", error);
+    return createResponse("error", null, error.message || "Failed to fetch promo codes");
+  }
+});
+
+/**
+ * Get promo code by code
+ * GET /api/promo-codes/get?code={CODE}
+ */
+export const getPromoCodeByCode = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const promoCode = url.searchParams.get("code");
+
+  if (!promoCode) {
+    return createResponse("error", null, "Missing promo code parameter");
+  }
+
+  try {
+    const promo = await ctx.runQuery(api.features.promo_codes.getPromoCodeByCode, {
+      promoCode: promoCode.toUpperCase(),
+    });
+
+    if (!promo) {
+      return createResponse("error", null, "Promo code not found");
+    }
+
+    return createResponse("success", { promoCode: promo }, null);
+  } catch (error: any) {
+    console.error("Error fetching promo code:", error);
+    return createResponse("error", null, error.message || "Failed to fetch promo code");
+  }
+});
+
+/**
+ * Get promo code usage statistics
+ * GET /api/promo-codes/stats?code={CODE} (optional code parameter)
+ */
+export const getPromoCodeStats = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const promoCode = url.searchParams.get("code");
+
+  try {
+    const stats = await ctx.runQuery(api.features.promo_codes.getPromoCodeStats, {
+      promoCode: promoCode?.toUpperCase() || undefined,
+    });
+
+    return createResponse("success", { stats }, null);
+  } catch (error: any) {
+    console.error("Error fetching promo stats:", error);
+    return createResponse("error", null, error.message || "Failed to fetch stats");
+  }
+});
+
+/**
+ * Create airtime transaction
+ * POST /api/airtime-transactions
+ */
+export const createAirtimeTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const requiredFields = [
+    "userId",
+    "phoneNumber",
+    "recipientNumber",
+    "amount",
+    "ussdCode",
+    "ussdResponse",
+    "status",
+    "subscriptionEnds",
+    "subscriptionDays",
+    "paidDays",
+    "simSlot",
+  ];
+
+  for (const field of requiredFields) {
+    if (!body[field] && body[field] !== 0) {
+      return new Response(
+        JSON.stringify({ 
+          status: "error", 
+          error: `Missing required field: ${field}` 
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.airtime_transactions.createAirtimeTransaction,
+      body
+    );
+
+    // If promo code was used and transaction is successful, record it
+    if (body.status === "SUCCESS" && body.promoCode) {
+      await ctx.runMutation(api.features.promo_codes.recordPromoCodeUsage, {
+        userId: body.userId,
+        promoCode: body.promoCode,
+        subscriptionExtended: body.promoDays || 0,
+        subscriptionEnds: body.subscriptionEnds,
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        transactionId: result.transactionId,
+        message: result.message,
+        error: null
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+  } catch (error: any) {
+    console.error("Error creating airtime transaction:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to create transaction"
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+  }
+});
+
+
+/**
+ * Get user airtime transactions
+ * GET /api/users/{userId}/airtime-transactions
+ */
+export const getUserAirtimeTransactions = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split("/");
+
+  let userId = null;
+  const userIdIndex = pathParts.indexOf("users") + 1;
+  if (userIdIndex > 0 && userIdIndex < pathParts.length) {
+    userId = pathParts[userIdIndex];
+  }
+
+  if (!userId) {
+    userId = url.searchParams.get("userId");
+  }
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const transactions = await ctx.runQuery(
+      api.features.airtime_transactions.getUserAirtimeTransactions,
+      { userId }
+    );
+
+    return createResponse("success", { transactions }, null);
+  } catch (error: any) {
+    console.error("Error fetching airtime transactions:", error);
+    return createResponse("error", null, error.message || "Failed to fetch transactions");
+  }
+});
+
+/**
+ * CORS preflight handler
+ */
+export const handleCorsOptions = httpAction(async (ctx, request) => {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+});
+
+/**
+ * CORS preflight handler for promo codes
+ */
+export const handlePromoCodeOptions = httpAction(async (ctx, request) => {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+});
+
+/**
+ * CORS preflight handler for airtime transactions
+ */
+export const handleAirtimeTransactionOptions = httpAction(async (ctx, request) => {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+});
+
+
+/**
+ * Record promo code usage after successful payment
+ * POST /api/promo-codes/record-usage/
+ * */
+export const recordPromoCodeUsage = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, promoCode, subscriptionExtended, subscriptionEnds } = body;
+
+  // Validate required fields
+  if (!userId || typeof userId !== "string") {
+    return createResponse("error", null, "Missing or invalid userId");
+  }
+
+  if (!promoCode || typeof promoCode !== "string") {
+    return createResponse("error", null, "Missing or invalid promoCode");
+  }
+
+  if (subscriptionExtended === undefined || typeof subscriptionExtended !== "number") {
+    return createResponse("error", null, "Missing or invalid subscriptionExtended");
+  }
+
+  if (subscriptionEnds === undefined || typeof subscriptionEnds !== "number") {
+    return createResponse("error", null, "Missing or invalid subscriptionEnds");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.promo_codes.recordPromoCodeUsage, {
+      userId,
+      promoCode,
+      subscriptionExtended,
+      subscriptionEnds,
+    });
+
+    return createResponse("success", result, null);
+  } catch (error: any) {
+    console.error("Error recording promo code usage:", error);
+    return createResponse("error", null, error.message || "Failed to record promo code usage");
+  }
+});
+
+
+/**
+ * Apply promo code standalone (no payment)
+ * POST /api/promo-codes/apply-standalone/
+ */
+export const applyPromoCodeStandalone = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { userId, promoCode } = body;
+
+  if (!userId || !promoCode) {
+    return new Response(
+      JSON.stringify({ 
+        status: "error", 
+        error: "Missing required fields: userId, promoCode" 
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.promo_codes.applyPromoCodeStandalone,
+      { userId, promoCode }
+    );
+
+    return new Response(
+      JSON.stringify(result),
+      {
+        status: result.status === "success" ? 200 : 400,
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+  } catch (error: any) {
+    console.error("Error applying standalone promo code:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to apply promo code"
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      }
+    );
+  }
+});
+
+
