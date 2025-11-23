@@ -179,7 +179,7 @@ export const updateMpesaMessage = mutation({
     phoneNumber: v.optional(v.string()),
     senderId: v.optional(v.string()),
     time: v.optional(v.number()),
-    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"))),
+    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled"))),
     fullMessage: v.optional(v.string()),
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
@@ -258,7 +258,7 @@ export const getMpesaMessagesBySenderId = query({
 // Query to get mpesa messages by processed status
 export const getMpesaMessagesByProcessedStatus = query({
   args: { 
-    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable")),
+    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled")),
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
@@ -293,7 +293,7 @@ export const getMpesaMessagesByProcessedStatus = query({
 export const updateMpesaMessageProcessedStatus = mutation({
   args: {
     messageId: v.id("mpesaMessages"),
-    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable")),
+    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled")),
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),

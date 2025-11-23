@@ -205,7 +205,8 @@ export default defineSchema({
     v.literal("pending"),
     v.literal("successful"),
     v.literal("failed"),
-    v.literal("not-viable")
+    v.literal("not-viable"),
+    v.literal("disabled")
   )),
   fullMessage: v.optional(v.string()),
   processResponse: v.optional(v.string()),
