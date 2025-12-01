@@ -278,4 +278,19 @@ export default defineSchema({
      .index("by_status", ["status"])
      .index("by_date", ["transactionDate"])
      .index("by_user_and_status", ["userId", "status"]),
+
+
+   deviceSessions: defineTable({
+    phoneNumber: v.string(),       
+    deviceId: v.string(),       
+    deviceModel: v.string(),  
+    userId: v.string(),        
+    loginTimestamp: v.number(),     
+    lastActiveTimestamp: v.number(), 
+    isActive: v.boolean(),     
+  })
+    .index("by_phone", ["phoneNumber"])   
+    .index("by_device", ["deviceId"])     
+    .index("by_userId", ["userId"]),
+
 });

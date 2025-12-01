@@ -25,6 +25,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   createAirtimeTransaction,
   getUserAirtimeTransactions,
   handlePromoCodeOptions,
+  registerDeviceSession,
+  validateDeviceSession,
+  logoutDevice,
   handleAirtimeTransactionOptions} from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -445,6 +448,27 @@ http.route({
   pathPrefix: "/api/airtime-transactions/",
   method: "OPTIONS",
   handler: handleAirtimeTransactionOptions,
+});
+
+//register device session
+http.route({
+  path: "/register-device-session",
+  method: "POST",
+  handler: registerDeviceSession,
+});
+
+//validate device session
+http.route({
+  path: "/validate-device-session",
+  method: "POST",
+  handler: validateDeviceSession,
+});
+
+//logout device session
+http.route({
+  path: "/logout-device",
+  method: "POST",
+  handler: logoutDevice,
 });
 
 export default http;

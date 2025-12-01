@@ -3107,3 +3107,191 @@ export const applyPromoCodeStandalone = httpAction(async (ctx, request) => {
 });
 
 
+/** 
+ * Register Device Session
+ * POST /api/register-device-session
+  */
+export const registerDeviceSession = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { phoneNumber, deviceId, deviceModel, userId } = body;
+
+  // Validate required fields
+  if (!phoneNumber || !deviceId || !deviceModel || !userId) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: "Missing required fields: phoneNumber, deviceId, deviceModel, userId",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.users.registerDeviceSession,
+      {
+        phoneNumber,
+        deviceId,
+        deviceModel,
+        userId,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error registering device session:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to register device session",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+});
+
+/**
+ * HTTP ACTION 2: Validate Device Session
+ * POST /api/validate-device-session
+ */
+export const validateDeviceSession = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { phoneNumber, deviceId } = body;
+
+  // Validate required fields
+  if (!phoneNumber || !deviceId) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: "Missing required fields: phoneNumber, deviceId",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.users.validateDeviceSession,
+      {
+        phoneNumber,
+        deviceId,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error validating device session:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to validate device session",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+});
+
+/**
+ * HTTP ACTION 3: Logout Device
+ * POST /api/logout-device
+ */
+export const logoutDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { phoneNumber, deviceId } = body;
+
+  // Validate required fields
+  if (!phoneNumber || !deviceId) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: "Missing required fields: phoneNumber, deviceId",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.logoutDevice, {
+      phoneNumber,
+      deviceId,
+    });
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error logging out device:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to logout device",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+});
+
