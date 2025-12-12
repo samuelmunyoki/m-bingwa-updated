@@ -789,83 +789,68 @@ export const registerDeviceSession = mutation({
     deviceModel: v.string(),
     userId: v.string(),
   },
-  handler: async (ctx, { phoneNumber, deviceId, deviceModel, userId }) => {
-    const currentTimestamp = Date.now();
+  handler: async (ctx, args) => {
+    const { phoneNumber, deviceId, deviceModel, userId } = args;
 
-    // STEP 1: Check if this phone number already has an active session
+    console.log("REGISTER DEVICE SESSION (BLOCK MODE)");
+    console.log(`Phone: ${phoneNumber}`);
+    console.log(`Device: ${deviceId} (${deviceModel})`);
+
+    // CRITICAL: Check if phone number has ACTIVE session
     const existingSession = await ctx.db
       .query("deviceSessions")
       .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => q.eq(q.field("isActive"), true))
       .first();
 
-    let sessionStatus = "new_session";
-    let previousDevice: string | null = null;
-
     if (existingSession) {
-      // STEP 2: Phone has existing session - check if it's the same device
+      // Check if it's the SAME device
       if (existingSession.deviceId === deviceId) {
-        // Same device logging in again - just update timestamps
+        // Same device - just refresh the session
         await ctx.db.patch(existingSession._id, {
-          lastActiveTimestamp: currentTimestamp,
-          loginTimestamp: currentTimestamp,
-          isActive: true,
+          lastActiveTimestamp: Date.now(),
         });
 
-        sessionStatus = "session_refreshed";
-        console.log(`✅ Session refreshed for device: ${deviceId}`);
-      } else {
-        // DIFFERENT device - invalidate old session, create new one
-        previousDevice = existingSession.deviceModel;
-
-        // Mark old session as inactive
-        await ctx.db.patch(existingSession._id, {
-          isActive: false,
-        });
-
-        // Delete old session and create new one
-        await ctx.db.delete(existingSession._id);
-
-        // Create new session for new device
-        await ctx.db.insert("deviceSessions", {
-          phoneNumber,
-          deviceId,
-          deviceModel,
+        console.log("✅ Same device - session refreshed");
+        return {
+          status: "success",
+          sessionStatus: "session_refreshed",
           userId,
-          loginTimestamp: currentTimestamp,
-          lastActiveTimestamp: currentTimestamp,
-          isActive: true,
-        });
+        };
+      } else {
+        // DIFFERENT device - BLOCK login
+        console.log("⚠️ ACTIVE SESSION EXISTS ON DIFFERENT DEVICE");
+        console.log(`Active device: ${existingSession.deviceModel}`);
+        console.log(`Attempting device: ${deviceModel}`);
+        console.log("🚫 LOGIN BLOCKED");
 
-        sessionStatus = "replaced_old_session";
-        console.log(`⚠️ Session replaced: ${previousDevice} → ${deviceModel}`);
+        return {
+          status: "error",
+          error: "already_logged_in",
+          activeDevice: existingSession.deviceModel,
+          message: `Already logged in on ${existingSession.deviceModel}`,
+        };
       }
-    } else {
-      // STEP 3: No existing session - create new one
-      await ctx.db.insert("deviceSessions", {
-        phoneNumber,
-        deviceId,
-        deviceModel,
-        userId,
-        loginTimestamp: currentTimestamp,
-        lastActiveTimestamp: currentTimestamp,
-        isActive: true,
-      });
-
-      sessionStatus = "new_session";
-      console.log(`✅ New session created for device: ${deviceId}`);
     }
+
+    // No active session exists - CREATE NEW SESSION
+    const newSessionId = await ctx.db.insert("deviceSessions", {
+      phoneNumber,
+      deviceId,
+      deviceModel,
+      userId,
+      loginTimestamp: Date.now(),
+      lastActiveTimestamp: Date.now(),
+      isActive: true,
+    });
+
+    console.log("✅ New session created");
+    console.log(`Session ID: ${newSessionId}`);
 
     return {
       status: "success",
-      sessionStatus,
-      previousDevice,
+      sessionStatus: "new_session",
       userId,
-      message:
-        sessionStatus === "replaced_old_session"
-          ? `Previous session on ${previousDevice} has been terminated.`
-          : sessionStatus === "session_refreshed"
-          ? "Session refreshed successfully."
-          : "Session created successfully.",
     };
   },
 });
@@ -963,33 +948,93 @@ export const getActiveDevice = query({
   },
 });
 
+
 export const logoutDevice = mutation({
   args: {
     phoneNumber: v.string(),
     deviceId: v.string(),
   },
-  handler: async (ctx, { phoneNumber, deviceId }) => {
+  handler: async (ctx, args) => {
+    const { phoneNumber, deviceId } = args;
+
+    console.log("LOGOUT DEVICE");
+    console.log(`Phone: ${phoneNumber}`);
+    console.log(`Device: ${deviceId}`);
+
+    // Find the session for this phone and device
     const session = await ctx.db
       .query("deviceSessions")
       .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("deviceId"), deviceId),
+          q.eq(q.field("isActive"), true)
+        )
+      )
       .first();
 
-    if (session && session.deviceId === deviceId) {
-      // Delete the session
-      await ctx.db.delete(session._id);
-      console.log(`🔴 Session deleted for device: ${deviceId}`);
-
+    if (!session) {
+      console.log("⚠️ No active session found for this device");
+      
       return {
         status: "success",
-        message: "Device session terminated",
+        message: "No active session to logout",
       };
     }
 
+    // Delete the session (or mark as inactive)
+    await ctx.db.delete(session._id);
+    
+    console.log("✅ Session deleted");
+
     return {
-      status: "no_session_found",
-      message: "No active session found for this device",
+      status: "success",
+      message: "Device logged out successfully",
     };
   },
 });
 
+export const clearDeviceSession = mutation({
+  args: {
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { phoneNumber } = args;
+
+    console.log("CLEAR DEVICE SESSION (ADMIN/WEBSITE)");
+    console.log(`Phone: ${phoneNumber}`);
+
+    // Find all active sessions for this phone number
+    const sessions = await ctx.db
+      .query("deviceSessions")
+      .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    if (sessions.length === 0) {
+      console.log("⚠️ No active session found");
+      
+      return {
+        status: "error",
+        message: "No active session found for this phone number",
+      };
+    }
+
+    // Delete all active sessions for this phone number
+    let deletedCount = 0;
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+      console.log(`✅ Deleted session: ${session.deviceModel}`);
+      deletedCount++;
+    }
+
+    console.log(`✅ Total sessions cleared: ${deletedCount}`);
+
+    return {
+      status: "success",
+      message: `Cleared ${deletedCount} active session(s)`,
+      deletedCount,
+    };
+  },
+});
 

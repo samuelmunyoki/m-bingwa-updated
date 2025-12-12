@@ -28,6 +28,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   registerDeviceSession,
   validateDeviceSession,
   logoutDevice,
+  clearDeviceSession,
   handleAirtimeTransactionOptions} from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -452,23 +453,31 @@ http.route({
 
 //register device session
 http.route({
-  path: "/register-device-session",
+  path: "/api/register-device-session/",
   method: "POST",
   handler: registerDeviceSession,
 });
 
 //validate device session
 http.route({
-  path: "/validate-device-session",
+  path: "/api/validate-device-session/",
   method: "POST",
   handler: validateDeviceSession,
 });
 
 //logout device session
 http.route({
-  path: "/logout-device",
+  path: "/api/logout-device/",
   method: "POST",
   handler: logoutDevice,
 });
+
+//clear session
+http.route({
+  path: "/api/clear-session/",
+  method: "POST",
+  handler: clearDeviceSession,
+});
+
 
 export default http;

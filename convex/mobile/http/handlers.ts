@@ -3295,3 +3295,58 @@ export const logoutDevice = httpAction(async (ctx, request) => {
   }
 });
 
+export const clearDeviceSession = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { phoneNumber } = body;
+
+  // Validate required fields
+  if (!phoneNumber) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: "Missing required field: phoneNumber",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.clearDeviceSession, {
+      phoneNumber,
+    });
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error clearing device session:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to clear device session",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+});
+
