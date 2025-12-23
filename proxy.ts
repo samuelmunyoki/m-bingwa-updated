@@ -6,8 +6,8 @@ const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
 export default clerkMiddleware(async (auth, req) => {
   const request = req as NextRequest;
   const url = request.nextUrl.clone();
-  const hostname = request.headers.get("host") || ""; // e.g. store.localhost:3000 or m-bingwa.com
-  const [hostWithoutPort] = hostname.split(":"); // remove port if exists
+  const hostname = request.headers.get("host") || "";
+  const [hostWithoutPort] = hostname.split(":"); 
   const parts = hostWithoutPort.split(".");
 
   // Determine subdomain
