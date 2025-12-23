@@ -1,0 +1,296 @@
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
+
+export default defineSchema({
+  users: defineTable({
+    name: v.string(),
+    email: v.string(),
+    userId: v.string(),
+    isAdmin: v.boolean(),
+    isSubscribed: v.optional(v.boolean()),
+    isSubscriptionEndingSMSsent: v.optional(v.boolean()),
+    profileImage: v.string(),
+    suspended: v.boolean(),
+    storageID: v.optional(v.string()),
+    subscriptionEnds: v.optional(v.number()),
+    subscriptionId: v.optional(v.string()),
+    phoneNumber: v.optional(v.string()),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_checkoutRequestID", ["subscriptionId"])
+    .index("by_email", ["email"]),
+
+  bundles: defineTable({
+    userId: v.string(),
+    status: v.union(v.literal("available"), v.literal("disabled")),
+    offerName: v.string(),
+    bundlesUSSD: v.string(),
+    duration: v.string(),
+    price: v.number(),
+    commission: v.optional(v.number()),
+    isMultiSession: v.boolean(),
+    isSimpleUSSD: v.optional(v.boolean()),
+    responseValidatorText: v.optional(v.string()),
+    autoReschedule: v.optional(v.string()),
+    dialingSIM: v.union(v.literal("SIM1"), v.literal("SIM2")),
+    offerType: v.optional(v.union(
+    v.literal("Data"), 
+    v.literal("SMS"), 
+    v.literal("Minutes"), 
+    v.literal("Airtime"),
+    v.literal("Bundles"),
+    v.literal("Other"))
+  ),
+  }).index("by_user", ["userId"]),
+
+  subscription_price: defineTable({
+    price: v.number(),
+    paymentMethod: v.string(),
+    paymentAccount: v.string(),
+  }),
+
+  mpesa_transactions: defineTable({
+    merchantRequestID: v.string(),
+    checkoutRequestID: v.string(),
+    resultCode: v.number(),
+    resultDesc: v.string(),
+    phoneNumber: v.string(),
+    accountReference: v.string(),
+    transactionDesc: v.string(),
+    paymentMethod: v.string(),
+    paymentAccount: v.string(),
+    amount: v.optional(v.number()),
+    mpesaReceiptNumber: v.optional(v.string()),
+    paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
+    subscriptionEnds: v.optional(v.number()), // ADD THIS
+    userId: v.optional(v.string()), // ADD THIS
+  })
+    .index("by_checkoutRequestID", ["checkoutRequestID"])
+    .index("by_paymentAccount", ["paymentAccount"])
+    .index("by_phoneNumber", ["phoneNumber"]),
+
+  sms: defineTable({
+    smsContent: v.string(),
+    smsReciepient: v.string(),
+    userId: v.string(),
+    service: v.union(
+      v.literal("USSD"),
+      v.literal("SCHEDULER"),
+      v.literal("STORE"),
+      v.literal("NOTIFICATION")
+    ),
+    status: v.optional(v.string()),
+    timeTaken: v.optional(v.string()),
+    messageId: v.optional(v.string()),
+    timeStamp: v.optional(v.string()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_messageId", ["messageId"]),
+
+  scheduled_events: defineTable({
+    ussdCode: v.string(),
+    userId: v.string(),
+    repeatDays: v.optional(v.number()),
+    status: v.union(
+      v.literal("PENDING"),
+      v.literal("SUCCESS"),
+      v.literal("ERRORED"),
+      v.literal("CANCELLED"),
+      v.literal("QUEUED"),
+      v.literal("EXECUTED"),
+      v.literal("FAILED")
+    ),
+    unscheduled: v.boolean(),
+    scheduledTimeStamp: v.number(),
+    repeatDaily: v.boolean(),
+    messageId: v.optional(v.string()),
+    offerId: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    offerDuration: v.optional(v.string()),
+    offerPrice: v.optional(v.number()),
+    offerNum: v.optional(v.string()),
+    dialingSim: v.optional(v.string()),
+    isMultiSession: v.optional(v.boolean()),
+    isSimpleUSSD: v.optional(v.boolean()),
+    responseValidatorText: v.optional(v.string()),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_messageId", ["messageId"]),
+
+  stores: defineTable({
+    storeName: v.string(),
+    storeOwnerId: v.string(),
+    status: v.union(
+      v.literal("available"),
+      v.literal("disabled"),
+      v.literal("maintenance")
+    ),
+    statusDescription: v.string(),
+    paymentAccount: v.string(),
+    paymentMethod: v.union(v.literal("TILL"), v.literal("PAYBILL")),
+  })
+    .index("by_user", ["storeOwnerId"])
+    .index("by_storeName", ["storeName"]),
+
+  notifications: defineTable({
+    notification_id: v.string(),
+    notificationIsRead: v.boolean(),
+    notificationBody: v.string(),
+  }).index("by_notification_id", ["notification_id"]),
+
+  blacklist: defineTable({
+    phoneNumber: v.string(),
+    userId: v.string(),
+  })
+    .index("by_phoneNumber", ["phoneNumber"])
+    .index("by_userId", ["userId"]),
+
+  otps: defineTable({
+    phoneNumber: v.string(),
+    userId: v.string(),
+    otpCode: v.number(),
+    isVerified: v.boolean(),
+  })
+    .index("by_phoneNumber", ["phoneNumber"])
+    .index("by_otp_code", ["otpCode"])
+    .index("by_userId", ["userId"]),
+
+  // Cooldown timers table to store OTP request cooldowns
+  cooldownTimers: defineTable({
+    userId: v.string(),
+    expiresAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  system: defineTable({
+    hasUpdate: v.boolean(),
+    userId: v.string(),
+  }).index("by_userId", ["userId"]),
+
+  transactions: defineTable({
+    storeId: v.string(),
+    checkoutRequestID: v.optional(v.string()),
+    messadeId: v.optional(v.string()),
+    storeOwnerId: v.string(),
+    bundlesID: v.string(),
+    bundlesPrice: v.number(),
+    payingNumber: v.string(),
+    receivingNumber: v.string(),
+    paymentMethod: v.string(),
+    paymentAccount: v.string(),
+    paymentStatus: v.optional(
+      v.union(
+        v.literal("PENDING"),
+        v.literal("CANCELLED"),
+        v.literal("TIMEDOUT"),
+        v.literal("CONFIRMED"),
+        v.literal("ERRORED")
+      )
+    ),
+  })
+    .index("by_recieving_number_id", ["receivingNumber"])
+    .index("by_paying_number_id", ["payingNumber"])
+    .index("by_bundles_id", ["bundlesID"])
+    .index("by_checkoutrequest_id", ["checkoutRequestID"])
+    .index("by_store_owner_id", ["storeOwnerId"]),
+
+  mpesaMessages: defineTable({
+  name: v.string(),
+  amount: v.float64(),//amount: v.number(),
+  phoneNumber: v.string(),
+  senderId: v.string(),
+  time: v.float64(),//time: v.number(),
+  userId: v.string(),
+  transactionId: v.optional(v.string()),
+  processed: v.optional(v.union(
+    v.literal("pending"),
+    v.literal("successful"),
+    v.literal("failed"),
+    v.literal("not-viable"),
+    v.literal("disabled")
+  )),
+  fullMessage: v.optional(v.string()),
+  processResponse: v.optional(v.string()),
+  offerName: v.optional(v.string()),
+  processedUSSD: v.optional(v.string()),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_phone_number", ["phoneNumber"])
+    .index("by_sender_id", ["senderId"])
+    .index("by_time", ["time"])
+    .index("by_processed", ["processed"]),
+
+  userSenderRelations: defineTable({
+    userId: v.string(),
+    senderId: v.string(),
+    lastUpdateTimeStamp: v.float64()
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_sender_id", ["senderId"])
+    .index("by_user_sender", ["userId", "senderId"])
+    .index("by_timestamp", ["lastUpdateTimeStamp"]),
+
+
+  promoCodes: defineTable({
+     promoCode: v.string(), 
+     validDays: v.number(), 
+     endDate: v.number(), 
+     createdAt: v.number(),
+     isActive: v.boolean(), 
+     description: v.optional(v.string()), 
+     maxUsages: v.optional(v.number()), 
+     currentUsages: v.optional(v.number()),
+  })
+    .index("by_code", ["promoCode"])
+    .index("by_active", ["isActive"])
+    .index("by_end_date", ["endDate"]),
+
+  promoUsers: defineTable({
+     userId: v.string(),
+     promoCode: v.string(),
+     usedAt: v.number(),
+     subscriptionExtended: v.number(), 
+     subscriptionEnds: v.number(), 
+  })
+    .index("by_user", ["userId"])
+    .index("by_code", ["promoCode"])
+    .index("by_user_and_code", ["userId", "promoCode"]),
+
+  airtimeTransactions: defineTable({
+     userId: v.string(),
+     phoneNumber: v.string(),
+     recipientNumber: v.string(), // 0743020413
+     amount: v.number(),
+     transactionDate: v.number(), 
+     ussdCode: v.string(),
+     ussdResponse: v.string(), 
+     parsedAmount: v.optional(v.number()), 
+     parsedRecipient: v.optional(v.string()), 
+     status: v.union(v.literal("PENDING"), v.literal("SUCCESS"), v.literal("FAILED")),
+     subscriptionEnds: v.number(), 
+     subscriptionDays: v.number(), 
+     paidDays: v.number(), 
+     promoDays: v.optional(v.number()), 
+     promoCode: v.optional(v.string()), 
+     failureReason: v.optional(v.string()), 
+     simSlot: v.string(), 
+})
+     .index("by_user", ["userId"])
+     .index("by_status", ["status"])
+     .index("by_date", ["transactionDate"])
+     .index("by_user_and_status", ["userId", "status"]),
+
+
+   deviceSessions: defineTable({
+    phoneNumber: v.string(),       
+    deviceId: v.string(),       
+    deviceModel: v.string(),  
+    userId: v.string(),        
+    loginTimestamp: v.number(),     
+    lastActiveTimestamp: v.number(), 
+    isActive: v.boolean(),     
+  })
+    .index("by_phone", ["phoneNumber"])   
+    .index("by_device", ["deviceId"])     
+    .index("by_userId", ["userId"]),
+
+});

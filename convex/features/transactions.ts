@@ -1,0 +1,196 @@
+import {
+  updateTransaction,
+  getByCheckoutRequestID,
+} from "./mpesa_transactions";
+import { v } from "convex/values";
+import {  query } from "../_generated/server";
+
+// Added DB Trigger
+import { mutation } from "../functions";
+
+export const createBundlesTransaction = mutation({
+  args: {
+    storeId: v.string(),
+    storeOwnerId: v.string(),
+    bundlesID: v.string(),
+    bundlesPrice: v.number(),
+    payingNumber: v.string(),
+    receivingNumber: v.string(),
+    paymentMethod: v.string(),
+    paymentAccount: v.string(),
+    CheckoutRequestID: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("transactions", {
+      bundlesID: args.bundlesID,
+      bundlesPrice: args.bundlesPrice,
+      payingNumber: args.payingNumber,
+      paymentAccount: args.paymentAccount,
+      paymentMethod: args.paymentMethod,
+      storeId: args.storeId,
+      receivingNumber: args.receivingNumber,
+      storeOwnerId: args.storeOwnerId,
+      paymentStatus: "PENDING",
+      checkoutRequestID: args.CheckoutRequestID,
+    });
+  },
+});
+
+export const getTransactionsByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const { userId } = args;
+    const transactions = await ctx.db
+      .query("transactions")
+      .filter((q) => q.eq(q.field("storeOwnerId"), userId))
+      .order("desc")
+      .collect();
+
+    const transactionsWithBundleInfo = await Promise.all(
+      transactions.map(async (transaction) => {
+        const bundle = await ctx.db
+          .query("bundles")
+          .filter((q) => q.eq(q.field("_id"), transaction.bundlesID))
+          .first();
+
+        return {
+          ...transaction,
+          offerName: bundle?.offerName || "N/A",
+          duration: bundle?.duration || "N/A",
+        };
+      })
+    );
+
+    return transactionsWithBundleInfo;
+  },
+});
+
+export const updateTransactionStatus = mutation({
+  args: {
+    checkoutRequestID: v.string(),
+    paymentStatus: v.union(
+      v.literal("PENDING"),
+      v.literal("CANCELLED"),
+      v.literal("TIMEDOUT"),
+      v.literal("CONFIRMED"),
+      v.literal("ERRORED")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const extTxn = await ctx.db
+      .query("transactions")
+      .withIndex("by_checkoutrequest_id", (q) =>
+        q.eq("checkoutRequestID", args.checkoutRequestID)
+      )
+      .first();
+    if (extTxn) {
+      await ctx.db.patch(extTxn._id, {
+        paymentStatus: args.paymentStatus,
+      });
+    }
+  },
+});
+
+export const getReceivingNumberToday = query({
+  args: {
+    receivingNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    // Get today's date at midnight (start of the day)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return await ctx.db
+      .query("transactions")
+      .withIndex("by_recieving_number_id", (q) =>
+        q.eq("receivingNumber", args.receivingNumber)
+      )
+      .filter((q) => q.gte(q.field("_creationTime"), today.getTime()))
+      .order("desc")
+      .first();
+  },
+});
+
+// Query to get all transactions by paying userId
+// Query to get all transactions by storeOwnerId, structured according to the transaction schema
+export const getTransactionsByStoreOwnerId = query({
+  args: { storeOwnerId: v.string() },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .order("desc")
+      .collect();
+
+    // Attach bundle info for each transaction
+    const transactionsWithBundleInfo = await Promise.all(
+      transactions.map(async (transaction) => {
+        const bundle = await ctx.db
+          .query("bundles")
+          .filter((q) => q.eq(q.field("_id"), transaction.bundlesID))
+          .first();
+
+        return {
+          ...transaction,
+          offerName: bundle?.offerName || "N/A",
+          duration: bundle?.duration || "N/A",
+        };
+      })
+    );
+
+    return transactionsWithBundleInfo;
+  },
+});
+
+export const deleteAllStoreOwnerTransactions = mutation({
+  args: { 
+    storeOwnerId: v.string(),
+    limit: v.optional(v.number())
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit || 20; // Small batch to avoid timeout
+    
+    // Get a limited number of transactions
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .take(limit);
+
+    // Delete this batch
+    for (const transaction of transactions) {
+      await ctx.db.delete(transaction._id);
+    }
+
+    // Check if there are more transactions remaining
+    const remainingTransactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .take(1);
+
+    const hasMore = remainingTransactions.length > 0;
+
+    return {
+      status: "success",
+      message: `Deleted ${transactions.length} transaction(s) for store owner`,
+      deletedCount: transactions.length,
+      hasMore: hasMore,
+      totalProcessed: transactions.length
+    };
+  },
+});
+
+// Alternative: Get count of transactions for a store owner
+export const getStoreOwnerTransactionCount = query({
+  args: { storeOwnerId: v.string() },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("transactions")
+      .withIndex("by_store_owner_id", (q) => q.eq("storeOwnerId", args.storeOwnerId))
+      .collect();
+    
+    return {
+      count: transactions.length,
+      storeOwnerId: args.storeOwnerId
+    };
+  },
+});
