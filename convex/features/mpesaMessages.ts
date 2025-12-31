@@ -59,7 +59,8 @@ export const getMpesaMessagesByUserId = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      verified: message.verified ?? false
     }));
 
     return messagesWithAllFields;
@@ -543,39 +544,98 @@ export const deleteMpesaMessagesByPhoneNumber = mutation({
 
 // Mutation to delete mpesa messages older than 30 days
 // This is intended to be run as a cron job to clean up old data
+// Processes in batches to avoid timeouts and includes error handling
 export const deleteOldMpesaMessages = mutation({
   args: {},
   handler: async (ctx) => {
-    console.log("🗑️ Starting deleteOldMpesaMessages cron job...");
+    const BATCH_SIZE = 100; // Process 100 messages at a time to avoid timeouts
+    const startTime = Date.now();
 
-    // Calculate the timestamp for 30 days ago
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    const cutoffDate = new Date(thirtyDaysAgo).toISOString();
+    try {
+      console.log("🗑️ Starting deleteOldMpesaMessages cron job...");
 
-    console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
+      // Calculate the timestamp for 30 days ago
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      const cutoffDate = new Date(thirtyDaysAgo).toISOString();
 
-    // Get all mpesa messages older than 30 days
-    const oldMessages = await ctx.db
-      .query("mpesaMessages")
-      .filter((q) => q.lt(q.field("time"), thirtyDaysAgo))
-      .collect();
+      console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
 
-    console.log(`Found ${oldMessages.length} messages older than 30 days`);
+      // Get all mpesa messages older than 30 days
+      const oldMessages = await ctx.db
+        .query("mpesaMessages")
+        .filter((q) => q.lt(q.field("time"), thirtyDaysAgo))
+        .collect();
 
-    // Delete each old message
-    let deletedCount = 0;
-    for (const message of oldMessages) {
-      await ctx.db.delete(message._id);
-      deletedCount++;
+      console.log(`Found ${oldMessages.length} messages older than 30 days`);
+
+      if (oldMessages.length === 0) {
+        console.log("✅ No messages to delete");
+        return {
+          success: true,
+          message: "No messages older than 30 days found",
+          deletedCount: 0,
+          failedCount: 0,
+          cutoffDate,
+          executionTimeMs: Date.now() - startTime
+        };
+      }
+
+      // Delete messages in batches
+      let deletedCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < oldMessages.length; i += BATCH_SIZE) {
+        const batch = oldMessages.slice(i, i + BATCH_SIZE);
+        console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(oldMessages.length / BATCH_SIZE)} (${batch.length} messages)`);
+
+        for (const message of batch) {
+          try {
+            await ctx.db.delete(message._id);
+            deletedCount++;
+          } catch (error) {
+            failedCount++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            errors.push(`Failed to delete message ${message._id}: ${errorMessage}`);
+            console.error(`❌ Error deleting message ${message._id}:`, errorMessage);
+          }
+        }
+      }
+
+      const executionTimeMs = Date.now() - startTime;
+
+      if (failedCount > 0) {
+        console.warn(`⚠️ Cron job completed with errors: Deleted ${deletedCount} messages, failed to delete ${failedCount} messages`);
+        console.warn(`First 5 errors:`, errors.slice(0, 5));
+      } else {
+        console.log(`✅ Cron job completed successfully: Deleted ${deletedCount} mpesa messages older than 30 days in ${executionTimeMs}ms`);
+      }
+
+      return {
+        success: failedCount === 0,
+        message: failedCount === 0
+          ? `Successfully deleted ${deletedCount} mpesa messages older than 30 days`
+          : `Deleted ${deletedCount} messages but ${failedCount} deletions failed`,
+        deletedCount,
+        failedCount,
+        totalFound: oldMessages.length,
+        cutoffDate,
+        executionTimeMs,
+        errors: errors.slice(0, 10) // Return first 10 errors
+      };
+    } catch (error) {
+      const executionTimeMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`💥 Fatal error in deleteOldMpesaMessages cron job:`, errorMessage);
+
+      return {
+        success: false,
+        message: `Fatal error: ${errorMessage}`,
+        deletedCount: 0,
+        failedCount: 0,
+        executionTimeMs,
+        error: errorMessage
+      };
     }
-
-    console.log(`✅ Cron job completed: Deleted ${deletedCount} mpesa messages older than 30 days`);
-
-    return {
-      success: true,
-      message: `Successfully deleted ${deletedCount} mpesa messages older than 30 days`,
-      deletedCount,
-      cutoffDate
-    };
   },
 });

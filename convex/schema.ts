@@ -64,6 +64,7 @@ export default defineSchema({
     paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
     subscriptionEnds: v.optional(v.number()), // ADD THIS
     userId: v.optional(v.string()), // ADD THIS
+    verified: v.optional(v.boolean()),
   })
     .index("by_checkoutRequestID", ["checkoutRequestID"])
     .index("by_paymentAccount", ["paymentAccount"])
@@ -212,6 +213,7 @@ export default defineSchema({
   processResponse: v.optional(v.string()),
   offerName: v.optional(v.string()),
   processedUSSD: v.optional(v.string()),
+  verified: v.optional(v.boolean()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
