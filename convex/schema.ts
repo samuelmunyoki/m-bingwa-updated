@@ -293,4 +293,55 @@ export default defineSchema({
     .index("by_device", ["deviceId"])     
     .index("by_userId", ["userId"]),
 
+
+  bridgeOffers: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    name: v.string(),
+    type: v.union(v.literal("Data"), v.literal("SMS"), v.literal("Minutes")),
+    price: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"])
+    .index("by_price", ["userId", "price"]),  
+
+  bridgeDevices: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Owner/Sender phone number
+    deviceName: v.string(),
+    devicePhoneNumber: v.string(),     // Receiver device phone number
+    selectedOfferIds: v.array(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"]),  
+
+  bridgeWhitelist: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Receiver phone number (owner)
+    whitelistedNumber: v.string(),     // Sender phone number (allowed)
+    createdAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_receiver", ["phoneNumber"])
+    .index("by_whitelist", ["phoneNumber", "whitelistedNumber"]),  
+
+  bridgeTransactions: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    deviceId: v.string(),
+    offerId: v.string(),
+    status: v.union(v.literal("Success"), v.literal("Failed"), v.literal("Pending")),
+    smsContent: v.optional(v.string()),
+    executedAt: v.optional(v.number()),
+    createdAt: v.number()
+  })
+    .index("by_device", ["deviceId"])
+    .index("by_user", ["userId"])
+    .index("by_status", ["userId", "status"])  
+
 });
+

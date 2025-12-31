@@ -29,6 +29,23 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   validateDeviceSession,
   logoutDevice,
   clearDeviceSession,
+  createBridgeOffer,
+  getBridgeOffers,
+  updateBridgeOffer,
+  deleteBridgeOffer,
+  createBridgeDevice,
+  getBridgeDevices,
+  updateBridgeDevice,
+  updateDeviceOffers,
+  deleteBridgeDevice,
+  addToWhitelist,
+  getWhitelist,
+  isWhitelisted,
+  removeFromWhitelist,
+  createBridgeTransaction,
+  getBridgeTransactions,
+  updateTransactionStatus,
+  getTransactionStatusCounts,
   handleAirtimeTransactionOptions} from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -477,6 +494,117 @@ http.route({
   path: "/api/clear-session/",
   method: "POST",
   handler: clearDeviceSession,
+});
+
+// ============= BRIDGE OFFERS ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/offers/create/",
+  method: "POST",
+  handler: createBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/offers/",
+  method: "GET",
+  handler: getBridgeOffers,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/offers/update/",
+  method: "PATCH",
+  handler: updateBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/offers/delete/",
+  method: "DELETE",
+  handler: deleteBridgeOffer,
+});
+
+
+// ============= BRIDGE DEVICES ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/devices/create/",
+  method: "POST",
+  handler: createBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/",
+  method: "GET",
+  handler: getBridgeDevices,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/update/",
+  method: "PATCH",
+  handler: updateBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/update-offers/",
+  method: "PATCH",
+  handler: updateDeviceOffers,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/delete/",
+  method: "DELETE",
+  handler: deleteBridgeDevice,
+});
+
+// ============= BRIDGE WHITELIST ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/add/",
+  method: "POST",
+  handler: addToWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/",
+  method: "GET",
+  handler: getWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/check/",
+  method: "GET",
+  handler: isWhitelisted,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/remove/",
+  method: "DELETE",
+  handler: removeFromWhitelist,
+});
+
+// ============= BRIDGE TRANSACTIONS ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/create/",
+  method: "POST",
+  handler: createBridgeTransaction,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/",
+  method: "GET",
+  handler: getBridgeTransactions,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/update-status/",
+  method: "PATCH",
+  handler: updateTransactionStatus,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/counts/",
+  method: "GET",
+  handler: getTransactionStatusCounts,
 });
 
 

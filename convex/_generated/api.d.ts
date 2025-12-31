@@ -18,6 +18,7 @@ import type * as crons from "../crons.js";
 import type * as features_airtime_transactions from "../features/airtime_transactions.js";
 import type * as features_analytics from "../features/analytics.js";
 import type * as features_blacklist from "../features/blacklist.js";
+import type * as features_bridge from "../features/bridge.js";
 import type * as features_bundles from "../features/bundles.js";
 import type * as features_cooldown from "../features/cooldown.js";
 import type * as features_migration from "../features/migration.js";
@@ -67,6 +68,7 @@ declare const fullApi: ApiFromModules<{
   "features/airtime_transactions": typeof features_airtime_transactions;
   "features/analytics": typeof features_analytics;
   "features/blacklist": typeof features_blacklist;
+  "features/bridge": typeof features_bridge;
   "features/bundles": typeof features_bundles;
   "features/cooldown": typeof features_cooldown;
   "features/migration": typeof features_migration;

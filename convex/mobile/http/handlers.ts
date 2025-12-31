@@ -3350,3 +3350,487 @@ export const clearDeviceSession = httpAction(async (ctx, request) => {
   }
 });
 
+
+
+
+// ============= BRIDGE OFFERS HTTP ACTIONS =============
+
+export const createBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, name, type, price } = body;
+
+  if (!userId || !phoneNumber || !name || !type || price === undefined) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  const validTypes = ["Data", "SMS", "Minutes"];
+  if (!validTypes.includes(type)) {
+    return createResponse("error", null, "Invalid offer type");
+  }
+
+  if (typeof price !== "number" || price <= 0) {
+    return createResponse("error", null, "Invalid price");
+  }
+
+  try {
+    const offerId = await ctx.runMutation(api.features.bridge.createBridgeOffer, {
+      userId,
+      phoneNumber,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", { offerId }, "Offer created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getBridgeOffers = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const offers = await ctx.runQuery(api.features.bridge.getBridgeOffers, { userId });
+    return createResponse("success", { offers }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId, name, type, price } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateBridgeOffer, {
+      offerId: offerId as Id<"bridgeOffers">,
+      userId,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", null, "Offer updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.deleteBridgeOffer, {
+      offerId: offerId as Id<"bridgeOffers">,
+      userId
+    });
+
+    return createResponse("success", null, "Offer deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= BRIDGE DEVICES HTTP ACTIONS =============
+
+export const createBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!userId || !phoneNumber || !deviceName || !devicePhoneNumber || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const deviceId = await ctx.runMutation(api.features.bridge.createBridgeDevice, {
+      userId,
+      phoneNumber,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", { deviceId }, "Device created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getBridgeDevices = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const devices = await ctx.runQuery(api.features.bridge.getBridgeDevices, { userId });
+    return createResponse("success", { devices }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateBridgeDevice, {
+      deviceId: deviceId as Id<"bridgeDevices">,
+      userId,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateDeviceOffers = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, selectedOfferIds } = body;
+
+  if (!deviceId || !userId || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateDeviceOffers, {
+      deviceId: deviceId as Id<"bridgeDevices">,
+      userId,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device offers updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.deleteBridgeDevice, {
+      deviceId: deviceId as Id<"bridgeDevices">,
+      userId
+    });
+
+    return createResponse("success", null, "Device deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= BRIDGE WHITELIST HTTP ACTIONS =============
+
+export const addToWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, whitelistedNumber } = body;
+
+  if (!userId || !phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const id = await ctx.runMutation(api.features.bridge.addToWhitelist, {
+      userId,
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", { id }, "Number whitelisted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getWhitelist = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  try {
+    const whitelist = await ctx.runQuery(api.features.bridge.getWhitelist, { phoneNumber });
+    return createResponse("success", { whitelist }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const isWhitelisted = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const receiverPhone = url.searchParams.get("receiver");
+  const senderPhone = url.searchParams.get("sender");
+
+  if (!receiverPhone || !senderPhone) {
+    return createResponse("error", null, "Missing receiver or sender parameter");
+  }
+
+  try {
+    const isWhitelisted = await ctx.runQuery(api.features.bridge.isWhitelisted, {
+      receiverPhone,
+      senderPhone
+    });
+
+    return createResponse("success", { isWhitelisted }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const removeFromWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumber, whitelistedNumber } = body;
+
+  if (!phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing phoneNumber or whitelistedNumber");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.removeFromWhitelist, {
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", null, "Number removed from whitelist");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= BRIDGE TRANSACTIONS HTTP ACTIONS =============
+
+export const createBridgeTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, deviceId, offerId, status, smsContent } = body;
+
+  if (!userId || !phoneNumber || !deviceId || !offerId || !status) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  const validStatuses = ["Success", "Failed", "Pending"];
+  if (!validStatuses.includes(status)) {
+    return createResponse("error", null, "Invalid status");
+  }
+
+  try {
+    const transactionId = await ctx.runMutation(api.features.bridge.createBridgeTransaction, {
+      userId,
+      phoneNumber,
+      deviceId,
+      offerId,
+      status,
+      smsContent
+    });
+
+    return createResponse("success", { transactionId }, "Transaction created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getBridgeTransactions = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const deviceId = url.searchParams.get("deviceId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const transactions = await ctx.runQuery(api.features.bridge.getBridgeTransactions, {
+      userId,
+      deviceId: deviceId || undefined
+    });
+
+    return createResponse("success", { transactions }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateTransactionStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { transactionId, status } = body;
+
+  if (!transactionId || !status) {
+    return createResponse("error", null, "Missing transactionId or status");
+  }
+
+  const validStatuses = ["Success", "Failed", "Pending"];
+  if (!validStatuses.includes(status)) {
+    return createResponse("error", null, "Invalid status");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateTransactionStatus, {
+      transactionId: transactionId as Id<"bridgeTransactions">,
+      status
+    });
+
+    return createResponse("success", null, "Transaction status updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getTransactionStatusCounts = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const counts = await ctx.runQuery(api.features.bridge.getTransactionStatusCounts, { userId });
+    return createResponse("success", { counts }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
