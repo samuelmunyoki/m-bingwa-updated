@@ -46,7 +46,14 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getBridgeTransactions,
   updateTransactionStatus,
   getTransactionStatusCounts,
-  handleAirtimeTransactionOptions} from "./mobile/http/handlers";
+  handleAirtimeTransactionOptions,
+  getTotalCommission,
+  getTotalCommissionByUser,
+  getTotalCommissionByUserRange,
+  getTotalCommissionByDay,
+  upsertTotalCommission,
+  incrementTotalCommission,
+  deleteTotalCommission} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -607,5 +614,58 @@ http.route({
   handler: getTransactionStatusCounts,
 });
 
+
+// ============================================
+// TOTAL COMMISSION ROUTES
+// ============================================
+
+// Get total commission by userId and day
+http.route({
+  pathPrefix: "/api/total-commission/",
+  method: "GET",
+  handler: getTotalCommission,
+});
+
+// Get all commissions for a user
+http.route({
+  pathPrefix: "/api/total-commission/user/",
+  method: "GET",
+  handler: getTotalCommissionByUser,
+});
+
+// Get commissions for a user within a date range
+http.route({
+  pathPrefix: "/api/total-commission/user/range/",
+  method: "GET",
+  handler: getTotalCommissionByUserRange,
+});
+
+// Get all commissions for a specific day
+http.route({
+  pathPrefix: "/api/total-commission/day/",
+  method: "GET",
+  handler: getTotalCommissionByDay,
+});
+
+// Create or update total commission
+http.route({
+  pathPrefix: "/api/total-commission/upsert/",
+  method: "POST",
+  handler: upsertTotalCommission,
+});
+
+// Increment total commission
+http.route({
+  pathPrefix: "/api/total-commission/increment/",
+  method: "POST",
+  handler: incrementTotalCommission,
+});
+
+// Delete total commission
+http.route({
+  pathPrefix: "/api/total-commission/delete/",
+  method: "DELETE",
+  handler: deleteTotalCommission,
+});
 
 export default http;

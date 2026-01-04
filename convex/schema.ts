@@ -343,7 +343,16 @@ export default defineSchema({
   })
     .index("by_device", ["deviceId"])
     .index("by_user", ["userId"])
-    .index("by_status", ["userId", "status"])  
+    .index("by_status", ["userId", "status"]),
+  
+  totalCommission: defineTable({
+    day: v.number(), // Timestamp for the day (e.g., start of day)
+    userId: v.string(),
+    totalCommissionAmount: v.number(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_day", ["day"])
+    .index("by_user_and_day", ["userId", "day"]),
 
 });
 

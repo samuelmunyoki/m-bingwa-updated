@@ -3834,3 +3834,290 @@ export const getTransactionStatusCounts = httpAction(async (ctx, request) => {
   }
 });
 
+// ============================================
+// TOTAL COMMISSION HTTP HANDLERS
+// ============================================
+
+/**
+ * HTTP handler to get total commission by userId and day
+ * GET /api/total-commission/
+ * Query params: userId, day
+ */
+export const getTotalCommission = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const dayParam = url.searchParams.get("day");
+
+  if (!userId || !dayParam) {
+    return createResponse("error", null, "Missing userId or day parameter");
+  }
+
+  try {
+    const day = parseInt(dayParam);
+    const commission = await ctx.runQuery(
+      api.features.totalCommission.getByUserAndDay,
+      { userId, day }
+    );
+
+    return createResponse("success", { commission });
+  } catch (error: any) {
+    console.error("Error fetching total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get all commissions for a user
+ * GET /api/total-commission/user/
+ * Query params: userId
+ */
+export const getTotalCommissionByUser = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByUserId,
+      { userId }
+    );
+
+    return createResponse("success", { commissions });
+  } catch (error: any) {
+    console.error("Error fetching user commissions:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch user commissions: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get commissions for a user within a date range
+ * GET /api/total-commission/user/range/
+ * Query params: userId, startDay, endDay
+ */
+export const getTotalCommissionByUserRange = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const startDayParam = url.searchParams.get("startDay");
+  const endDayParam = url.searchParams.get("endDay");
+
+  if (!userId || !startDayParam || !endDayParam) {
+    return createResponse("error", null, "Missing required parameters: userId, startDay, endDay");
+  }
+
+  try {
+    const startDay = parseInt(startDayParam);
+    const endDay = parseInt(endDayParam);
+
+    if (isNaN(startDay) || isNaN(endDay)) {
+      return createResponse("error", null, "Invalid date parameters: startDay and endDay must be valid numbers");
+    }
+
+    if (startDay > endDay) {
+      return createResponse("error", null, "Invalid date range: startDay must be less than or equal to endDay");
+    }
+
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByUserIdAndDateRange,
+      { userId, startDay, endDay }
+    );
+
+    return createResponse("success", { 
+      commissions,
+      count: commissions.length,
+      startDay,
+      endDay
+    });
+  } catch (error: any) {
+    console.error("Error fetching user commissions by range:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch user commissions by range: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get all commissions for a specific day
+ * GET /api/total-commission/day/
+ * Query params: day
+ */
+export const getTotalCommissionByDay = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const dayParam = url.searchParams.get("day");
+
+  if (!dayParam) {
+    return createResponse("error", null, "Missing day parameter");
+  }
+
+  try {
+    const day = parseInt(dayParam);
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByDay,
+      { day }
+    );
+
+    return createResponse("success", { commissions });
+  } catch (error: any) {
+    console.error("Error fetching day commissions:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch day commissions: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to create or update total commission
+ * POST /api/total-commission/upsert/
+ * Body: { userId, day, totalCommissionAmount }
+ */
+export const upsertTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day, totalCommissionAmount } = body;
+
+  if (!userId || day === undefined || totalCommissionAmount === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day, totalCommissionAmount"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.upsertTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+        totalCommissionAmount: parseFloat(totalCommissionAmount),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error upserting total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to upsert total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to increment total commission
+ * POST /api/total-commission/increment/
+ * Body: { userId, day, commissionAmount }
+ */
+export const incrementTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day, commissionAmount } = body;
+
+  if (!userId || day === undefined || commissionAmount === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day, commissionAmount"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.incrementTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+        commissionAmount: parseFloat(commissionAmount),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error incrementing total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to increment total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to delete a commission record
+ * DELETE /api/total-commission/delete/
+ * Body: { userId, day }
+ */
+export const deleteTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day } = body;
+
+  if (!userId || day === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.deleteTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error deleting total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to delete total commission: ${error.message}`
+    );
+  }
+});
