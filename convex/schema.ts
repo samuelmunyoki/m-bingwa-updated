@@ -354,7 +354,6 @@ export default defineSchema({
     .index("by_user_id", ["userId"])
     .index("by_day", ["day"])
     .index("by_user_and_day", ["userId", "day"]),
-    .index("by_transaction_id", ["id"]),
 
   onlineBridgeOffers: defineTable({
     userId: v.string(),
