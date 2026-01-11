@@ -629,18 +629,6 @@ http.route({
   handler: getTransactionStatusCounts,
 });
 
-http.route({
-  pathPrefix: "/api/bridge/transactions/delete/",
-  method: "DELETE",
-  handler: deleteBridgeTransaction,
-});
-
-http.route({
-  pathPrefix: "/api/bridge/transactions/delete-all/",
-  method: "DELETE",
-  handler: deleteAllTransactionsForDevice,
-});
-
 // ============= ONLINE BRIDGE OFFERS ROUTES =============
 
 http.route({
@@ -736,91 +724,6 @@ http.route({
   method: "DELETE",
   handler: deleteAllTransactionsForDevice,
 });
-
-// ============= ONLINE BRIDGE OFFERS ROUTES =============
-
-http.route({
-  pathPrefix: "/api/online-bridge/offers/create/",
-  method: "POST",
-  handler: createOnlineBridgeOffer,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/offers/",
-  method: "GET",
-  handler: getOnlineBridgeOffers,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/offers/update/",
-  method: "PATCH",
-  handler: updateOnlineBridgeOffer,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/offers/delete/",
-  method: "DELETE",
-  handler: deleteOnlineBridgeOffer,
-});
-
-// ============= ONLINE BRIDGE DEVICES ROUTES =============
-
-http.route({
-  pathPrefix: "/api/online-bridge/devices/create/",
-  method: "POST",
-  handler: createOnlineBridgeDevice,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/devices/",
-  method: "GET",
-  handler: getOnlineBridgeDevices,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/devices/update/",
-  method: "PATCH",
-  handler: updateOnlineBridgeDevice,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/devices/update-offers/",
-  method: "PATCH",
-  handler: updateOnlineDeviceOffers,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/devices/delete/",
-  method: "DELETE",
-  handler: deleteOnlineBridgeDevice,
-});
-
-// ============= ONLINE BRIDGE WHITELIST ROUTES =============
-
-http.route({
-  pathPrefix: "/api/online-bridge/whitelist/add/",
-  method: "POST",
-  handler: addToOnlineWhitelist,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/whitelist/",
-  method: "GET",
-  handler: getOnlineWhitelist,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/whitelist/is-whitelisted/",
-  method: "GET",
-  handler: isOnlineWhitelisted,
-});
-
-http.route({
-  pathPrefix: "/api/online-bridge/whitelist/remove/",
-  method: "DELETE",
-  handler: removeFromOnlineWhitelist,
-});
-
 
 // ============================================
 // TOTAL COMMISSION ROUTES
