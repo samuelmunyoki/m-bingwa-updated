@@ -4265,3 +4265,720 @@ export const removeFromOnlineWhitelist = httpAction(async (ctx, request) => {
   }
 });
 
+export const deleteBridgeTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { transactionId, userId } = body;
+
+  if (!transactionId || !userId) {
+    return createResponse("error", null, "Missing transactionId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.deleteBridgeTransaction, {
+      transactionId: transactionId as Id<"bridgeTransactions">,
+      userId
+    });
+
+    return createResponse("success", null, "Transaction deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteAllTransactionsForDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.bridge.deleteAllTransactionsForDevice, {
+      deviceId,
+      userId
+    });
+
+    return createResponse("success", { deletedCount: result.deletedCount }, `Deleted ${result.deletedCount} transactions successfully`);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+
+
+
+
+export const createOnlineBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, name, type, price } = body;
+
+  if (!userId || !phoneNumber || !name || !type || price === undefined) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  const validTypes = ["Data", "SMS", "Minutes"];
+  if (!validTypes.includes(type)) {
+    return createResponse("error", null, "Invalid offer type");
+  }
+
+  if (typeof price !== "number" || price <= 0) {
+    return createResponse("error", null, "Invalid price");
+  }
+
+  try {
+    const offerId = await ctx.runMutation(api.features.onlineBridge.createOnlineBridgeOffer, {
+      userId,
+      phoneNumber,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", { offerId }, "Offer created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineBridgeOffers = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const offers = await ctx.runQuery(api.features.onlineBridge.getOnlineBridgeOffers, { userId });
+    return createResponse("success", { offers }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId, name, type, price } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineBridgeOffer, {
+      offerId: offerId as Id<"onlineBridgeOffers">,
+      userId,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", null, "Offer updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOnlineBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.deleteOnlineBridgeOffer, {
+      offerId: offerId as Id<"onlineBridgeOffers">,
+      userId
+    });
+
+    return createResponse("success", null, "Offer deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= ONLINE BRIDGE DEVICES HTTP ACTIONS =============
+
+export const createOnlineBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!userId || !phoneNumber || !deviceName || !devicePhoneNumber || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const deviceId = await ctx.runMutation(api.features.onlineBridge.createOnlineBridgeDevice, {
+      userId,
+      phoneNumber,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", { deviceId }, "Device created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineBridgeDevices = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const devices = await ctx.runQuery(api.features.onlineBridge.getOnlineBridgeDevices, { userId });
+    return createResponse("success", { devices }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineBridgeDevice, {
+      deviceId: deviceId as Id<"onlineBridgeDevices">,
+      userId,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineDeviceOffers = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, selectedOfferIds } = body;
+
+  if (!deviceId || !userId || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineDeviceOffers, {
+      deviceId: deviceId as Id<"onlineBridgeDevices">,
+      userId,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device offers updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOnlineBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.deleteOnlineBridgeDevice, {
+      deviceId: deviceId as Id<"onlineBridgeDevices">,
+      userId
+    });
+
+    return createResponse("success", null, "Device deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= ONLINE BRIDGE WHITELIST HTTP ACTIONS =============
+
+export const addToOnlineWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, whitelistedNumber } = body;
+
+  if (!userId || !phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const id = await ctx.runMutation(api.features.onlineBridge.addToOnlineWhitelist, {
+      userId,
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", { id }, "Number whitelisted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineWhitelist = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  try {
+    const whitelist = await ctx.runQuery(api.features.onlineBridge.getOnlineWhitelist, { phoneNumber });
+    return createResponse("success", { whitelist }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const isOnlineWhitelisted = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const receiverPhone = url.searchParams.get("receiver");
+  const senderPhone = url.searchParams.get("sender");
+
+  if (!receiverPhone || !senderPhone) {
+    return createResponse("error", null, "Missing receiver or sender parameter");
+  }
+
+  try {
+    const isWhitelisted = await ctx.runQuery(api.features.onlineBridge.isOnlineWhitelisted, {
+      receiverPhone,
+      senderPhone
+    });
+
+    return createResponse("success", { isWhitelisted }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const removeFromOnlineWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumber, whitelistedNumber } = body;
+
+  if (!phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing phoneNumber or whitelistedNumber");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.removeFromOnlineWhitelist, {
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", null, "Number removed from whitelist");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============================================
+// TOTAL COMMISSION HTTP HANDLERS
+// ============================================
+
+/**
+ * HTTP handler to get total commission by userId and day
+ * GET /api/total-commission/
+ * Query params: userId, day
+ */
+export const getTotalCommission = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const dayParam = url.searchParams.get("day");
+
+  if (!userId || !dayParam) {
+    return createResponse("error", null, "Missing userId or day parameter");
+  }
+
+  try {
+    const day = parseInt(dayParam);
+    const commission = await ctx.runQuery(
+      api.features.totalCommission.getByUserAndDay,
+      { userId, day }
+    );
+
+    return createResponse("success", { commission });
+  } catch (error: any) {
+    console.error("Error fetching total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get all commissions for a user
+ * GET /api/total-commission/user/
+ * Query params: userId
+ */
+export const getTotalCommissionByUser = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByUserId,
+      { userId }
+    );
+
+    return createResponse("success", { commissions });
+  } catch (error: any) {
+    console.error("Error fetching user commissions:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch user commissions: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get commissions for a user within a date range
+ * GET /api/total-commission/user/range/
+ * Query params: userId, startDay, endDay
+ */
+export const getTotalCommissionByUserRange = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const startDayParam = url.searchParams.get("startDay");
+  const endDayParam = url.searchParams.get("endDay");
+
+  if (!userId || !startDayParam || !endDayParam) {
+    return createResponse("error", null, "Missing required parameters: userId, startDay, endDay");
+  }
+
+  try {
+    const startDay = parseInt(startDayParam);
+    const endDay = parseInt(endDayParam);
+
+    if (isNaN(startDay) || isNaN(endDay)) {
+      return createResponse("error", null, "Invalid date parameters: startDay and endDay must be valid numbers");
+    }
+
+    if (startDay > endDay) {
+      return createResponse("error", null, "Invalid date range: startDay must be less than or equal to endDay");
+    }
+
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByUserIdAndDateRange,
+      { userId, startDay, endDay }
+    );
+
+    return createResponse("success", { 
+      commissions,
+      count: commissions.length,
+      startDay,
+      endDay
+    });
+  } catch (error: any) {
+    console.error("Error fetching user commissions by range:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch user commissions by range: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get all commissions for a specific day
+ * GET /api/total-commission/day/
+ * Query params: day
+ */
+export const getTotalCommissionByDay = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const dayParam = url.searchParams.get("day");
+
+  if (!dayParam) {
+    return createResponse("error", null, "Missing day parameter");
+  }
+
+  try {
+    const day = parseInt(dayParam);
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByDay,
+      { day }
+    );
+
+    return createResponse("success", { commissions });
+  } catch (error: any) {
+    console.error("Error fetching day commissions:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch day commissions: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to create or update total commission
+ * POST /api/total-commission/upsert/
+ * Body: { userId, day, totalCommissionAmount }
+ */
+export const upsertTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day, totalCommissionAmount } = body;
+
+  if (!userId || day === undefined || totalCommissionAmount === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day, totalCommissionAmount"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.upsertTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+        totalCommissionAmount: parseFloat(totalCommissionAmount),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error upserting total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to upsert total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to increment total commission
+ * POST /api/total-commission/increment/
+ * Body: { userId, day, commissionAmount }
+ */
+export const incrementTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day, commissionAmount } = body;
+
+  if (!userId || day === undefined || commissionAmount === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day, commissionAmount"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.incrementTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+        commissionAmount: parseFloat(commissionAmount),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error incrementing total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to increment total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to delete a commission record
+ * DELETE /api/total-commission/delete/
+ * Body: { userId, day }
+ */
+export const deleteTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day } = body;
+
+  if (!userId || day === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.deleteTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error deleting total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to delete total commission: ${error.message}`
+    );
+  }
+});

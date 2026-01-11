@@ -61,7 +61,14 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getOnlineWhitelist,
   isOnlineWhitelisted,
   removeFromOnlineWhitelist,
-  handleAirtimeTransactionOptions} from "./mobile/http/handlers";
+  handleAirtimeTransactionOptions,
+  getTotalCommission,
+  getTotalCommissionByUser,
+  getTotalCommissionByUserRange,
+  getTotalCommissionByDay,
+  upsertTotalCommission,
+  incrementTotalCommission,
+  deleteTotalCommission} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -718,5 +725,154 @@ http.route({
   handler: removeFromOnlineWhitelist,
 });
 
+http.route({
+  pathPrefix: "/api/bridge/transactions/delete/",
+  method: "DELETE",
+  handler: deleteBridgeTransaction,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/delete-all/",
+  method: "DELETE",
+  handler: deleteAllTransactionsForDevice,
+});
+
+// ============= ONLINE BRIDGE OFFERS ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/create/",
+  method: "POST",
+  handler: createOnlineBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/",
+  method: "GET",
+  handler: getOnlineBridgeOffers,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/update/",
+  method: "PATCH",
+  handler: updateOnlineBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeOffer,
+});
+
+// ============= ONLINE BRIDGE DEVICES ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/create/",
+  method: "POST",
+  handler: createOnlineBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/",
+  method: "GET",
+  handler: getOnlineBridgeDevices,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/update/",
+  method: "PATCH",
+  handler: updateOnlineBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/update-offers/",
+  method: "PATCH",
+  handler: updateOnlineDeviceOffers,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeDevice,
+});
+
+// ============= ONLINE BRIDGE WHITELIST ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/add/",
+  method: "POST",
+  handler: addToOnlineWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/",
+  method: "GET",
+  handler: getOnlineWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/is-whitelisted/",
+  method: "GET",
+  handler: isOnlineWhitelisted,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/remove/",
+  method: "DELETE",
+  handler: removeFromOnlineWhitelist,
+});
+
+
+// ============================================
+// TOTAL COMMISSION ROUTES
+// ============================================
+
+// Get total commission by userId and day
+http.route({
+  pathPrefix: "/api/total-commission/",
+  method: "GET",
+  handler: getTotalCommission,
+});
+
+// Get all commissions for a user
+http.route({
+  pathPrefix: "/api/total-commission/user/",
+  method: "GET",
+  handler: getTotalCommissionByUser,
+});
+
+// Get commissions for a user within a date range
+http.route({
+  pathPrefix: "/api/total-commission/user/range/",
+  method: "GET",
+  handler: getTotalCommissionByUserRange,
+});
+
+// Get all commissions for a specific day
+http.route({
+  pathPrefix: "/api/total-commission/day/",
+  method: "GET",
+  handler: getTotalCommissionByDay,
+});
+
+// Create or update total commission
+http.route({
+  pathPrefix: "/api/total-commission/upsert/",
+  method: "POST",
+  handler: upsertTotalCommission,
+});
+
+// Increment total commission
+http.route({
+  pathPrefix: "/api/total-commission/increment/",
+  method: "POST",
+  handler: incrementTotalCommission,
+});
+
+// Delete total commission
+http.route({
+  pathPrefix: "/api/total-commission/delete/",
+  method: "DELETE",
+  handler: deleteTotalCommission,
+});
 
 export default http;
