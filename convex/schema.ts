@@ -332,6 +332,7 @@ export default defineSchema({
     .index("by_whitelist", ["phoneNumber", "whitelistedNumber"]),  
 
   bridgeTransactions: defineTable({
+    id: v.string(),
     userId: v.string(),
     phoneNumber: v.string(),
     deviceId: v.string(),
@@ -343,7 +344,43 @@ export default defineSchema({
   })
     .index("by_device", ["deviceId"])
     .index("by_user", ["userId"])
-    .index("by_status", ["userId", "status"])  
+    .index("by_status", ["userId", "status"])
+    .index("by_transaction_id", ["id"]),
+
+  onlineBridgeOffers: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    name: v.string(),
+    type: v.union(v.literal("Data"), v.literal("SMS"), v.literal("Minutes")),
+    price: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"])
+    .index("by_price", ["userId", "price"]),
+
+  onlineBridgeDevices: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Owner/Sender phone number
+    deviceName: v.string(),
+    devicePhoneNumber: v.string(),     // Receiver device phone number
+    selectedOfferIds: v.array(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"]),
+
+  onlineBridgeWhitelist: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Receiver phone number (owner)
+    whitelistedNumber: v.string(),     // Sender phone number (allowed)
+    createdAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_receiver", ["phoneNumber"])
+    .index("by_whitelist", ["phoneNumber", "whitelistedNumber"]),  
 
 });
 

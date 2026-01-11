@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
-import { api } from "../_generated/api";
 
-export const createBridgeOffer = mutation({
+// ============= OFFERS MUTATIONS =============
+
+export const createOnlineBridgeOffer = mutation({
   args: {
     userId: v.string(),
     phoneNumber: v.string(),
@@ -13,7 +14,7 @@ export const createBridgeOffer = mutation({
   handler: async (ctx, args) => {
     // Check for duplicate price for this user
     const existing = await ctx.db
-      .query("bridgeOffers")
+      .query("onlineBridgeOffers")
       .withIndex("by_price", (q) => 
         q.eq("userId", args.userId).eq("price", args.price)
       )
@@ -23,7 +24,7 @@ export const createBridgeOffer = mutation({
       throw new Error(`An offer with price ${args.price} already exists`);
     }
 
-    const offerId = await ctx.db.insert("bridgeOffers", {
+    const offerId = await ctx.db.insert("onlineBridgeOffers", {
       userId: args.userId,
       phoneNumber: args.phoneNumber,
       name: args.name,
@@ -37,9 +38,9 @@ export const createBridgeOffer = mutation({
   }
 });
 
-export const updateBridgeOffer = mutation({
+export const updateOnlineBridgeOffer = mutation({
   args: {
-    offerId: v.id("bridgeOffers"),
+    offerId: v.id("onlineBridgeOffers"),
     userId: v.string(),
     name: v.optional(v.string()),
     type: v.optional(v.union(v.literal("Data"), v.literal("SMS"), v.literal("Minutes"))),
@@ -55,7 +56,7 @@ export const updateBridgeOffer = mutation({
     // If updating price, check for duplicates
     if (args.price !== undefined && args.price !== offer.price) {
       const duplicate = await ctx.db
-        .query("bridgeOffers")
+        .query("onlineBridgeOffers")
         .withIndex("by_price", (q) => 
           q.eq("userId", args.userId).eq("price", args.price as number)
         )
@@ -75,9 +76,9 @@ export const updateBridgeOffer = mutation({
   }
 });
 
-export const deleteBridgeOffer = mutation({
+export const deleteOnlineBridgeOffer = mutation({
   args: { 
-    offerId: v.id("bridgeOffers"),
+    offerId: v.id("onlineBridgeOffers"),
     userId: v.string() 
   },
   handler: async (ctx, args) => {
@@ -93,7 +94,7 @@ export const deleteBridgeOffer = mutation({
 
 // ============= DEVICES MUTATIONS =============
 
-export const createBridgeDevice = mutation({
+export const createOnlineBridgeDevice = mutation({
   args: {
     userId: v.string(),
     phoneNumber: v.string(),
@@ -102,7 +103,7 @@ export const createBridgeDevice = mutation({
     selectedOfferIds: v.array(v.string())
   },
   handler: async (ctx, args) => {
-    const deviceId = await ctx.db.insert("bridgeDevices", {
+    const deviceId = await ctx.db.insert("onlineBridgeDevices", {
       userId: args.userId,
       phoneNumber: args.phoneNumber,
       deviceName: args.deviceName,
@@ -116,9 +117,9 @@ export const createBridgeDevice = mutation({
   }
 });
 
-export const updateBridgeDevice = mutation({
+export const updateOnlineBridgeDevice = mutation({
   args: {
-    deviceId: v.id("bridgeDevices"),
+    deviceId: v.id("onlineBridgeDevices"),
     userId: v.string(),
     deviceName: v.optional(v.string()),
     devicePhoneNumber: v.optional(v.string()),
@@ -140,9 +141,9 @@ export const updateBridgeDevice = mutation({
   }
 });
 
-export const updateDeviceOffers = mutation({
+export const updateOnlineDeviceOffers = mutation({
   args: {
-    deviceId: v.id("bridgeDevices"),
+    deviceId: v.id("onlineBridgeDevices"),
     userId: v.string(),
     selectedOfferIds: v.array(v.string())
   },
@@ -160,9 +161,9 @@ export const updateDeviceOffers = mutation({
   }
 });
 
-export const deleteBridgeDevice = mutation({
+export const deleteOnlineBridgeDevice = mutation({
   args: {
-    deviceId: v.id("bridgeDevices"),
+    deviceId: v.id("onlineBridgeDevices"),
     userId: v.string()
   },
   handler: async (ctx, args) => {
@@ -178,7 +179,7 @@ export const deleteBridgeDevice = mutation({
 
 // ============= WHITELIST MUTATIONS =============
 
-export const addToWhitelist = mutation({
+export const addToOnlineWhitelist = mutation({
   args: {
     userId: v.string(),
     phoneNumber: v.string(),
@@ -187,7 +188,7 @@ export const addToWhitelist = mutation({
   handler: async (ctx, args) => {
     // Check if already whitelisted
     const existing = await ctx.db
-      .query("bridgeWhitelist")
+      .query("onlineBridgeWhitelist")
       .withIndex("by_whitelist", (q) =>
         q.eq("phoneNumber", args.phoneNumber)
          .eq("whitelistedNumber", args.whitelistedNumber)
@@ -198,7 +199,7 @@ export const addToWhitelist = mutation({
       throw new Error("Number already whitelisted");
     }
 
-    const id = await ctx.db.insert("bridgeWhitelist", {
+    const id = await ctx.db.insert("onlineBridgeWhitelist", {
       userId: args.userId,
       phoneNumber: args.phoneNumber,
       whitelistedNumber: args.whitelistedNumber,
@@ -209,14 +210,14 @@ export const addToWhitelist = mutation({
   }
 });
 
-export const removeFromWhitelist = mutation({
+export const removeFromOnlineWhitelist = mutation({
   args: {
     phoneNumber: v.string(),
     whitelistedNumber: v.string()
   },
   handler: async (ctx, args) => {
     const entry = await ctx.db
-      .query("bridgeWhitelist")
+      .query("onlineBridgeWhitelist")
       .withIndex("by_whitelist", (q) =>
         q.eq("phoneNumber", args.phoneNumber)
          .eq("whitelistedNumber", args.whitelistedNumber)
@@ -231,76 +232,20 @@ export const removeFromWhitelist = mutation({
   }
 });
 
-// ============= TRANSACTIONS MUTATIONS =============
-
-export const createBridgeTransaction = mutation({
-  args: {
-    id: v.string(),  
-    userId: v.string(),
-    phoneNumber: v.string(),
-    deviceId: v.string(),
-    offerId: v.string(),
-    status: v.union(v.literal("Success"), v.literal("Failed"), v.literal("Pending")),
-    smsContent: v.optional(v.string())
-  },
-  handler: async (ctx, args) => {
-    //Check if transaction with this ID already exists
-    const existing = await ctx.db
-      .query("bridgeTransactions")
-      .filter((q) => q.eq(q.field("id"), args.id))
-      .first();
-
-    if (existing) {
-      // Transaction already exists, return existing _id
-      return existing._id;
-    }
-
-    // Create new transaction with client-provided ID
-    const transactionId = await ctx.db.insert("bridgeTransactions", {
-      id: args.id,  // ADD THIS
-      userId: args.userId,
-      phoneNumber: args.phoneNumber,
-      deviceId: args.deviceId,
-      offerId: args.offerId,
-      status: args.status,
-      smsContent: args.smsContent,
-      createdAt: Date.now()
-    });
-
-    return transactionId;
-  }
-});
-
-export const updateTransactionStatus = mutation({
-  args: {
-    transactionId: v.id("bridgeTransactions"),
-    status: v.union(v.literal("Success"), v.literal("Failed"), v.literal("Pending"))
-  },
-  handler: async (ctx, args) => {
-    await ctx.db.patch(args.transactionId, {
-      status: args.status,
-      executedAt: Date.now()
-    });
-  }
-});
-
-
-
-
 // ============= OFFERS QUERIES =============
 
-export const getBridgeOffers = query({
+export const getOnlineBridgeOffers = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("bridgeOffers")
+      .query("onlineBridgeOffers")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
   }
 });
 
-export const getBridgeOfferById = query({
-  args: { offerId: v.id("bridgeOffers") },
+export const getOnlineBridgeOfferById = query({
+  args: { offerId: v.id("onlineBridgeOffers") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.offerId);
   }
@@ -308,18 +253,18 @@ export const getBridgeOfferById = query({
 
 // ============= DEVICES QUERIES =============
 
-export const getBridgeDevices = query({
+export const getOnlineBridgeDevices = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("bridgeDevices")
+      .query("onlineBridgeDevices")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
   }
 });
 
-export const getBridgeDeviceById = query({
-  args: { deviceId: v.id("bridgeDevices") },
+export const getOnlineBridgeDeviceById = query({
+  args: { deviceId: v.id("onlineBridgeDevices") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.deviceId);
   }
@@ -327,24 +272,24 @@ export const getBridgeDeviceById = query({
 
 // ============= WHITELIST QUERIES =============
 
-export const getWhitelist = query({
+export const getOnlineWhitelist = query({
   args: { phoneNumber: v.string() },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("bridgeWhitelist")
+      .query("onlineBridgeWhitelist")
       .withIndex("by_receiver", (q) => q.eq("phoneNumber", args.phoneNumber))
       .collect();
   }
 });
 
-export const isWhitelisted = query({
+export const isOnlineWhitelisted = query({
   args: {
     receiverPhone: v.string(),
     senderPhone: v.string()
   },
   handler: async (ctx, args) => {
     const entry = await ctx.db
-      .query("bridgeWhitelist")
+      .query("onlineBridgeWhitelist")
       .withIndex("by_whitelist", (q) =>
         q.eq("phoneNumber", args.receiverPhone)
          .eq("whitelistedNumber", args.senderPhone)
@@ -352,97 +297,5 @@ export const isWhitelisted = query({
       .first();
 
     return entry !== null;
-  }
-});
-
-// ============= TRANSACTIONS QUERIES =============
-
-export const getBridgeTransactions = query({
-  args: { 
-    userId: v.string(),
-    deviceId: v.optional(v.string())
-  },
-  handler: async (ctx, args) => {
-    if (args.deviceId) {
-      return await ctx.db
-        .query("bridgeTransactions")
-        .withIndex("by_device", (q) => q.eq("deviceId", args.deviceId!))
-        .collect();
-    }
-    
-    return await ctx.db
-      .query("bridgeTransactions")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-  }
-});
-
-export const getTransactionStatusCounts = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args) => {
-    const transactions = await ctx.db
-      .query("bridgeTransactions")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-
-    const counts = {
-      Success: 0,
-      Failed: 0,
-      Pending: 0
-    };
-
-    transactions.forEach(tx => {
-      counts[tx.status]++;
-    });
-
-    return counts;
-  }
-});
-
-
-export const deleteBridgeTransaction = mutation({
-  args: { 
-    transactionId: v.id("bridgeTransactions"),
-    userId: v.string() 
-  },
-  handler: async (ctx, args) => {
-    const transaction = await ctx.db.get(args.transactionId);
-    
-    if (!transaction || transaction.userId !== args.userId) {
-      throw new Error("Transaction not found or unauthorized");
-    }
-
-    await ctx.db.delete(args.transactionId);
-  }
-});
-
-export const deleteAllTransactionsForDevice = mutation({
-  args: {
-    deviceId: v.string(),
-    userId: v.string()
-  },
-  handler: async (ctx, args) => {
-    // Get all transactions for this device
-    const transactions = await ctx.db
-      .query("bridgeTransactions")
-      .withIndex("by_device", (q) => q.eq("deviceId", args.deviceId))
-      .collect();
-
-    // Verify user owns this device
-    const device = await ctx.db
-      .query("bridgeDevices")
-      .filter((q) => q.eq(q.field("_id"), args.deviceId))
-      .first();
-
-    if (!device || device.userId !== args.userId) {
-      throw new Error("Device not found or unauthorized");
-    }
-
-    // Delete all transactions
-    for (const transaction of transactions) {
-      await ctx.db.delete(transaction._id);
-    }
-
-    return { deletedCount: transactions.length };
   }
 });
