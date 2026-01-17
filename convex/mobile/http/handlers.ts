@@ -1343,7 +1343,7 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
+  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD ,verified} = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1371,6 +1371,9 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processedUSSD must be a string");
   }
 
+  if (verified !== undefined && typeof verified !== "boolean") {
+    return createResponse("error", null, "verified must be a boolean");
+  }
   try {
     const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessage, {
       messageId,
@@ -1383,7 +1386,8 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
       fullMessage,
       processResponse,
       offerName,
-      processedUSSD
+      processedUSSD,
+      verified
     });
     
     return createResponse("success", { message: updatedMessage }, null);
