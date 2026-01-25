@@ -299,3 +299,194 @@ export const isOnlineWhitelisted = query({
     return entry !== null;
   }
 });
+
+/**
+ * Create a new Online Bridge transaction
+ */
+export const createOnlineBridgeTransaction = mutation({
+  args: {
+    userId: v.string(),
+    senderPhoneNumber: v.string(),
+    receiverPhoneNumber: v.string(),
+    deviceId: v.string(),
+    offerId: v.string(),
+    amount: v.float64(),
+    smsContent: v.string(),
+    ussdCode: v.optional(v.string()),
+    status: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    
+    const transactionId = await ctx.db.insert("onlineBridgeTransactions", {
+      userId: args.userId,
+      senderPhoneNumber: args.senderPhoneNumber,
+      receiverPhoneNumber: args.receiverPhoneNumber,
+      deviceId: args.deviceId,
+      offerId: args.offerId,
+      amount: args.amount,
+      smsContent: args.smsContent,
+      ussdCode: args.ussdCode,
+      status: args.status,
+      result: undefined,
+      executedAt: undefined,
+      createdAt: now,
+      updatedAt: now,
+      isDeleted: false,
+    });
+
+    return transactionId;
+  },
+});
+
+/**
+ * Update Online Bridge transaction status
+ */
+export const updateOnlineBridgeTransactionStatus = mutation({
+  args: {
+    transactionId: v.id("onlineBridgeTransactions"),
+    status: v.string(),
+    result: v.optional(v.string()),
+    ussdCode: v.optional(v.string()),
+    executedAt: v.optional(v.float64()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    await ctx.db.patch(args.transactionId, {
+      status: args.status,
+      result: args.result,
+      ussdCode: args.ussdCode,
+      executedAt: args.executedAt,
+      updatedAt: now,
+    });
+
+    return args.transactionId;
+  },
+});
+
+/**
+ * Delete (soft delete) Online Bridge transaction
+ */
+export const deleteOnlineBridgeTransaction = mutation({
+  args: {
+    transactionId: v.id("onlineBridgeTransactions"),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    await ctx.db.patch(args.transactionId, {
+      isDeleted: true,
+      updatedAt: now,
+    });
+
+    return args.transactionId;
+  },
+});
+
+// ============= QUERIES =============
+
+/**
+ * Get all Online Bridge transactions for a user
+ */
+export const getOnlineBridgeTransactions = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_user_and_deleted", (q) =>
+        q.eq("userId", args.userId).eq("isDeleted", false)
+      )
+      .order("desc")
+      .collect();
+
+    return transactions;
+  },
+});
+
+/**
+ * Get a single Online Bridge transaction by ID
+ */
+export const getOnlineBridgeTransactionById = query({
+  args: {
+    transactionId: v.id("onlineBridgeTransactions"),
+  },
+  handler: async (ctx, args) => {
+    const transaction = await ctx.db.get(args.transactionId);
+    
+    if (!transaction || transaction.isDeleted) {
+      return null;
+    }
+
+    return transaction;
+  },
+});
+
+/**
+ * Get pending Online Bridge transactions for a receiver phone number
+ */
+export const getPendingOnlineBridgeTransactions = query({
+  args: {
+    receiverPhoneNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_receiver_and_status", (q) =>
+        q.eq("receiverPhoneNumber", args.receiverPhoneNumber).eq("status", "Pending")
+      )
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .order("desc")
+      .collect();
+
+    return transactions;
+  },
+});
+
+/**
+ * Get Online Bridge transaction status counts (Success/Failed/Pending)
+ */
+export const getOnlineBridgeTransactionStatusCounts = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_user_and_deleted", (q) =>
+        q.eq("userId", args.userId).eq("isDeleted", false)
+      )
+      .collect();
+
+    const successCount = transactions.filter((t) => t.status === "Success").length;
+    const failedCount = transactions.filter((t) => t.status === "Failed" || t.status === "Rejected").length;
+    const pendingCount = transactions.filter((t) => t.status === "Pending" || t.status === "Executing").length;
+
+    return {
+      successCount,
+      failedCount,
+      pendingCount,
+    };
+  },
+});
+
+/**
+ * Get Online Bridge transactions for a specific device
+ */
+export const getOnlineBridgeTransactionsByDevice = query({
+  args: {
+    deviceId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const transactions = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_device", (q) => q.eq("deviceId", args.deviceId))
+      .filter((q) => q.eq(q.field("isDeleted"), false))
+      .order("desc")
+      .collect();
+
+    return transactions;
+  },
+});

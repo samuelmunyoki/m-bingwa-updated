@@ -68,7 +68,23 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getTotalCommissionByDay,
   upsertTotalCommission,
   incrementTotalCommission,
-  deleteTotalCommission} from "./mobile/http/handlers";
+  deleteTotalCommission,
+  createOnlineBridgeTransaction,
+  getOnlineBridgeTransactions,
+  getPendingOnlineBridgeTransactions,
+  updateOnlineBridgeTransactionStatus,
+  deleteOnlineBridgeTransaction,
+  getOnlineBridgeTransactionStats,
+  updateServiceStatus,
+  getServiceStatus,
+  getMultipleServiceStatuses,
+  updateDeviceHeartbeat,
+  getBatchDeviceOnlineStatus,
+  setDeviceHeartbeatTestHandler,
+  updateOnlineServiceStatus,
+  getOnlineServiceStatus,
+  getOnlineBatchServiceStatus,
+} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -776,6 +792,122 @@ http.route({
   pathPrefix: "/api/total-commission/delete/",
   method: "DELETE",
   handler: deleteTotalCommission,
+});
+
+/**
+ * POST /api/online-bridge/transactions/create/
+ * Create a new Online Bridge transaction
+ */
+http.route({
+  path: "/api/online-bridge/transactions/create/",
+  method: "POST",
+  handler: createOnlineBridgeTransaction,
+});
+
+/**
+ * GET /api/online-bridge/transactions/
+ * Get all Online Bridge transactions for a user
+ */
+http.route({
+  path: "/api/online-bridge/transactions/",
+  method: "GET",
+  handler: getOnlineBridgeTransactions,
+});
+
+/**
+ * GET /api/online-bridge/transactions/pending/
+ * Get pending Online Bridge transactions for a receiver
+ */
+http.route({
+  path: "/api/online-bridge/transactions/pending/",
+  method: "GET",
+  handler: getPendingOnlineBridgeTransactions,
+});
+
+/**
+ * PATCH /api/online-bridge/transactions/update-status/
+ * Update Online Bridge transaction status
+ */
+http.route({
+  path: "/api/online-bridge/transactions/update-status/",
+  method: "PATCH",
+  handler: updateOnlineBridgeTransactionStatus,
+});
+
+/**
+ * DELETE /api/online-bridge/transactions/delete/
+ * Delete Online Bridge transaction
+ */
+http.route({
+  path: "/api/online-bridge/transactions/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeTransaction,
+});
+
+/**
+ * GET /api/online-bridge/transactions/stats/
+ * Get Online Bridge transaction status counts
+ */
+http.route({
+  path: "/api/online-bridge/transactions/stats/",
+  method: "GET",
+  handler: getOnlineBridgeTransactionStats,
+});
+
+
+http.route({
+  pathPrefix: "/api/service-status/update/",
+  method: "POST",
+  handler: updateServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/service-status/",
+  method: "GET",
+  handler: getServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/service-status/batch/",
+  method: "POST",
+  handler: getMultipleServiceStatuses,
+});
+
+http.route({
+  pathPrefix: "/api/device-heartbeat/",
+  method: "POST",
+  handler: updateDeviceHeartbeat,
+});
+
+http.route({
+  pathPrefix: "/api/device-online-status/batch/",
+  method: "POST",
+  handler: getBatchDeviceOnlineStatus,
+});
+
+http.route({
+  pathPrefix: "/api/device-heartbeat/test/",
+  method: "POST",
+  handler: setDeviceHeartbeatTestHandler,
+});
+
+
+http.route({
+  pathPrefix: "/api/online-service-status/update/",
+  method: "POST",
+  handler: updateOnlineServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/online-service-status/get/",
+  method: "GET",
+  handler: getOnlineServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/online-service-status/batch/",
+  method: "POST",
+  handler: getOnlineBatchServiceStatus,
 });
 
 export default http;

@@ -29,6 +29,7 @@ import type * as features_onlineBridge from "../features/onlineBridge.js";
 import type * as features_otps from "../features/otps.js";
 import type * as features_promo_codes from "../features/promo_codes.js";
 import type * as features_scheduled_events from "../features/scheduled_events.js";
+import type * as features_serviceStatus from "../features/serviceStatus.js";
 import type * as features_sms from "../features/sms.js";
 import type * as features_stores from "../features/stores.js";
 import type * as features_subscription_price from "../features/subscription_price.js";
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   "features/otps": typeof features_otps;
   "features/promo_codes": typeof features_promo_codes;
   "features/scheduled_events": typeof features_scheduled_events;
+  "features/serviceStatus": typeof features_serviceStatus;
   "features/sms": typeof features_sms;
   "features/stores": typeof features_stores;
   "features/subscription_price": typeof features_subscription_price;

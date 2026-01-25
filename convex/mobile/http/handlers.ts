@@ -3898,7 +3898,6 @@ export const deleteAllTransactionsForDevice = httpAction(async (ctx, request) =>
 });
 
 
-
 export const createOnlineBridgeOffer = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed");
@@ -3995,31 +3994,32 @@ export const deleteOnlineBridgeOffer = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Method not allowed");
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch (error) {
-    return createResponse("error", null, "Invalid JSON body");
-  }
+  // Read from query parameters, NOT body
+  const url = new URL(request.url);
+  const offerId = url.searchParams.get("offerId");
+  const userId = url.searchParams.get("userId");
 
-  const { offerId, userId } = body;
+  console.log("DELETE OFFER REQUEST - offerId:", offerId);
+  console.log("DELETE OFFER REQUEST - userId:", userId);
 
   if (!offerId || !userId) {
     return createResponse("error", null, "Missing offerId or userId");
   }
 
   try {
+    // Cast the string offerId to Id type
     await ctx.runMutation(api.features.onlineBridge.deleteOnlineBridgeOffer, {
       offerId: offerId as Id<"onlineBridgeOffers">,
       userId
     });
 
+    console.log("OFFER DELETE SUCCESSFUL");
     return createResponse("success", null, "Offer deleted successfully");
   } catch (error: any) {
+    console.log("OFFER DELETE FAILED:", error.message);
     return createResponse("error", null, error.message);
   }
 });
-
 // ============= ONLINE BRIDGE DEVICES HTTP ACTIONS =============
 
 export const createOnlineBridgeDevice = httpAction(async (ctx, request) => {
@@ -4140,14 +4140,13 @@ export const deleteOnlineBridgeDevice = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Method not allowed");
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch (error) {
-    return createResponse("error", null, "Invalid JSON body");
-  }
+  // Read from query parameters, NOT body
+  const url = new URL(request.url);
+  const deviceId = url.searchParams.get("deviceId");
+  const userId = url.searchParams.get("userId");
 
-  const { deviceId, userId } = body;
+  console.log("DELETE DEVICE REQUEST - deviceId:", deviceId);
+  console.log("DELETE DEVICE REQUEST - userId:", userId);
 
   if (!deviceId || !userId) {
     return createResponse("error", null, "Missing deviceId or userId");
@@ -4159,8 +4158,10 @@ export const deleteOnlineBridgeDevice = httpAction(async (ctx, request) => {
       userId
     });
 
+    console.log("DEVICE DELETE SUCCESSFUL");
     return createResponse("success", null, "Device deleted successfully");
   } catch (error: any) {
+    console.log("DEVICE DELETE FAILED:", error.message);
     return createResponse("error", null, error.message);
   }
 });
@@ -4240,14 +4241,13 @@ export const removeFromOnlineWhitelist = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Method not allowed");
   }
 
-  let body;
-  try {
-    body = await request.json();
-  } catch (error) {
-    return createResponse("error", null, "Invalid JSON body");
-  }
+  // Read from query parameters, NOT body
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+  const whitelistedNumber = url.searchParams.get("whitelistedNumber");
 
-  const { phoneNumber, whitelistedNumber } = body;
+  console.log("DELETE REQUEST - phoneNumber:", phoneNumber);
+  console.log("DELETE REQUEST - whitelistedNumber:", whitelistedNumber);
 
   if (!phoneNumber || !whitelistedNumber) {
     return createResponse("error", null, "Missing phoneNumber or whitelistedNumber");
@@ -4259,8 +4259,10 @@ export const removeFromOnlineWhitelist = httpAction(async (ctx, request) => {
       whitelistedNumber
     });
 
+    console.log("DELETE SUCCESSFUL");
     return createResponse("success", null, "Number removed from whitelist");
   } catch (error: any) {
+    console.log("DELETE FAILED:", error.message);
     return createResponse("error", null, error.message);
   }
 });
@@ -4549,6 +4551,594 @@ export const deleteTotalCommission = httpAction(async (ctx, request) => {
       "error",
       null,
       `Failed to delete total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * POST /api/online-bridge/transactions/create/
+ * Create a new Online Bridge transaction
+ */
+export const createOnlineBridgeTransaction = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      
+      const {
+        userId,
+        senderPhoneNumber,
+        receiverPhoneNumber,
+        deviceId,
+        offerId,
+        amount,
+        smsContent,
+        ussdCode,
+        status,
+      } = body;
+
+      // Validate required fields
+      if (
+        !userId ||
+        !senderPhoneNumber ||
+        !receiverPhoneNumber ||
+        !deviceId ||
+        !offerId ||
+        amount === undefined ||
+        !smsContent ||
+        !status
+      ) {
+        return new Response(
+          JSON.stringify({ error: "Missing required fields" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const transactionId = await ctx.runMutation(
+        api.features.onlineBridge.createOnlineBridgeTransaction,
+        {
+          userId,
+          senderPhoneNumber,
+          receiverPhoneNumber,
+          deviceId,
+          offerId,
+          amount: parseFloat(amount),
+          smsContent,
+          ussdCode,
+          status,
+        }
+      );
+
+      const transaction = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionById,
+        { transactionId }
+      );
+
+      return new Response(JSON.stringify(transaction), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("createOnlineBridgeTransactionHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/online-bridge/transactions/
+ * Get all Online Bridge transactions for a user
+ */
+export const getOnlineBridgeTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const userId = url.searchParams.get("userId");
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactions,
+        { userId }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/online-bridge/transactions/pending/
+ * Get pending Online Bridge transactions for a receiver
+ */
+export const getPendingOnlineBridgeTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const receiverPhoneNumber = url.searchParams.get("receiverPhoneNumber");
+
+      if (!receiverPhoneNumber) {
+        return new Response(
+          JSON.stringify({ error: "Missing receiverPhoneNumber" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getPendingOnlineBridgeTransactions,
+        { receiverPhoneNumber }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getPendingOnlineBridgeTransactionsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * PATCH /api/online-bridge/transactions/update-status/
+ * Update Online Bridge transaction status
+ */
+export const updateOnlineBridgeTransactionStatus = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { transactionId, status, result, ussdCode, executedAt } = body;
+
+      if (!transactionId || !status) {
+        return new Response(
+          JSON.stringify({ error: "Missing transactionId or status" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(
+        api.features.onlineBridge.updateOnlineBridgeTransactionStatus,
+        {
+          transactionId: transactionId as Id<"onlineBridgeTransactions">,
+          status,
+          result,
+          ussdCode,
+          executedAt: executedAt ? parseFloat(executedAt) : undefined,
+        }
+      );
+
+      const transaction = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionById,
+        { transactionId: transactionId as Id<"onlineBridgeTransactions"> }
+      );
+
+      return new Response(JSON.stringify(transaction), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("updateOnlineBridgeTransactionStatusHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * DELETE /api/online-bridge/transactions/delete/
+ * Delete (soft delete) Online Bridge transaction
+ */
+export const deleteOnlineBridgeTransaction = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { transactionId } = body;
+
+      if (!transactionId) {
+        return new Response(
+          JSON.stringify({ error: "Missing transactionId" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(
+        api.features.onlineBridge.deleteOnlineBridgeTransaction,
+        { transactionId: transactionId as Id<"onlineBridgeTransactions"> }
+      );
+
+      return new Response(
+        JSON.stringify({ message: "Transaction deleted successfully" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (error: any) {
+      console.error("deleteOnlineBridgeTransactionHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/online-bridge/transactions/stats/
+ * Get Online Bridge transaction status counts
+ */
+export const getOnlineBridgeTransactionStats = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const userId = url.searchParams.get("userId");
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const stats = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionStatusCounts,
+        { userId }
+      );
+
+      return new Response(JSON.stringify(stats), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionStatsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+export const updateServiceStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumber, isServiceRunning } = body;
+
+  if (!phoneNumber || typeof isServiceRunning !== "boolean") {
+    return createResponse("error", null, "Missing phoneNumber or isServiceRunning");
+  }
+
+  try {
+    await ctx.runMutation(api.features.serviceStatus.updateServiceStatus, {
+      phoneNumber,
+      isServiceRunning,
+    });
+
+    return createResponse("success", null, "Service status updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getServiceStatus = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  try {
+    const status = await ctx.runQuery(api.features.serviceStatus.getServiceStatus, {
+      phoneNumber,
+    });
+
+    return createResponse("success", status, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getMultipleServiceStatuses = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumbers } = body;
+
+  if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+    return createResponse("error", null, "Missing or invalid phoneNumbers array");
+  }
+
+  try {
+    const statuses = await ctx.runQuery(api.features.serviceStatus.getMultipleServiceStatuses, {
+      phoneNumbers,
+    });
+
+    return createResponse("success", { statuses }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+
+export const updateDeviceHeartbeat = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumber, userId } = body;
+
+    if (!phoneNumber || !userId) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber or userId",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.serviceStatus.updateDeviceHeartbeat, {
+      phoneNumber,
+      userId,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: { id: result },
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const getBatchDeviceOnlineStatus = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumbers } = body;
+
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing or invalid phoneNumbers array",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runQuery(api.features.serviceStatus.getBatchDeviceOnlineStatus, {
+      phoneNumbers,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+
+export const setDeviceHeartbeatTestHandler = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumber, userId, timestampOffset } = body;
+
+    if (!phoneNumber || !userId || timestampOffset === undefined) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber, userId, or timestampOffset",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.serviceStatus.setDeviceHeartbeatManually, {
+      phoneNumber,
+      userId,
+      timestampOffset,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const updateOnlineServiceStatus = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumber, userId, isServiceRunning } = body;
+
+    if (!phoneNumber || !userId || typeof isServiceRunning !== "boolean") {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber, userId, or isServiceRunning",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.serviceStatus.updateOnlineServiceStatus, {
+      phoneNumber,
+      userId,
+      isServiceRunning,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: { id: result },
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const getOnlineServiceStatus = httpAction(async (ctx, request) => {
+  try {
+    const url = new URL(request.url);
+    const phoneNumber = url.searchParams.get("phoneNumber");
+
+    if (!phoneNumber) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber query parameter",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runQuery(api.features.serviceStatus.getOnlineServiceStatus, {
+      phoneNumber,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const getOnlineBatchServiceStatus = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumbers } = body;
+
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing or invalid phoneNumbers array",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runQuery(api.features.serviceStatus.getOnlineBatchServiceStatus, {
+      phoneNumbers,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 });

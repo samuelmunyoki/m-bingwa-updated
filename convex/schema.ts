@@ -390,5 +390,55 @@ export default defineSchema({
     .index("by_receiver", ["phoneNumber"])
     .index("by_whitelist", ["phoneNumber", "whitelistedNumber"]),  
 
+  onlineBridgeTransactions: defineTable({
+    userId: v.string(),
+    senderPhoneNumber: v.string(),
+    receiverPhoneNumber: v.string(),
+    deviceId: v.string(),
+    offerId: v.string(),
+    amount: v.float64(),
+    smsContent: v.string(),
+    ussdCode: v.optional(v.string()),
+    status: v.string(), // "Pending", "Executing", "Success", "Failed", "Rejected"
+    result: v.optional(v.string()),
+    executedAt: v.optional(v.float64()),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+    isDeleted: v.boolean(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_deleted", ["userId", "isDeleted"])
+    .index("by_sender", ["senderPhoneNumber"])
+    .index("by_receiver", ["receiverPhoneNumber"])
+    .index("by_receiver_and_status", ["receiverPhoneNumber", "status"])
+    .index("by_status", ["status"])
+    .index("by_device", ["deviceId"]),  
+
+  serviceStatus: defineTable({
+    phoneNumber: v.string(),
+    isServiceRunning: v.boolean(),
+    lastUpdated: v.number(),
+  })
+   .index("by_phone", ["phoneNumber"]),
+
+  deviceHeartbeats: defineTable({
+    phoneNumber: v.string(),
+    lastSeenTimestamp: v.number(),
+    userId: v.string(),
+  })
+   .index("by_phoneNumber", ["phoneNumber"])
+   .index("by_userId", ["userId"]), 
+
+  onlineServiceStatus: defineTable({
+    phoneNumber: v.string(),
+    userId: v.string(),
+    isServiceRunning: v.boolean(),
+    updatedAt: v.number(),
+  })
+   .index("by_phoneNumber", ["phoneNumber"])
+   .index("by_userId", ["userId"]), 
+
+  
+
 });
 
