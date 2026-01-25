@@ -185,6 +185,7 @@ export const updateMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
+    verified: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { messageId, ...updates } = args;

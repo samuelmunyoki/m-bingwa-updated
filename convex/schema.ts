@@ -350,6 +350,7 @@ export default defineSchema({
     day: v.number(), // Timestamp for the day (e.g., start of day)
     userId: v.string(),
     totalCommissionAmount: v.number(),
+    totalAirtimeUsed: v.optional(v.number()),
   })
     .index("by_user_id", ["userId"])
     .index("by_day", ["day"])
