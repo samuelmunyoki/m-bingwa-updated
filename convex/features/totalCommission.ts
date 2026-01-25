@@ -92,6 +92,7 @@ export const upsertTotalCommission = mutation({
     userId: v.string(),
     day: v.number(),
     totalCommissionAmount: v.number(),
+    totalAirtimeUsed: v.number(),
   },
   handler: async (ctx, args) => {
     // Check if record exists
@@ -106,6 +107,7 @@ export const upsertTotalCommission = mutation({
       // Update existing record
       await ctx.db.patch(existingCommission._id, {
         totalCommissionAmount: args.totalCommissionAmount,
+        totalAirtimeUsed: args.totalAirtimeUsed,
       });
       return { success: true, id: existingCommission._id, action: "updated" };
     } else {
@@ -114,6 +116,7 @@ export const upsertTotalCommission = mutation({
         userId: args.userId,
         day: args.day,
         totalCommissionAmount: args.totalCommissionAmount,
+        totalAirtimeUsed: args.totalAirtimeUsed,
       });
       return { success: true, id: newId, action: "created" };
     }
@@ -121,14 +124,15 @@ export const upsertTotalCommission = mutation({
 });
 
 /**
- * Mutation to increment total commission by a specific amount
- * If record doesn't exist, creates it with the amount
+ * Mutation to increment total commission and airtime by specific amounts
+ * If record doesn't exist, creates it with the amounts
  */
 export const incrementTotalCommission = mutation({
   args: {
     userId: v.string(),
     day: v.number(),
     commissionAmount: v.number(),
+    airtimeAmount: v.number(),
   },
   handler: async (ctx, args) => {
     // Check if record exists
@@ -140,30 +144,34 @@ export const incrementTotalCommission = mutation({
       .first();
 
     if (existingCommission) {
-      // Increment existing amount
+      // Increment existing amounts
+      const newCommissionTotal = existingCommission.totalCommissionAmount + args.commissionAmount;
+      const newAirtimeTotal = (existingCommission.totalAirtimeUsed ?? 0) + args.airtimeAmount;
       await ctx.db.patch(existingCommission._id, {
-        totalCommissionAmount:
-          existingCommission.totalCommissionAmount + args.commissionAmount,
+        totalCommissionAmount: newCommissionTotal,
+        totalAirtimeUsed: newAirtimeTotal,
       });
       return {
         success: true,
         id: existingCommission._id,
         action: "incremented",
-        newTotal:
-          existingCommission.totalCommissionAmount + args.commissionAmount,
+        newCommissionTotal,
+        newAirtimeTotal,
       };
     } else {
-      // Create new record with the amount
+      // Create new record with the amounts
       const newId = await ctx.db.insert("totalCommission", {
         userId: args.userId,
         day: args.day,
         totalCommissionAmount: args.commissionAmount,
+        totalAirtimeUsed: args.airtimeAmount,
       });
       return {
         success: true,
         id: newId,
         action: "created",
-        newTotal: args.commissionAmount,
+        newCommissionTotal: args.commissionAmount,
+        newAirtimeTotal: args.airtimeAmount,
       };
     }
   },

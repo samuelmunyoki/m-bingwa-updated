@@ -4273,6 +4273,22 @@ export const removeFromOnlineWhitelist = httpAction(async (ctx, request) => {
 // TOTAL COMMISSION HTTP HANDLERS
 // ============================================
 
+// Helper to normalize commission data with default totalAirtimeUsed
+const normalizeCommission = <T extends { totalAirtimeUsed?: number }>(commission: T | null) => {
+  if (!commission) return null;
+  return {
+    ...commission,
+    totalAirtimeUsed: commission.totalAirtimeUsed ?? 0,
+  };
+};
+
+const normalizeCommissions = <T extends { totalAirtimeUsed?: number }>(commissions: T[]) => {
+  return commissions.map(c => ({
+    ...c,
+    totalAirtimeUsed: c.totalAirtimeUsed ?? 0,
+  }));
+};
+
 /**
  * HTTP handler to get total commission by userId and day
  * GET /api/total-commission/
@@ -4294,7 +4310,7 @@ export const getTotalCommission = httpAction(async (ctx, request) => {
       { userId, day }
     );
 
-    return createResponse("success", { commission });
+    return createResponse("success", { commission: normalizeCommission(commission) });
   } catch (error: any) {
     console.error("Error fetching total commission:", error);
     return createResponse(
@@ -4324,7 +4340,7 @@ export const getTotalCommissionByUser = httpAction(async (ctx, request) => {
       { userId }
     );
 
-    return createResponse("success", { commissions });
+    return createResponse("success", { commissions: normalizeCommissions(commissions) });
   } catch (error: any) {
     console.error("Error fetching user commissions:", error);
     return createResponse(
@@ -4367,9 +4383,10 @@ export const getTotalCommissionByUserRange = httpAction(async (ctx, request) => 
       { userId, startDay, endDay }
     );
 
-    return createResponse("success", { 
-      commissions,
-      count: commissions.length,
+    const normalizedCommissions = normalizeCommissions(commissions);
+    return createResponse("success", {
+      commissions: normalizedCommissions,
+      count: normalizedCommissions.length,
       startDay,
       endDay
     });
@@ -4403,7 +4420,7 @@ export const getTotalCommissionByDay = httpAction(async (ctx, request) => {
       { day }
     );
 
-    return createResponse("success", { commissions });
+    return createResponse("success", { commissions: normalizeCommissions(commissions) });
   } catch (error: any) {
     console.error("Error fetching day commissions:", error);
     return createResponse(
@@ -4417,7 +4434,7 @@ export const getTotalCommissionByDay = httpAction(async (ctx, request) => {
 /**
  * HTTP handler to create or update total commission
  * POST /api/total-commission/upsert/
- * Body: { userId, day, totalCommissionAmount }
+ * Body: { userId, day, totalCommissionAmount, totalAirtimeUsed }
  */
 export const upsertTotalCommission = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
@@ -4431,13 +4448,13 @@ export const upsertTotalCommission = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, day, totalCommissionAmount } = body;
+  const { userId, day, totalCommissionAmount, totalAirtimeUsed } = body;
 
-  if (!userId || day === undefined || totalCommissionAmount === undefined) {
+  if (!userId || day === undefined || totalCommissionAmount === undefined || totalAirtimeUsed === undefined) {
     return createResponse(
       "error",
       null,
-      "Missing required fields: userId, day, totalCommissionAmount"
+      "Missing required fields: userId, day, totalCommissionAmount, totalAirtimeUsed"
     );
   }
 
@@ -4448,6 +4465,7 @@ export const upsertTotalCommission = httpAction(async (ctx, request) => {
         userId,
         day: parseInt(day),
         totalCommissionAmount: parseFloat(totalCommissionAmount),
+        totalAirtimeUsed: parseFloat(totalAirtimeUsed),
       }
     );
 
@@ -4465,7 +4483,7 @@ export const upsertTotalCommission = httpAction(async (ctx, request) => {
 /**
  * HTTP handler to increment total commission
  * POST /api/total-commission/increment/
- * Body: { userId, day, commissionAmount }
+ * Body: { userId, day, commissionAmount, airtimeAmount }
  */
 export const incrementTotalCommission = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
@@ -4479,13 +4497,13 @@ export const incrementTotalCommission = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, day, commissionAmount } = body;
+  const { userId, day, commissionAmount, airtimeAmount } = body;
 
-  if (!userId || day === undefined || commissionAmount === undefined) {
+  if (!userId || day === undefined || commissionAmount === undefined || airtimeAmount === undefined) {
     return createResponse(
       "error",
       null,
-      "Missing required fields: userId, day, commissionAmount"
+      "Missing required fields: userId, day, commissionAmount, airtimeAmount"
     );
   }
 
@@ -4496,6 +4514,7 @@ export const incrementTotalCommission = httpAction(async (ctx, request) => {
         userId,
         day: parseInt(day),
         commissionAmount: parseFloat(commissionAmount),
+        airtimeAmount: parseFloat(airtimeAmount),
       }
     );
 
