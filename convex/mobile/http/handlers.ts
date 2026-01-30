@@ -5165,3 +5165,66 @@ export const getOnlineBatchServiceStatus = httpAction(async (ctx, request) => {
     );
   }
 });
+
+
+/**
+ * POST /api/online-bridge/transactions/batch-create/
+ * Batch create multiple Online Bridge transactions
+ */
+export const batchCreateOnlineBridgeTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { transactions } = body;
+
+      if (!transactions || !Array.isArray(transactions)) {
+        return new Response(
+          JSON.stringify({ error: "Missing or invalid transactions array" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate each transaction has required fields
+      for (const txn of transactions) {
+        if (
+          !txn.userId ||
+          !txn.senderPhoneNumber ||
+          !txn.receiverPhoneNumber ||
+          !txn.deviceId ||
+          !txn.offerId ||
+          txn.amount === undefined ||
+          !txn.smsContent ||
+          !txn.status
+        ) {
+          return new Response(
+            JSON.stringify({ error: "Invalid transaction data" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const result = await ctx.runMutation(
+        api.features.onlineBridge.batchCreateOnlineBridgeTransactions,
+        { transactions }
+      );
+
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          message: `${result.count} transactions created`,
+          transactionIds: result.transactionIds,
+        }),
+        {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      console.error("batchCreateOnlineBridgeTransactionsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);

@@ -84,6 +84,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateOnlineServiceStatus,
   getOnlineServiceStatus,
   getOnlineBatchServiceStatus,
+  batchCreateOnlineBridgeTransactions,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -852,6 +853,12 @@ http.route({
   path: "/api/online-bridge/transactions/stats/",
   method: "GET",
   handler: getOnlineBridgeTransactionStats,
+});
+
+http.route({
+  path: "/api/online-bridge/transactions/batch-create/",
+  method: "POST",
+  handler: batchCreateOnlineBridgeTransactions,
 });
 
 

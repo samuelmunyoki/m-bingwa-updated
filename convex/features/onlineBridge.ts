@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
+import { Id } from "../_generated/dataModel";
 
 // ============= OFFERS MUTATIONS =============
 
@@ -488,5 +489,53 @@ export const getOnlineBridgeTransactionsByDevice = query({
       .collect();
 
     return transactions;
+  },
+});
+
+/**
+ * Batch create multiple Online Bridge transactions at once
+ */
+export const batchCreateOnlineBridgeTransactions = mutation({
+  args: {
+    transactions: v.array(
+      v.object({
+        userId: v.string(),
+        senderPhoneNumber: v.string(),
+        receiverPhoneNumber: v.string(),
+        deviceId: v.string(),
+        offerId: v.string(),
+        amount: v.float64(),
+        smsContent: v.string(),
+        ussdCode: v.optional(v.string()),
+        status: v.string(),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const transactionIds: Id<"onlineBridgeTransactions">[] = [];
+
+    for (const transaction of args.transactions) {
+      const transactionId = await ctx.db.insert("onlineBridgeTransactions", {
+        userId: transaction.userId,
+        senderPhoneNumber: transaction.senderPhoneNumber,
+        receiverPhoneNumber: transaction.receiverPhoneNumber,
+        deviceId: transaction.deviceId,
+        offerId: transaction.offerId,
+        amount: transaction.amount,
+        smsContent: transaction.smsContent,
+        ussdCode: transaction.ussdCode,
+        status: transaction.status,
+        result: undefined,
+        executedAt: undefined,
+        createdAt: now,
+        updatedAt: now,
+        isDeleted: false,
+      });
+
+      transactionIds.push(transactionId);
+    }
+
+    return { transactionIds, count: transactionIds.length };
   },
 });
