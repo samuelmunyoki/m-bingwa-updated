@@ -5228,3 +5228,175 @@ export const batchCreateOnlineBridgeTransactions = httpAction(
     }
   }
 );
+
+/**
+ * PATCH /api/online-bridge/transactions/batch-update-status/
+ * Batch update transaction statuses
+ */
+export const batchUpdateOnlineBridgeTransactionStatuses = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { updates } = body;
+
+      if (!updates || !Array.isArray(updates)) {
+        return new Response(
+          JSON.stringify({ error: "Missing or invalid updates array" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate each update has required fields
+      for (const update of updates) {
+        if (!update.transactionId || !update.status) {
+          return new Response(
+            JSON.stringify({ error: "Invalid update data" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const result = await ctx.runMutation(
+        api.features.onlineBridge.batchUpdateOnlineBridgeTransactionStatuses,
+        { updates }
+      );
+
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          message: `${result.count} transactions updated`,
+          count: result.count,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      console.error("batchUpdateOnlineBridgeTransactionStatusesHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+export const getPhoneByUserId = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  
+  // Extract userId from path like: /api/get-phone/user_wkpda399lf
+  const pathParts = url.pathname.split('/').filter(p => p);
+  const userId = pathParts[pathParts.length - 1]; // Last part is userId
+
+  console.log("📱 getPhoneByUserId called for:", userId);
+
+  if (!userId || userId === "get-phone") {
+    return new Response(
+      JSON.stringify({ error: "Missing userId in path" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const user = await ctx.runQuery(api.users.getUserById, { userId });
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        userId: user.userId,
+        phoneNumber: user.phoneNumber,
+        name: user.name,
+        email: user.email
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: `${error}` }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const clearUserSubscriptionHttp = httpAction(async (ctx, request) => {
+  console.log("🔥 clearUserSubscriptionHttp called");
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(p => p);
+  const userId = pathParts[pathParts.length - 1];
+
+  if (!userId || userId === "clear-subscription") {
+    return new Response(
+      JSON.stringify({ error: "Missing userId in path" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.clearUserSubscription, { userId });
+
+    return new Response(
+      JSON.stringify(result),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: `${error}` }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const deleteUserByPhoneHttp = httpAction(async (ctx, request) => {
+  console.log("deleteUserByPhoneHttp called");
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(p => p);
+  const phoneNumber = pathParts[pathParts.length - 1];
+
+  if (!phoneNumber || phoneNumber === "delete-user") {
+    return new Response(
+      JSON.stringify({ error: "Missing phoneNumber in path" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.deleteUserByPhone, { phoneNumber });
+
+    return new Response(
+      JSON.stringify(result),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: `${error}` }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});

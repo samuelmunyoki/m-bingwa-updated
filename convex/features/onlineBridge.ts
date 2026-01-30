@@ -539,3 +539,33 @@ export const batchCreateOnlineBridgeTransactions = mutation({
     return { transactionIds, count: transactionIds.length };
   },
 });
+
+/**
+ * Batch update transaction statuses
+ */
+export const batchUpdateOnlineBridgeTransactionStatuses = mutation({
+  args: {
+    updates: v.array(
+      v.object({
+        transactionId: v.id("onlineBridgeTransactions"),
+        status: v.string(),
+        result: v.optional(v.string()),
+        executedAt: v.optional(v.float64()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    
+    for (const update of args.updates) {
+      await ctx.db.patch(update.transactionId, {
+        status: update.status,
+        result: update.result,
+        executedAt: update.executedAt,
+        updatedAt: now,
+      });
+    }
+
+    return { count: args.updates.length };
+  },
+});

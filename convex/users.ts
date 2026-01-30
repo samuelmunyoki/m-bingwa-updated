@@ -46,6 +46,7 @@ export const updateOrcreateUser = mutation({
     return newUserId;
   },
 });
+
 export const internalgetUserById = internalQuery({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
@@ -70,6 +71,7 @@ export const internalgetUserById = internalQuery({
     };
   },
 });
+
 export const getUserById = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
@@ -298,6 +300,7 @@ export const getAllSubscribedUsers = query({
       .collect();
   },
 });
+
 export const checkExpiry = mutation({
   args: {},
   handler: async (ctx) => {
@@ -721,6 +724,7 @@ export const getUserIdByPhone = query({
   },
 });
 
+
 // New query to get user by phone number with normalization (handles any format)
 export const getUserByPhoneNormalized = query({
   args: {
@@ -1038,3 +1042,74 @@ export const clearDeviceSession = mutation({
   },
 });
 
+export const clearUserSubscription = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, { userId }) => {
+    console.log("🔥 clearUserSubscription called for:", userId);
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!user) {
+      console.log("❌ User not found");
+      throw new Error("User not found");
+    }
+
+    console.log("Before clearing - isSubscribed:", user.isSubscribed);
+    console.log("Before clearing - subscriptionEnds:", user.subscriptionEnds);
+
+    // Clear subscription fields
+    await ctx.db.patch(user._id, {
+      isSubscribed: false,
+      subscriptionEnds: undefined,
+      subscriptionId: undefined,
+    });
+
+    console.log("✅ Subscription cleared successfully");
+
+    return {
+      status: "success",
+      message: "Subscription cleared",
+      userId: user.userId,
+      phoneNumber: user.phoneNumber
+    };
+  }
+});
+
+export const deleteUserByPhone = mutation({
+  args: {
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, { phoneNumber }) => {
+    console.log("🗑️ deleteUserByPhone called for:", phoneNumber);
+
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .first();
+
+    if (!user) {
+      console.log("❌ User not found with phone:", phoneNumber);
+      throw new Error("User not found");
+    }
+
+    console.log("Found user:", user.userId, user.name);
+
+    // Delete the user
+    await ctx.db.delete(user._id);
+
+    console.log("✅ User deleted successfully");
+
+    return {
+      status: "success",
+      message: "User deleted successfully",
+      userId: user.userId,
+      phoneNumber: user.phoneNumber,
+      name: user.name
+    };
+  }
+});

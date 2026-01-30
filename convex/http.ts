@@ -85,6 +85,10 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getOnlineServiceStatus,
   getOnlineBatchServiceStatus,
   batchCreateOnlineBridgeTransactions,
+  batchUpdateOnlineBridgeTransactionStatuses,
+  getPhoneByUserId,
+  clearUserSubscriptionHttp,
+  deleteUserByPhoneHttp
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -915,6 +919,31 @@ http.route({
   pathPrefix: "/api/online-service-status/batch/",
   method: "POST",
   handler: getOnlineBatchServiceStatus,
+});
+
+http.route({
+  path: "/api/online-bridge/transactions/batch-update-status/",
+  method: "PATCH",
+  handler: batchUpdateOnlineBridgeTransactionStatuses,
+});
+
+http.route({
+  pathPrefix: "/api/get-phone/",
+  method: "GET",
+  handler: getPhoneByUserId,
+});
+
+
+http.route({
+  pathPrefix: "/api/clear-subscription/",
+  method: "POST",
+  handler: clearUserSubscriptionHttp,
+});
+
+http.route({
+  pathPrefix: "/api/delete-user/",
+  method: "DELETE",
+  handler: deleteUserByPhoneHttp,
 });
 
 export default http;
