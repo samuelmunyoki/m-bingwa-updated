@@ -214,6 +214,7 @@ export default defineSchema({
   offerName: v.optional(v.string()),
   processedUSSD: v.optional(v.string()),
   verified: v.optional(v.boolean()),
+  mpesaDate: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])

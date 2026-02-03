@@ -1250,7 +1250,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD, mpesaDate } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1286,6 +1286,10 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processedUSSD must be a string");
   }
 
+  if (mpesaDate && typeof mpesaDate !== "string") {
+    return createResponse("error", null, "mpesaDate must be a string");
+  }
+
   try {
     const createdMessage = await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
       userId,
@@ -1299,7 +1303,8 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       fullMessage,
       processResponse,
       offerName,
-      processedUSSD
+      processedUSSD,
+      mpesaDate
     });
 
     return createResponse("success", {
@@ -1343,7 +1348,7 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD ,verified} = body;
+  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD, verified, mpesaDate } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1374,6 +1379,11 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
   if (verified !== undefined && typeof verified !== "boolean") {
     return createResponse("error", null, "verified must be a boolean");
   }
+
+  if (mpesaDate !== undefined && typeof mpesaDate !== "string") {
+    return createResponse("error", null, "mpesaDate must be a string");
+  }
+
   try {
     const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessage, {
       messageId,
@@ -1387,7 +1397,8 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
       processResponse,
       offerName,
       processedUSSD,
-      verified
+      verified,
+      mpesaDate
     });
     
     return createResponse("success", { message: updatedMessage }, null);
