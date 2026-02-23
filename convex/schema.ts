@@ -214,13 +214,14 @@ export default defineSchema({
   offerName: v.optional(v.string()),
   processedUSSD: v.optional(v.string()),
   verified: v.optional(v.boolean()),
-  mpesaDate: v.optional(v.string()),
+  mpesaDate: v.optional(v.float64()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_sender_id", ["senderId"])
     .index("by_time", ["time"])
-    .index("by_processed", ["processed"]),
+    .index("by_processed", ["processed"])
+    .index("by_user_id_time", ["userId", "time"]),
 
   userSenderRelations: defineTable({
     userId: v.string(),

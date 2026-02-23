@@ -22,4 +22,15 @@ export const setMpesaMessagesProcessedToPending = migrations.define({
   },
 });
 
+// Clears legacy string mpesaDate values (e.g. "01/10/25 9:05 AM").
+// After running this, change schema mpesaDate back to v.optional(v.float64()).
+export const clearStringMpesaDate = migrations.define({
+  table: "mpesaMessages",
+  migrateOne: async (ctx, message) => {
+    if (typeof message.mpesaDate === "string") {
+      await ctx.db.patch(message._id, { mpesaDate: undefined });
+    }
+  },
+});
+
 export const run = migrations.runner();

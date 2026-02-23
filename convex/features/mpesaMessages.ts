@@ -16,7 +16,7 @@ export const createMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
-    mpesaDate: v.optional(v.string()),
+    mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -46,13 +46,12 @@ export const getMpesaMessagesByUserId = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const { userId } = args;
-    let mpesaMessages = await ctx.db
+    // Use compound index to filter by userId and order by time descending efficiently
+    const mpesaMessages = await ctx.db
       .query("mpesaMessages")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .collect();
-    
-    // Sort by time from latest to earliest (descending order)
-    mpesaMessages = mpesaMessages.sort((a, b) => b.time - a.time);
+      .withIndex("by_user_id_time", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(500);
 
     // Ensure all messages include the new fields (even if undefined/null)
     const messagesWithAllFields = mpesaMessages.map(message => ({
@@ -191,7 +190,7 @@ export const updateMpesaMessage = mutation({
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
     verified: v.optional(v.boolean()),
-    mpesaDate: v.optional(v.string()),
+    mpesaDate: v.optional(v.union(v.string(), v.number())),
   },
   handler: async (ctx, args) => {
     const { messageId, ...updates } = args;
@@ -390,7 +389,7 @@ export const testCreateMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
-    mpesaDate: v.optional(v.string()),
+    mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {

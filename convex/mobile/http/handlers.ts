@@ -1286,8 +1286,8 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processedUSSD must be a string");
   }
 
-  if (mpesaDate && typeof mpesaDate !== "string") {
-    return createResponse("error", null, "mpesaDate must be a string");
+  if (mpesaDate !== undefined && typeof mpesaDate !== "number") {
+    return createResponse("error", null, "mpesaDate must be a number (timestamp)");
   }
 
   try {
@@ -1329,9 +1329,9 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   try {
     const messages = await ctx.runQuery(api.features.mpesaMessages.getMpesaMessagesByUserId, { userId });
     return createResponse("success", { messages }, null);
-  } catch (error) {
-    console.error(error);
-    return createResponse("error", null, "Failed to fetch mpesa messages");
+  } catch (error: any) {
+    console.error("getMpesaMessagesByUserId error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Failed to fetch mpesa messages");
   }
 });
 
@@ -1380,8 +1380,8 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "verified must be a boolean");
   }
 
-  if (mpesaDate !== undefined && typeof mpesaDate !== "string") {
-    return createResponse("error", null, "mpesaDate must be a string");
+  if (mpesaDate !== undefined && typeof mpesaDate !== "number") {
+    return createResponse("error", null, "mpesaDate must be a number (timestamp)");
   }
 
   try {
