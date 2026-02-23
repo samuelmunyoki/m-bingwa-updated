@@ -3913,6 +3913,8 @@ export const deleteAllTransactionsForDevice = httpAction(async (ctx, request) =>
 });
 
 
+// ============= ONLINE offers HTTP ACTIONS =============
+
 export const createOnlineBridgeOffer = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed");
@@ -5177,7 +5179,6 @@ export const getOnlineBatchServiceStatus = httpAction(async (ctx, request) => {
   }
 });
 
-
 /**
  * POST /api/online-bridge/transactions/batch-create/
  * Batch create multiple Online Bridge transactions
@@ -5409,5 +5410,306 @@ export const deleteUserByPhoneHttp = httpAction(async (ctx, request) => {
       JSON.stringify({ error: `${error}` }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
+  }
+});
+
+
+// ============= USSD HISTORY HTTP ACTIONS =============
+
+export const createUSSDHistory = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, ussdCode, targetNumber, offerName, status, timeTaken, timeStamp, ussdResponse  } = body;
+
+  if (!userId || !ussdCode || !status || !timeTaken || !timeStamp) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  // Validate status
+  const validStatuses = ["Success", "Failed", "Timeout", "Cancelled", "Validation Failed"];
+  if (!validStatuses.includes(status)) {
+    return createResponse("error", null, "Invalid status value");
+  }
+
+  try {
+    const historyId = await ctx.runMutation(api.features.ussdHistory.createUSSDHistory, {
+      userId,
+      ussdCode,
+      targetNumber,
+      offerName,
+      status,
+      timeTaken,
+      timeStamp,
+      ussdResponse
+    });
+
+    return createResponse("success", { historyId }, "USSD history created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getUSSDHistory = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const status = url.searchParams.get("status");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    let history;
+    
+    if (status && status !== "All") {
+      history = await ctx.runQuery(api.features.ussdHistory.getUSSDHistoryByStatus, { 
+        userId, 
+        status 
+      });
+    } else {
+      history = await ctx.runQuery(api.features.ussdHistory.getUSSDHistory, { userId });
+    }
+
+    return createResponse("success", { history }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getAvailableStatuses = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const statuses = await ctx.runQuery(api.features.ussdHistory.getAvailableStatuses, { userId });
+    return createResponse("success", { statuses }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteUSSDHistory = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const historyId = url.searchParams.get("historyId");
+  const userId = url.searchParams.get("userId");
+
+  console.log("DELETE USSD HISTORY REQUEST - historyId:", historyId);
+  console.log("DELETE USSD HISTORY REQUEST - userId:", userId);
+
+  if (!historyId || !userId) {
+    return createResponse("error", null, "Missing historyId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.ussdHistory.deleteUSSDHistory, {
+      historyId: historyId as Id<"ussdHistory">,
+      userId
+    });
+
+    console.log("USSD HISTORY DELETE SUCCESSFUL");
+    return createResponse("success", null, "USSD history deleted successfully");
+  } catch (error: any) {
+    console.log("USSD HISTORY DELETE FAILED:", error.message);
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const clearUSSDHistory = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.ussdHistory.clearUSSDHistory, {
+      userId
+    });
+
+    return createResponse("success", result, "USSD history cleared successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ─── GET all retry configs for a user ────────────────────────────────────────
+
+export const getAllRetryConfigs = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const configs = await ctx.runQuery(
+      api.features.retryConfigs.getAllRetryConfigs,
+      { userId }
+    );
+    return createResponse("success", { configs }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch retry configurations");
+  }
+});
+
+// ─── POST create retry config ─────────────────────────────────────────────────
+
+export const createRetryConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const {
+    userId,
+    name,
+    timeoutSeconds,
+    autoRetryEnabled,
+    numberOfRetries,
+    retryIntervalMinutes,
+    selectedOffers,
+    autoRetryConnectionProblems,
+  } = body;
+
+  if (
+    !userId ||
+    !name ||
+    timeoutSeconds === undefined ||
+    autoRetryEnabled === undefined ||
+    numberOfRetries === undefined ||
+    retryIntervalMinutes === undefined ||
+    !Array.isArray(selectedOffers) ||
+    autoRetryConnectionProblems === undefined
+  ) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.retryConfigs.createRetryConfig,
+      {
+        userId,
+        name,
+        timeoutSeconds,
+        autoRetryEnabled,
+        numberOfRetries,
+        retryIntervalMinutes,
+        selectedOffers,
+        autoRetryConnectionProblems,
+      }
+    );
+
+    if (result.status === "success") {
+      return createResponse("success", { id: result.id }, null);
+    } else {
+      return createResponse("error", null, result.message);
+    }
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to create retry configuration");
+  }
+});
+
+// ─── PATCH update retry config ────────────────────────────────────────────────
+
+export const updateRetryConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { id, userId, ...updates } = body;
+
+  if (!id || !userId) {
+    return createResponse("error", null, "Missing id or userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.retryConfigs.updateRetryConfig,
+      { id, userId, ...updates }
+    );
+
+    if (result.status === "success") {
+      return createResponse("success", null, null);
+    } else {
+      return createResponse("error", null, result.message);
+    }
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update retry configuration");
+  }
+});
+
+// ─── DELETE retry config ──────────────────────────────────────────────────────
+
+export const deleteRetryConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { id, userId } = body;
+
+  if (!id || !userId) {
+    return createResponse("error", null, "Missing id or userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.retryConfigs.deleteRetryConfig,
+      { id, userId }
+    );
+
+    if (result.status === "success") {
+      return createResponse("success", null, null);
+    } else {
+      return createResponse("error", null, result.message);
+    }
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to delete retry configuration");
   }
 });

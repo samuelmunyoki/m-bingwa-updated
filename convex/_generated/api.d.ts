@@ -28,6 +28,7 @@ import type * as features_notifications from "../features/notifications.js";
 import type * as features_onlineBridge from "../features/onlineBridge.js";
 import type * as features_otps from "../features/otps.js";
 import type * as features_promo_codes from "../features/promo_codes.js";
+import type * as features_retryConfigs from "../features/retryConfigs.js";
 import type * as features_scheduled_events from "../features/scheduled_events.js";
 import type * as features_serviceStatus from "../features/serviceStatus.js";
 import type * as features_sms from "../features/sms.js";
@@ -36,15 +37,16 @@ import type * as features_subscription_price from "../features/subscription_pric
 import type * as features_totalCommission from "../features/totalCommission.js";
 import type * as features_transactions from "../features/transactions.js";
 import type * as features_userSenderRelations from "../features/userSenderRelations.js";
+import type * as features_ussdHistory from "../features/ussdHistory.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as http_handlers from "../http_handlers.js";
-import type * as m_pesa_initializer from "../m_pesa/initializer.js";
-import type * as m_pesa_types from "../m_pesa/types.js";
-import type * as m_pesa_utils from "../m_pesa/utils.js";
 import type * as migrations from "../migrations.js";
 import type * as mobile_actions_update_user_data from "../mobile/actions/update_user_data.js";
 import type * as mobile_http_handlers from "../mobile/http/handlers.js";
+import type * as m_pesa_initializer from "../m_pesa/initializer.js";
+import type * as m_pesa_types from "../m_pesa/types.js";
+import type * as m_pesa_utils from "../m_pesa/utils.js";
 import type * as users from "../users.js";
 
 import type {
@@ -81,6 +83,7 @@ declare const fullApi: ApiFromModules<{
   "features/onlineBridge": typeof features_onlineBridge;
   "features/otps": typeof features_otps;
   "features/promo_codes": typeof features_promo_codes;
+  "features/retryConfigs": typeof features_retryConfigs;
   "features/scheduled_events": typeof features_scheduled_events;
   "features/serviceStatus": typeof features_serviceStatus;
   "features/sms": typeof features_sms;
@@ -89,15 +92,16 @@ declare const fullApi: ApiFromModules<{
   "features/totalCommission": typeof features_totalCommission;
   "features/transactions": typeof features_transactions;
   "features/userSenderRelations": typeof features_userSenderRelations;
+  "features/ussdHistory": typeof features_ussdHistory;
   functions: typeof functions;
   http: typeof http;
   http_handlers: typeof http_handlers;
-  "m_pesa/initializer": typeof m_pesa_initializer;
-  "m_pesa/types": typeof m_pesa_types;
-  "m_pesa/utils": typeof m_pesa_utils;
   migrations: typeof migrations;
   "mobile/actions/update_user_data": typeof mobile_actions_update_user_data;
   "mobile/http/handlers": typeof mobile_http_handlers;
+  "m_pesa/initializer": typeof m_pesa_initializer;
+  "m_pesa/types": typeof m_pesa_types;
+  "m_pesa/utils": typeof m_pesa_utils;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

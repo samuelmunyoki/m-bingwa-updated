@@ -440,7 +440,35 @@ export default defineSchema({
    .index("by_phoneNumber", ["phoneNumber"])
    .index("by_userId", ["userId"]), 
 
-  
+  ussdHistory: defineTable({
+    userId: v.string(),
+    ussdCode: v.string(),
+    targetNumber: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    status: v.string(), // "Success", "Failed", "Timeout", "Cancelled", "Validation Failed"
+    timeTaken: v.string(), 
+    timeStamp: v.string(), 
+    ussdResponse: v.optional(v.string()), 
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_timestamp", ["userId", "timeStamp"])
+    .index("by_user_and_status", ["userId", "status"])
+    .index("by_composite_key", ["userId", "timeStamp", "ussdCode"]), 
+
+  retryConfigs: defineTable({
+    userId: v.string(),
+    name: v.string(),
+    timeoutSeconds: v.number(),
+    autoRetryEnabled: v.boolean(),
+    numberOfRetries: v.number(),
+    retryIntervalMinutes: v.number(),
+    selectedOffers: v.array(v.string()),
+    autoRetryConnectionProblems: v.boolean(),
+    updatedAt: v.number(), // timestamp in ms
+  })
+    .index("by_user", ["userId"]),  
 
 });
 

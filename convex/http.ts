@@ -88,7 +88,16 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   batchUpdateOnlineBridgeTransactionStatuses,
   getPhoneByUserId,
   clearUserSubscriptionHttp,
-  deleteUserByPhoneHttp
+  deleteUserByPhoneHttp,
+  createUSSDHistory,
+  getUSSDHistory,
+  getAvailableStatuses,
+  deleteUSSDHistory,
+  clearUSSDHistory,
+  getAllRetryConfigs,
+  createRetryConfig,
+  updateRetryConfig,
+  deleteRetryConfig,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -944,6 +953,66 @@ http.route({
   pathPrefix: "/api/delete-user/",
   method: "DELETE",
   handler: deleteUserByPhoneHttp,
+});
+
+// ============= USSD HISTORY ROUTES =============
+
+http.route({
+  pathPrefix: "/api/ussd-history/create/",
+  method: "POST",
+  handler: createUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/",
+  method: "GET",
+  handler: getUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/statuses/",
+  method: "GET",
+  handler: getAvailableStatuses,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/delete/",
+  method: "DELETE",
+  handler: deleteUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/clear/",
+  method: "DELETE",
+  handler: clearUSSDHistory,
+});
+
+// GET all retry configs for a user
+http.route({
+  pathPrefix: "/api/retry-configs/",
+  method: "GET",
+  handler: getAllRetryConfigs,
+});
+
+// POST create retry config
+http.route({
+  pathPrefix: "/api/retry-configs/create/",
+  method: "POST",
+  handler: createRetryConfig,
+});
+
+// PATCH update retry config
+http.route({
+  pathPrefix: "/api/retry-configs/update/",
+  method: "PATCH",
+  handler: updateRetryConfig,
+});
+
+// DELETE retry config
+http.route({
+  pathPrefix: "/api/retry-configs/delete/",
+  method: "DELETE",
+  handler: deleteRetryConfig,
 });
 
 export default http;
