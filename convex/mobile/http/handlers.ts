@@ -5757,3 +5757,65 @@ export const updateUssdCodesHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Failed to update USSD codes");
   }
 });
+
+export const getModeSettings = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId query parameter");
+  }
+
+  try {
+    const result = await ctx.runQuery(
+      api.features.userModeSettings.getUserModeSettings,
+      { userId }
+    );
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch mode settings");
+  }
+});
+
+export const updateModeSettings = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, isNormalMode, isSimpleMode, isAdvancedMode } = body;
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId");
+  }
+
+  if (
+    typeof isNormalMode !== "boolean" ||
+    typeof isSimpleMode !== "boolean" ||
+    typeof isAdvancedMode !== "boolean"
+  ) {
+    return createResponse("error", null, "isNormalMode, isSimpleMode and isAdvancedMode must be booleans");
+  }
+
+  try {
+    await ctx.runMutation(
+      api.features.userModeSettings.upsertUserModeSettings,
+      { userId, isNormalMode, isSimpleMode, isAdvancedMode }
+    );
+    return createResponse("success", null, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update mode settings");
+  }
+});

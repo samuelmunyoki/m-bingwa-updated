@@ -467,15 +467,23 @@ export default defineSchema({
     retryIntervalMinutes: v.number(),
     selectedOffers: v.array(v.string()),
     autoRetryConnectionProblems: v.boolean(),
-    updatedAt: v.number(), // timestamp in ms
+    updatedAt: v.number(), 
   })
     .index("by_user", ["userId"]),  
   
   ussdCodes: defineTable({
     airtimeUssdCode: v.string(),
     bongaUssdCode: v.string(),
-    updatedAt: v.number(), // timestamp in ms
+    updatedAt: v.number(), 
   }),  
+
+  userModeSettings: defineTable({
+    userId: v.string(),
+    isNormalMode: v.boolean(),
+    isSimpleMode: v.boolean(),
+    isAdvancedMode: v.boolean(),
+    updatedAt: v.number(), 
+  }).index("by_user", ["userId"]),
 
 });
 

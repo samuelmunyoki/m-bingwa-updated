@@ -100,6 +100,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   deleteRetryConfig,
   getUssdCodesHttp,
   updateUssdCodesHttp,
+  getModeSettings,
+  updateModeSettings,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1018,15 +1020,27 @@ http.route({
 });
 
 http.route({
-  path: "/api/ussd-codes",
+  path: "/api/ussd-codes/",
   method: "GET",
   handler: getUssdCodesHttp,
 });
 
 http.route({
-  path: "/api/ussd-codes/update",
+  path: "/api/ussd-codes/update/",
   method: "POST",
   handler: updateUssdCodesHttp,
+});
+
+http.route({
+  path: "/api/mode-settings/",
+  method: "GET",
+  handler: getModeSettings,
+});
+
+http.route({
+  path: "/api/mode-settings/update/",
+  method: "POST",
+  handler: updateModeSettings,
 });
 
 export default http;
