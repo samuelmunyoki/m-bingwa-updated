@@ -42,12 +42,12 @@ import type * as features_ussdHistory from "../features/ussdHistory.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as http_handlers from "../http_handlers.js";
-import type * as migrations from "../migrations.js";
-import type * as mobile_actions_update_user_data from "../mobile/actions/update_user_data.js";
-import type * as mobile_http_handlers from "../mobile/http/handlers.js";
 import type * as m_pesa_initializer from "../m_pesa/initializer.js";
 import type * as m_pesa_types from "../m_pesa/types.js";
 import type * as m_pesa_utils from "../m_pesa/utils.js";
+import type * as migrations from "../migrations.js";
+import type * as mobile_actions_update_user_data from "../mobile/actions/update_user_data.js";
+import type * as mobile_http_handlers from "../mobile/http/handlers.js";
 import type * as users from "../users.js";
 
 import type {
@@ -98,12 +98,12 @@ declare const fullApi: ApiFromModules<{
   functions: typeof functions;
   http: typeof http;
   http_handlers: typeof http_handlers;
-  migrations: typeof migrations;
-  "mobile/actions/update_user_data": typeof mobile_actions_update_user_data;
-  "mobile/http/handlers": typeof mobile_http_handlers;
   "m_pesa/initializer": typeof m_pesa_initializer;
   "m_pesa/types": typeof m_pesa_types;
   "m_pesa/utils": typeof m_pesa_utils;
+  migrations: typeof migrations;
+  "mobile/actions/update_user_data": typeof mobile_actions_update_user_data;
+  "mobile/http/handlers": typeof mobile_http_handlers;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

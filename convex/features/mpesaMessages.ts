@@ -16,7 +16,7 @@ export const createMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
-    mpesaDate: v.optional(v.string()),
+    mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -46,13 +46,12 @@ export const getMpesaMessagesByUserId = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const { userId } = args;
-    let mpesaMessages = await ctx.db
+    // Use compound index to filter by userId and order by time descending efficiently
+    const mpesaMessages = await ctx.db
       .query("mpesaMessages")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .collect();
-    
-    // Sort by time from latest to earliest (descending order)
-    mpesaMessages = mpesaMessages.sort((a, b) => b.time - a.time);
+      .withIndex("by_user_id_time", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(500);
 
     // Ensure all messages include the new fields (even if undefined/null)
     const messagesWithAllFields = mpesaMessages.map(message => ({
@@ -191,7 +190,7 @@ export const updateMpesaMessage = mutation({
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
     verified: v.optional(v.boolean()),
-    mpesaDate: v.optional(v.string()),
+    mpesaDate: v.optional(v.union(v.string(), v.number())),
   },
   handler: async (ctx, args) => {
     const { messageId, ...updates } = args;
@@ -390,7 +389,7 @@ export const testCreateMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
-    mpesaDate: v.optional(v.string()),
+    mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -566,15 +565,16 @@ export const deleteNonPendingMpesaMessages = mutation({
     try {
       console.log("🗑️ Starting deleteNonPendingMpesaMessages cron job...");
 
-      // Get all mpesa messages where processed is not "pending"
-      const allMessages = await ctx.db
-        .query("mpesaMessages")
-        .collect();
-
-      // Filter messages where processed is not "pending"
-      const nonPendingMessages = allMessages.filter(
-        (msg) => msg.processed !== undefined && msg.processed !== "pending"
-      );
+      // Use the by_processed index to fetch each non-pending status — avoids full table scan
+      const statuses = ["successful", "failed", "not-viable", "disabled"] as const;
+      const nonPendingMessages = (await Promise.all(
+        statuses.map((status) =>
+          ctx.db
+            .query("mpesaMessages")
+            .withIndex("by_processed", (q) => q.eq("processed", status))
+            .take(200)
+        )
+      )).flat();
 
       console.log(`Found ${nonPendingMessages.length} non-pending messages to delete`);
 
@@ -666,11 +666,11 @@ export const deleteOldMpesaMessages = mutation({
 
       console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
 
-      // Get all mpesa messages older than 30 days
+      // Use the by_time index to efficiently get old messages — avoids full table scan
       const oldMessages = await ctx.db
         .query("mpesaMessages")
-        .filter((q) => q.lt(q.field("time"), thirtyDaysAgo))
-        .collect();
+        .withIndex("by_time", (q) => q.lt("time", thirtyDaysAgo))
+        .take(500);
 
       console.log(`Found ${oldMessages.length} messages older than 30 days`);
 
