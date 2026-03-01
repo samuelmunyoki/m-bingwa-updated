@@ -5713,3 +5713,47 @@ export const deleteRetryConfig = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Failed to delete retry configuration");
   }
 });
+
+export const getUssdCodesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  try {
+    const result = await ctx.runQuery(api.features.ussdCodes.getUssdCodes, {});
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch USSD codes");
+  }
+});
+
+export const updateUssdCodesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { airtimeUssdCode, bongaUssdCode } = body;
+
+  if (!airtimeUssdCode || !bongaUssdCode) {
+    return createResponse("error", null, "Missing airtimeUssdCode or bongaUssdCode");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.ussdCodes.upsertUssdCodes,
+      { airtimeUssdCode, bongaUssdCode }
+    );
+    return createResponse("success", null, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update USSD codes");
+  }
+});

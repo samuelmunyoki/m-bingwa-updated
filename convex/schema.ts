@@ -469,6 +469,12 @@ export default defineSchema({
     updatedAt: v.number(), // timestamp in ms
   })
     .index("by_user", ["userId"]),  
+  
+  ussdCodes: defineTable({
+    airtimeUssdCode: v.string(),
+    bongaUssdCode: v.string(),
+    updatedAt: v.number(), // timestamp in ms
+  }),  
 
 });
 

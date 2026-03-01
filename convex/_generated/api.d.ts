@@ -37,6 +37,7 @@ import type * as features_subscription_price from "../features/subscription_pric
 import type * as features_totalCommission from "../features/totalCommission.js";
 import type * as features_transactions from "../features/transactions.js";
 import type * as features_userSenderRelations from "../features/userSenderRelations.js";
+import type * as features_ussdCodes from "../features/ussdCodes.js";
 import type * as features_ussdHistory from "../features/ussdHistory.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   "features/totalCommission": typeof features_totalCommission;
   "features/transactions": typeof features_transactions;
   "features/userSenderRelations": typeof features_userSenderRelations;
+  "features/ussdCodes": typeof features_ussdCodes;
   "features/ussdHistory": typeof features_ussdHistory;
   functions: typeof functions;
   http: typeof http;

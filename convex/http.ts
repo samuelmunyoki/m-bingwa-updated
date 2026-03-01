@@ -98,6 +98,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   createRetryConfig,
   updateRetryConfig,
   deleteRetryConfig,
+  getUssdCodesHttp,
+  updateUssdCodesHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1013,6 +1015,18 @@ http.route({
   pathPrefix: "/api/retry-configs/delete/",
   method: "DELETE",
   handler: deleteRetryConfig,
+});
+
+http.route({
+  path: "/api/ussd-codes",
+  method: "GET",
+  handler: getUssdCodesHttp,
+});
+
+http.route({
+  path: "/api/ussd-codes/update",
+  method: "POST",
+  handler: updateUssdCodesHttp,
 });
 
 export default http;
