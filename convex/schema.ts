@@ -485,5 +485,20 @@ export default defineSchema({
     updatedAt: v.number(), 
   }).index("by_user", ["userId"]),
 
+  appLogs: defineTable({
+    userId: v.optional(v.string()),
+    deviceModel: v.string(),
+    deviceManufacturer: v.string(),
+    androidVersion: v.string(),
+    tag: v.string(),
+    message: v.string(),
+    level: v.string(), // "D", "I", "W", "E"
+    timestamp: v.number(),
+    sessionId: v.string(), // to group logs from same execution
+  }).index("by_device", ["deviceManufacturer", "deviceModel"])
+    .index("by_user", ["userId"])
+    .index("by_session", ["sessionId"])
+    .index("by_timestamp", ["timestamp"]),
+
 });
 

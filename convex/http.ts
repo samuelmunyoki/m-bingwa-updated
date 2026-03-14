@@ -102,6 +102,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateUssdCodesHttp,
   getModeSettings,
   updateModeSettings,
+  insertLogsHttp,
+  getLogsHttp,
+  deleteLogsHandler
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1041,6 +1044,24 @@ http.route({
   path: "/api/mode-settings/update/",
   method: "POST",
   handler: updateModeSettings,
+});
+
+http.route({
+  path: "/api/logs",
+  method: "POST",
+  handler: insertLogsHttp,
+});
+ 
+http.route({
+  path: "/api/logs",
+  method: "GET",
+  handler: getLogsHttp,
+});
+
+http.route({
+  path: "/api/logs",
+  method: "DELETE",
+  handler: deleteLogsHandler,
 });
 
 export default http;

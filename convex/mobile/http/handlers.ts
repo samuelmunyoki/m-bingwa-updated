@@ -5819,3 +5819,104 @@ export const updateModeSettings = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Failed to update mode settings");
   }
 });
+
+
+export const insertLogsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+ 
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+ 
+  const { logs } = body;
+ 
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return createResponse("error", null, "Missing or empty logs array");
+  }
+ 
+  try {
+    const result = await ctx.runMutation(
+      api.features.appLogs.insertLogs,
+      { logs }
+    );
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to insert logs");
+  }
+});
+
+// GET /api/logs?manufacturer=samsung&limit=200
+// GET /api/logs?sessionId=abc123
+// GET /api/logs?userId=user_xxx&limit=200
+export const getLogsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+ 
+  const url = new URL(request.url);
+  const manufacturer = url.searchParams.get("manufacturer");
+  const sessionId = url.searchParams.get("sessionId");
+  const userId = url.searchParams.get("userId");
+  const limit = url.searchParams.get("limit")
+    ? parseInt(url.searchParams.get("limit")!)
+    : undefined;
+ 
+  try {
+    if (manufacturer) {
+      const logs = await ctx.runQuery(api.features.appLogs.getLogsByManufacturer, {
+        manufacturer,
+        limit,
+      });
+      return createResponse("success", { logs }, null);
+    }
+ 
+    if (sessionId) {
+      const logs = await ctx.runQuery(api.features.appLogs.getLogsBySession, {
+        sessionId,
+      });
+      return createResponse("success", { logs }, null);
+    }
+ 
+    if (userId) {
+      const logs = await ctx.runQuery(api.features.appLogs.getLogsByUser, {
+        userId,
+        limit,
+      });
+      return createResponse("success", { logs }, null);
+    }
+ 
+    return createResponse("error", null, "Provide manufacturer, sessionId, or userId query param");
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch logs");
+  }
+});
+
+
+export const deleteLogsHandler = httpAction(async (ctx, request) => {
+  try {
+    let olderThanMs = 0;
+    try {
+      const body = await request.json();
+      if (typeof body?.olderThanMs === "number") {
+        olderThanMs = body.olderThanMs;
+      }
+    } catch {
+      // No body or invalid JSON — default to delete all
+    }
+
+    const result = await ctx.runMutation(api.features.appLogs.clearOldLogs, {
+      olderThanMs,
+    });
+
+    return createResponse("success", { deleted: result });
+  } catch (e) {
+    return createResponse("error", null, `Failed to delete logs: ${e}`);
+  }
+});
