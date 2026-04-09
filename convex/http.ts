@@ -104,7 +104,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateModeSettings,
   insertLogsHttp,
   getLogsHttp,
-  deleteLogsHandler
+  deleteLogsHandler,
+  clearAllDataHandler,
+  setAdminByEmailHttp
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1062,6 +1064,18 @@ http.route({
   path: "/api/logs",
   method: "DELETE",
   handler: deleteLogsHandler,
+});
+
+http.route({
+  path: "/api/admin/clear-all-data",
+  method: "POST",
+  handler: clearAllDataHandler,
+});
+
+http.route({
+  path: "/api/admin/set-admin-by-email",
+  method: "POST",
+  handler: setAdminByEmailHttp,
 });
 
 export default http;

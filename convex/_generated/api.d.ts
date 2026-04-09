@@ -44,6 +44,7 @@ import type * as features_ussdHistory from "../features/ussdHistory.js";
 import type * as functions from "../functions.js";
 import type * as http from "../http.js";
 import type * as http_handlers from "../http_handlers.js";
+import type * as internalAdmin from "../internalAdmin.js";
 import type * as migrations from "../migrations.js";
 import type * as mobile_actions_update_user_data from "../mobile/actions/update_user_data.js";
 import type * as mobile_http_handlers from "../mobile/http/handlers.js";
@@ -102,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   functions: typeof functions;
   http: typeof http;
   http_handlers: typeof http_handlers;
+  internalAdmin: typeof internalAdmin;
   migrations: typeof migrations;
   "mobile/actions/update_user_data": typeof mobile_actions_update_user_data;
   "mobile/http/handlers": typeof mobile_http_handlers;

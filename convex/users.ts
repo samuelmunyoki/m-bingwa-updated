@@ -404,6 +404,30 @@ export const setorUnsetAdmin = mutation({
   },
 });
 
+export const setAdminByEmail = mutation({
+  args: {
+    email: v.string(),
+    isAdmin: v.boolean(),
+  },
+  handler: async (ctx, { email, isAdmin }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    if (!user) {
+      return {
+        status: "error",
+        message: "User not found.",
+      } as BackendResponse;
+    }
+    await ctx.db.patch(user._id, { isAdmin });
+    return {
+      status: "success",
+      message: `${user.name} is now ${isAdmin ? "an admin" : "no longer an admin"}.`,
+    } as BackendResponse;
+  },
+});
+
 export const getFullUserData = query({
   args: {
     userId: v.string(),

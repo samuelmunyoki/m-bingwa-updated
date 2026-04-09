@@ -1,4 +1,4 @@
-import { api } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import { httpAction } from "../../_generated/server";
 
@@ -5858,31 +5858,33 @@ export const getLogsHttp = httpAction(async (ctx, request) => {
   if (request.method !== "GET") {
     return createResponse("error", null, "Method not allowed");
   }
- 
+
   const url = new URL(request.url);
   const manufacturer = url.searchParams.get("manufacturer");
   const sessionId = url.searchParams.get("sessionId");
   const userId = url.searchParams.get("userId");
+  const tag = url.searchParams.get("tag") ?? undefined;
   const limit = url.searchParams.get("limit")
     ? parseInt(url.searchParams.get("limit")!)
     : undefined;
- 
+
   try {
     if (manufacturer) {
       const logs = await ctx.runQuery(api.features.appLogs.getLogsByManufacturer, {
         manufacturer,
         limit,
+        tag,
       });
       return createResponse("success", { logs }, null);
     }
- 
+
     if (sessionId) {
       const logs = await ctx.runQuery(api.features.appLogs.getLogsBySession, {
         sessionId,
       });
       return createResponse("success", { logs }, null);
     }
- 
+
     if (userId) {
       const logs = await ctx.runQuery(api.features.appLogs.getLogsByUser, {
         userId,
@@ -5890,7 +5892,7 @@ export const getLogsHttp = httpAction(async (ctx, request) => {
       });
       return createResponse("success", { logs }, null);
     }
- 
+
     return createResponse("error", null, "Provide manufacturer, sessionId, or userId query param");
   } catch (error) {
     console.error(error);
@@ -5918,5 +5920,93 @@ export const deleteLogsHandler = httpAction(async (ctx, request) => {
     return createResponse("success", { deleted: result });
   } catch (e) {
     return createResponse("error", null, `Failed to delete logs: ${e}`);
+  }
+});
+
+// ============= ADMIN: CLEAR ALL DATA =============
+
+const ALL_TABLES = [
+  "users", "bundles", "subscription_price", "mpesa_transactions",
+  "sms", "scheduled_events", "stores", "notifications", "blacklist",
+  "otps", "cooldownTimers", "system", "transactions", "mpesaMessages",
+  "userSenderRelations", "promoCodes", "promoUsers", "airtimeTransactions",
+  "deviceSessions", "bridgeOffers", "bridgeDevices", "bridgeWhitelist",
+  "bridgeTransactions", "totalCommission", "onlineBridgeOffers",
+  "onlineBridgeDevices", "onlineBridgeWhitelist", "onlineBridgeTransactions",
+  "serviceStatus", "deviceHeartbeats", "onlineServiceStatus", "ussdHistory",
+  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",
+];
+
+export const clearAllDataHandler = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { secretKey } = body;
+
+    const expectedKey = process.env.ADMIN_SECRET_KEY;
+
+    if (!expectedKey) {
+      return createResponse("error", null, "ADMIN_SECRET_KEY environment variable is not set");
+    }
+
+    if (secretKey !== expectedKey) {
+      return createResponse("error", null, "Unauthorized");
+    }
+
+    const clearTable = async (table: string) => {
+      let totalDeleted = 0;
+      let deleted = 0;
+      do {
+        deleted = await ctx.runMutation(internal.internalAdmin.clearTableBatch, { table });
+        totalDeleted += deleted;
+      } while (deleted > 0);
+      return totalDeleted;
+    };
+
+    const settled = await Promise.allSettled(ALL_TABLES.map((table) => clearTable(table)));
+
+    const results: Record<string, number> = {};
+    const failed: Record<string, string> = {};
+
+    ALL_TABLES.forEach((table, i) => {
+      const outcome = settled[i];
+      if (outcome.status === "fulfilled") {
+        results[table] = outcome.value;
+      } else {
+        failed[table] = outcome.reason?.message ?? String(outcome.reason);
+      }
+    });
+
+    return createResponse("success", { deleted: results, failed });
+  } catch (e) {
+    return createResponse("error", null, `Failed to clear data: ${e}`);
+  }
+});
+
+// HTTP Action to set or unset admin by email
+export const setAdminByEmailHttp = httpAction(async (ctx, request) => {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, isAdmin } = body ?? {};
+
+  if (!email || typeof email !== "string") {
+    return createResponse("error", null, "Missing or invalid 'email' field");
+  }
+  if (typeof isAdmin !== "boolean") {
+    return createResponse("error", null, "Missing or invalid 'isAdmin' field (must be true or false)");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.setAdminByEmail, { email, isAdmin });
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+    return createResponse("success", { message: result.message });
+  } catch (e) {
+    return createResponse("error", null, `Failed to update admin status: ${e}`);
   }
 });
