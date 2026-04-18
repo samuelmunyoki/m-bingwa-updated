@@ -17,10 +17,11 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter, usePathname } from "next/navigation";
 import LogoutModal from "@/components/ui/logout-modal";
+import CompleteProfileModal from "@/components/ui/complete-profile-modal";
 import WebsiteMain from "@/app/_components/website/website";
 import DashboardMain from "@/app/_components/dashboard/dashboard";
 import { Logo } from "@/components/ui/logo";
@@ -52,7 +53,17 @@ export default function Dashboard() {
   const [accordionValue, setAccordionValue] = useState<string | undefined>(
     undefined
   );
-  const { signOut } = useAuth(); // Moved useAuth hook to the top level
+  const { signOut } = useAuth();
+
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [phoneModalError, setPhoneModalError] = useState<string | null>(null);
+  const [pendingPhone, setPendingPhone] = useState("");
+  const updateAgentNumber = useMutation(api.users.updateAgentNumber);
+  const sendPhoneOtp = useAction(api.actions.phoneVerification.sendPhoneVerificationOtp);
+  const verifyPhoneOtp = useMutation(api.features.otps.verifyOtp);
 
   useEffect(() => {
     if (!userId) {
@@ -76,11 +87,67 @@ export default function Dashboard() {
       } else {
         setnavItem("Subscription");
       }
+
+      // Show phone number prompt if missing
+      if (!dbUser.phoneNumber) {
+        setShowPhoneModal(true);
+      }
     }
   }, [dbUser, router]);
 
+  const handleSendOtp = async (phoneNumber: string) => {
+    setIsSendingOtp(true);
+    setPhoneModalError(null);
+    try {
+      const result = await sendPhoneOtp({ phoneNumber: phoneNumber.trim(), userId });
+      if (result.success) {
+        setPendingPhone(phoneNumber.trim());
+        setPhoneOtpSent(true);
+      } else {
+        setPhoneModalError(result.message ?? "Failed to send OTP.");
+      }
+    } catch {
+      setPhoneModalError("Failed to send OTP. Please try again.");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (otp: string) => {
+    setIsVerifyingOtp(true);
+    setPhoneModalError(null);
+    try {
+      const result = await verifyPhoneOtp({ otpCode: otp });
+      if (result.success) {
+        await updateAgentNumber({ userId, phoneNumber: pendingPhone });
+        setShowPhoneModal(false);
+      } else {
+        setPhoneModalError(result.message ?? "Invalid code. Please try again.");
+      }
+    } catch {
+      setPhoneModalError("Verification failed. Please try again.");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
+
   if (!userId || dbUser == undefined || dbUser == null) {
     return null;
+  }
+
+  if (showPhoneModal) {
+    return (
+      <CompleteProfileModal
+        isOpen={true}
+        isSending={isSendingOtp}
+        isVerifying={isVerifyingOtp}
+        otpSent={phoneOtpSent}
+        errorMessage={phoneModalError}
+        onSendOtp={handleSendOtp}
+        onVerifyOtp={handleVerifyOtp}
+        onBackToPhone={() => { setPhoneOtpSent(false); setPhoneModalError(null); }}
+      />
+    );
   }
 
   const [isModalOpen, setModalOpen] = useState(false);

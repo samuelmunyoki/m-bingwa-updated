@@ -424,6 +424,16 @@ export default defineSchema({
   })
    .index("by_phone", ["phoneNumber"]),
 
+  emailTokens: defineTable({
+    email: v.string(),
+    userId: v.string(),
+    token: v.number(),
+    isVerified: v.boolean(),
+    expiresAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"]),
+
   deviceHeartbeats: defineTable({
     phoneNumber: v.string(),
     lastSeenTimestamp: v.number(),

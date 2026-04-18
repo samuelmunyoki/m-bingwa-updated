@@ -24,17 +24,16 @@ export const updateOrcreateUser = mutation({
       .first();
 
     if (existingUser) {
-      // Update existing user
       await ctx.db.patch(existingUser._id, {
         name,
         email,
         profileImage,
       });
-      return existingUser._id;
+      return { userId: existingUser.userId };
     }
 
     // Create new user
-    const newUserId = await ctx.db.insert("users", {
+    await ctx.db.insert("users", {
       userId: userId,
       name: name,
       email: email,
@@ -43,7 +42,7 @@ export const updateOrcreateUser = mutation({
       suspended: false,
       isSubscribed: false,
     });
-    return newUserId;
+    return { userId };
   },
 });
 
@@ -101,6 +100,17 @@ export const getUserById = query({
     console.log("Existing userIds:", allUsers.map(u => u.userId));
     // Return only the necessary fields
     return user;
+  },
+});
+
+export const getUserByEmail = query({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    return user ?? null;
   },
 });
 
@@ -1102,6 +1112,36 @@ export const clearUserSubscription = mutation({
       phoneNumber: user.phoneNumber
     };
   }
+});
+
+export const updateUserProfile = mutation({
+  args: {
+    userId: v.string(),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+  },
+  handler: async (ctx, { userId, name, email }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!user) {
+      return { status: "error", message: "User not found" };
+    }
+
+    const updates: { name?: string; email?: string } = {};
+    if (name && name.trim().length > 0) updates.name = name.trim();
+    if (email && email.trim().length > 0) updates.email = email.trim();
+
+    if (Object.keys(updates).length === 0) {
+      return { status: "error", message: "No fields to update" };
+    }
+
+    await ctx.db.patch(user._id, updates);
+
+    return { status: "success", message: "Profile updated successfully" };
+  },
 });
 
 export const deleteUserByPhone = mutation({

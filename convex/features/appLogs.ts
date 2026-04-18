@@ -1,4 +1,5 @@
-import { mutation, query } from "../_generated/server";
+import { internalMutation, mutation, query } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
  
 export const insertLogs = mutation({
@@ -88,5 +89,38 @@ export const clearOldLogs = mutation({
       await ctx.db.delete(log._id);
     }
     return logs.length;
+  },
+});
+
+export const clearAllLogs = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const logs = await ctx.db.query("appLogs").take(500);
+    for (const log of logs) {
+      await ctx.db.delete(log._id);
+    }
+    return logs.length;
+  },
+});
+
+// Self-scheduling: deletes 500 logs then reschedules itself until table is empty
+export const clearAllLogsScheduled = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const logs = await ctx.db.query("appLogs").take(500);
+    for (const log of logs) {
+      await ctx.db.delete(log._id);
+    }
+    if (logs.length === 500) {
+      await ctx.scheduler.runAfter(0, internal.features.appLogs.clearAllLogsScheduled, {});
+    }
+  },
+});
+
+export const countAllLogs = query({
+  args: {},
+  handler: async (ctx) => {
+    const logs = await ctx.db.query("appLogs").take(16384);
+    return { count: logs.length, isMore: logs.length === 16384 };
   },
 });

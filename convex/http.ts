@@ -105,8 +105,12 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   insertLogsHttp,
   getLogsHttp,
   deleteLogsHandler,
+  countLogsHttp,
   clearAllDataHandler,
-  setAdminByEmailHttp
+  setAdminByEmailHttp,
+  updateUserProfile,
+  sendEmailTokenHttp,
+  verifyEmailTokenHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1067,6 +1071,12 @@ http.route({
 });
 
 http.route({
+  path: "/api/logs/count",
+  method: "GET",
+  handler: countLogsHttp,
+});
+
+http.route({
   path: "/api/admin/clear-all-data",
   method: "POST",
   handler: clearAllDataHandler,
@@ -1076,6 +1086,24 @@ http.route({
   path: "/api/admin/set-admin-by-email",
   method: "POST",
   handler: setAdminByEmailHttp,
+});
+
+http.route({
+  pathPrefix: "/api/users/update-profile/",
+  method: "PATCH",
+  handler: updateUserProfile,
+});
+
+http.route({
+  path: "/api/email-token/send/",
+  method: "POST",
+  handler: sendEmailTokenHttp,
+});
+
+http.route({
+  path: "/api/email-token/verify/",
+  method: "POST",
+  handler: verifyEmailTokenHttp,
 });
 
 export default http;

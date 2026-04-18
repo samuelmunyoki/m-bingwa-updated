@@ -5901,25 +5901,21 @@ export const getLogsHttp = httpAction(async (ctx, request) => {
 });
 
 
-export const deleteLogsHandler = httpAction(async (ctx, request) => {
+export const deleteLogsHandler = httpAction(async (ctx, _request) => {
   try {
-    let olderThanMs = 0;
-    try {
-      const body = await request.json();
-      if (typeof body?.olderThanMs === "number") {
-        olderThanMs = body.olderThanMs;
-      }
-    } catch {
-      // No body or invalid JSON — default to delete all
-    }
-
-    const result = await ctx.runMutation(api.features.appLogs.clearOldLogs, {
-      olderThanMs,
-    });
-
-    return createResponse("success", { deleted: result });
+    await ctx.runMutation(internal.features.appLogs.clearAllLogsScheduled, {});
+    return createResponse("success", { message: "Log deletion started. Poll GET /api/logs/count to check progress." });
   } catch (e) {
-    return createResponse("error", null, `Failed to delete logs: ${e}`);
+    return createResponse("error", null, `Failed to start log deletion: ${e}`);
+  }
+});
+
+export const countLogsHttp = httpAction(async (ctx, _request) => {
+  try {
+    const result = await ctx.runQuery(api.features.appLogs.countAllLogs, {});
+    return createResponse("success", result);
+  } catch (e) {
+    return createResponse("error", null, `Failed to count logs: ${e}`);
   }
 });
 
@@ -6008,5 +6004,93 @@ export const setAdminByEmailHttp = httpAction(async (ctx, request) => {
     return createResponse("success", { message: result.message });
   } catch (e) {
     return createResponse("error", null, `Failed to update admin status: ${e}`);
+  }
+});
+
+export const updateUserProfile = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, name, email } = body ?? {};
+
+  if (!userId || typeof userId !== "string") {
+    return createResponse("error", null, "Missing or invalid 'userId' field");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.updateUserProfile, { userId, name, email });
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+    return createResponse("success", { message: result.message });
+  } catch (e) {
+    return createResponse("error", null, `Failed to update profile: ${e}`);
+  }
+});
+
+export const sendEmailTokenHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, userId } = body ?? {};
+  if (!email || !userId) {
+    return createResponse("error", null, "Missing email or userId");
+  }
+
+  try {
+    const result = await ctx.runAction(api.actions.email.sendEmailToken, { email, userId });
+    if (!result.success) {
+      return createResponse("error", null, result.message ?? "Failed to send token");
+    }
+    return createResponse("success", {
+      message: "Token sent",
+      devToken: result.devToken ?? null,
+    });
+  } catch (e) {
+    return createResponse("error", null, `Failed to send token: ${e}`);
+  }
+});
+
+export const verifyEmailTokenHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, token } = body ?? {};
+  if (!email || !token) {
+    return createResponse("error", null, "Missing email or token");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.emailTokens.verifyEmailToken, { email, token });
+    if (!result.success) {
+      return createResponse("error", null, result.message ?? "Invalid token");
+    }
+    return createResponse("success", { message: "Token verified" });
+  } catch (e) {
+    return createResponse("error", null, `Verification failed: ${e}`);
   }
 });

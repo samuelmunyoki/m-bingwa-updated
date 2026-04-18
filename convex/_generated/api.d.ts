@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as actions_email from "../actions/email.js";
 import type * as actions_notifications from "../actions/notifications.js";
+import type * as actions_phoneVerification from "../actions/phoneVerification.js";
 import type * as actions_scheduled_events from "../actions/scheduled_events.js";
 import type * as actions_sms from "../actions/sms.js";
 import type * as actions_subscriptions from "../actions/subscriptions.js";
@@ -22,6 +24,7 @@ import type * as features_blacklist from "../features/blacklist.js";
 import type * as features_bridge from "../features/bridge.js";
 import type * as features_bundles from "../features/bundles.js";
 import type * as features_cooldown from "../features/cooldown.js";
+import type * as features_emailTokens from "../features/emailTokens.js";
 import type * as features_migration from "../features/migration.js";
 import type * as features_mpesaMessages from "../features/mpesaMessages.js";
 import type * as features_mpesa_transactions from "../features/mpesa_transactions.js";
@@ -67,7 +70,9 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  "actions/email": typeof actions_email;
   "actions/notifications": typeof actions_notifications;
+  "actions/phoneVerification": typeof actions_phoneVerification;
   "actions/scheduled_events": typeof actions_scheduled_events;
   "actions/sms": typeof actions_sms;
   "actions/subscriptions": typeof actions_subscriptions;
@@ -81,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   "features/bridge": typeof features_bridge;
   "features/bundles": typeof features_bundles;
   "features/cooldown": typeof features_cooldown;
+  "features/emailTokens": typeof features_emailTokens;
   "features/migration": typeof features_migration;
   "features/mpesaMessages": typeof features_mpesaMessages;
   "features/mpesa_transactions": typeof features_mpesa_transactions;
