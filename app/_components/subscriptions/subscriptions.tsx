@@ -311,7 +311,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
             Subscriptions Management
           </h2>
 
-          <ScrollArea className="h-full pr-4">
+          <ScrollArea className="flex-1 min-h-0 pr-4">
             <AdminPriceSettings
               isAdmin={user.isAdmin}
               currentPrice={getSubscriptionPrice?.price ?? 0}
