@@ -64,6 +64,8 @@ export default function Dashboard() {
   const updateAgentNumber = useMutation(api.users.updateAgentNumber);
   const sendPhoneOtp = useAction(api.actions.phoneVerification.sendPhoneVerificationOtp);
   const verifyPhoneOtp = useMutation(api.features.otps.verifyOtp);
+  const [isModalOpen, setModalOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -149,8 +151,6 @@ export default function Dashboard() {
       />
     );
   }
-
-  const [isModalOpen, setModalOpen] = useState(false);
 
   const handleLogout = () => {
     setModalOpen(false);
@@ -251,8 +251,6 @@ export default function Dashboard() {
       ),
     },
   ];
-
-  const [open, setOpen] = useState(false);
 
   const isSubscribed =
     dbUser.isSubscribed || userId === "user_2r7LUUlDnylYJnMMytKl7qzwY0c";
