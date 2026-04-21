@@ -360,7 +360,7 @@ export default function Dashboard() {
           </div>
         </SidebarBody>
       </Sidebar>
-      <div className="z-30 w-full !h-full flex flex-col lg:mr-1 lg:pb-1">
+      <div className="z-30 w-full !h-full flex flex-col lg:mr-1 lg:pb-1 overflow-hidden">
         <FloatingNotification message="Some settings were changes. Kindly connect your agent smartphone to internet for syncing."/>
         {navItem === "Dashboard" && isAdmin && <DashboardMain />}
         {navItem === "USSD Dialer" && <USSD_DialerMain user={dbUser} />}
