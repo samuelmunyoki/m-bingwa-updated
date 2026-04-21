@@ -218,10 +218,11 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
   );
 
   const isLoading = getSubscriptionPrice === undefined;
+  const pricePerDay = getSubscriptionPrice?.price ?? 30;
 
   let totalCharge = 0;
-  if (getSubscriptionPrice !== undefined && getSubscriptionPrice !== null) {
-    totalCharge = subscriptionDays * getSubscriptionPrice?.price;
+  if (!isLoading) {
+    totalCharge = subscriptionDays * pricePerDay;
   }
 
   const initiatePayment = useAction(
@@ -314,7 +315,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
           <ScrollArea className="h-full pr-4">
             <AdminPriceSettings
               isAdmin={user.isAdmin}
-              currentPrice={getSubscriptionPrice?.price ?? 0}
+              currentPrice={pricePerDay}
             />
             {isLoading ? (
               <div className="flex flex-col justify-center items-center w-full h-[200px]">
@@ -336,17 +337,6 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
                     />
                   </svg>
                   <span className="text-neutral-500 ">Loading ...</span>
-                </div>
-              </div>
-            ) : getSubscriptionPrice === null ? (
-              <div className="w-full mx-auto p-4 h-full ">
-                <div className="flex flex-col items-center justify-center mt-3 space-y-4 text-center">
-                  <h2 className="text-2xl font-bold">
-                    Subscriptions Unavailable
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Please check again another time.
-                  </p>
                 </div>
               </div>
             ) : (
