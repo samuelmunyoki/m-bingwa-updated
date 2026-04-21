@@ -299,7 +299,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
 
   return (
     <>
-      <div className="flex flex-1 h-full">
+      <div className="flex flex-1 h-full overflow-hidden">
         <div className="p-6 md:p-5 md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 overflow-hidden">
 
           {/* Page Header */}
@@ -309,7 +309,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
           </div>
           <div className="border-b border-neutral-200 mb-4" />
 
-          <ScrollArea className="flex-1 min-h-0 pr-4">
+          <ScrollArea className="flex-1 pr-4">
             <AdminPriceSettings isAdmin={user.isAdmin} currentPrice={pricePerDay} />
 
             {isLoading ? (
