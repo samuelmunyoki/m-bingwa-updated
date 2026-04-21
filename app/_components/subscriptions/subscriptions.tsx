@@ -96,49 +96,44 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
 
   // ===== PHASE 1: PROMO CODE SYSTEM =====
   const [promoCode, setPromoCode] = useState("");
-  const [isValidatingPromo, setIsValidatingPromo] = useState(false);
   const [isApplyingPromo, setIsApplyingPromo] = useState(false);
   const [validatedPromo, setValidatedPromo] = useState<any>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+  const [promoToValidate, setPromoToValidate] = useState<{ promoCode: string; userId: string } | null>(null);
 
   const applyPromoMutation = useMutation(
     api.features.promo_codes.applyPromoCodeStandalone
   );
 
-  const handleValidatePromo = async () => {
+  const validationResult = useQuery(
+    api.features.promo_codes.validatePromoCode,
+    promoToValidate ?? "skip"
+  );
+
+  useEffect(() => {
+    if (!promoToValidate) return;
+    if (validationResult === undefined) return; // still loading
+    if (validationResult.status === "success" && validationResult.isValid) {
+      setValidatedPromo(validationResult.data);
+      setPromoError(null);
+    } else {
+      setPromoError(validationResult.error || "Invalid promo code");
+      setValidatedPromo(null);
+    }
+    setPromoToValidate(null);
+  }, [validationResult, promoToValidate]);
+
+  const isValidatingPromo = promoToValidate !== null && validationResult === undefined;
+
+  const handleValidatePromo = () => {
     if (promoCode.length !== 7) {
       setPromoError("Promo code must be exactly 7 characters");
       return;
     }
-
-    setIsValidatingPromo(true);
     setPromoError(null);
-
-    try {
-      const response = await fetch("/api/validate-promo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          promoCode: promoCode.toUpperCase(),
-          userId: user.userId,
-        }),
-      });
-      const result = await response.json();
-
-      if (result.status === "success" && result.isValid) {
-        setValidatedPromo(result.data);
-        setPromoError(null);
-      } else {
-        setPromoError(result.error || "Invalid promo code");
-        setValidatedPromo(null);
-      }
-    } catch (error: any) {
-      setPromoError(error.message || "Failed to validate promo code");
-      setValidatedPromo(null);
-    } finally {
-      setIsValidatingPromo(false);
-    }
+    setValidatedPromo(null);
+    setPromoToValidate({ promoCode: promoCode.toUpperCase(), userId: user.userId });
   };
 
   const handleApplyPromo = async () => {
@@ -305,7 +300,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
   return (
     <>
       <div className="flex flex-1 h-full">
-        <div className="p-6 md:p-5 md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1">
+        <div className="p-6 md:p-5 md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 overflow-hidden">
 
           {/* Page Header */}
           <div className="flex items-center gap-2 mb-2">
