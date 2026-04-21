@@ -2,7 +2,8 @@ import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const ALL_TABLES = [
-  "users", /**"bundles", "subscription_price", "mpesa_transactions",
+  "users", /**"bundles", "subscri
+  ption_price", "mpesa_transactions",
   "sms", "scheduled_events", "stores", "notifications", "blacklist",
   "otps", "cooldownTimers", "system", "transactions", "mpesaMessages",
   "userSenderRelations", "promoCodes", "promoUsers", "airtimeTransactions",
