@@ -24,17 +24,16 @@ export const updateOrcreateUser = mutation({
       .first();
 
     if (existingUser) {
-      // Update existing user
       await ctx.db.patch(existingUser._id, {
         name,
         email,
         profileImage,
       });
-      return existingUser._id;
+      return { userId: existingUser.userId };
     }
 
     // Create new user
-    const newUserId = await ctx.db.insert("users", {
+    await ctx.db.insert("users", {
       userId: userId,
       name: name,
       email: email,
@@ -43,9 +42,10 @@ export const updateOrcreateUser = mutation({
       suspended: false,
       isSubscribed: false,
     });
-    return newUserId;
+    return { userId };
   },
 });
+
 export const internalgetUserById = internalQuery({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
@@ -70,6 +70,7 @@ export const internalgetUserById = internalQuery({
     };
   },
 });
+
 export const getUserById = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
@@ -99,6 +100,17 @@ export const getUserById = query({
     console.log("Existing userIds:", allUsers.map(u => u.userId));
     // Return only the necessary fields
     return user;
+  },
+});
+
+export const getUserByEmail = query({
+  args: { email: v.string() },
+  handler: async (ctx, { email }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    return user ?? null;
   },
 });
 
@@ -298,6 +310,7 @@ export const getAllSubscribedUsers = query({
       .collect();
   },
 });
+
 export const checkExpiry = mutation({
   args: {},
   handler: async (ctx) => {
@@ -401,6 +414,30 @@ export const setorUnsetAdmin = mutation({
   },
 });
 
+export const setAdminByEmail = mutation({
+  args: {
+    email: v.string(),
+    isAdmin: v.boolean(),
+  },
+  handler: async (ctx, { email, isAdmin }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .first();
+    if (!user) {
+      return {
+        status: "error",
+        message: "User not found.",
+      } as BackendResponse;
+    }
+    await ctx.db.patch(user._id, { isAdmin });
+    return {
+      status: "success",
+      message: `${user.name} is now ${isAdmin ? "an admin" : "no longer an admin"}.`,
+    } as BackendResponse;
+  },
+});
+
 export const getFullUserData = query({
   args: {
     userId: v.string(),
@@ -467,8 +504,9 @@ export const createUserIfNotExists = mutation({
     phoneNumber: v.string(),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
+    userId: v.optional(v.string()),
   },
-  handler: async (ctx, { phoneNumber, name, email }) => {
+  handler: async (ctx, { phoneNumber, name, email, userId: providedUserId }) => {
     console.log("createUserIfNotExists CALLED");
     console.log("phoneNumber:", phoneNumber);
     console.log("name:", name);
@@ -506,8 +544,8 @@ export const createUserIfNotExists = mutation({
       };
     }
     
-    // Generate a unique userId
-    const userId = `user_${Math.random().toString(36).substr(2, 25)}`;
+    // Use provided userId (e.g. from Clerk) or generate one
+    const userId = providedUserId || `user_${Math.random().toString(36).substr(2, 25)}`;
     console.log("🆕 Creating new user with userId:", userId);
     
     try {
@@ -721,6 +759,7 @@ export const getUserIdByPhone = query({
   },
 });
 
+
 // New query to get user by phone number with normalization (handles any format)
 export const getUserByPhoneNormalized = query({
   args: {
@@ -789,83 +828,68 @@ export const registerDeviceSession = mutation({
     deviceModel: v.string(),
     userId: v.string(),
   },
-  handler: async (ctx, { phoneNumber, deviceId, deviceModel, userId }) => {
-    const currentTimestamp = Date.now();
+  handler: async (ctx, args) => {
+    const { phoneNumber, deviceId, deviceModel, userId } = args;
 
-    // STEP 1: Check if this phone number already has an active session
+    console.log("REGISTER DEVICE SESSION (BLOCK MODE)");
+    console.log(`Phone: ${phoneNumber}`);
+    console.log(`Device: ${deviceId} (${deviceModel})`);
+
+    // CRITICAL: Check if phone number has ACTIVE session
     const existingSession = await ctx.db
       .query("deviceSessions")
       .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => q.eq(q.field("isActive"), true))
       .first();
 
-    let sessionStatus = "new_session";
-    let previousDevice: string | null = null;
-
     if (existingSession) {
-      // STEP 2: Phone has existing session - check if it's the same device
+      // Check if it's the SAME device
       if (existingSession.deviceId === deviceId) {
-        // Same device logging in again - just update timestamps
+        // Same device - just refresh the session
         await ctx.db.patch(existingSession._id, {
-          lastActiveTimestamp: currentTimestamp,
-          loginTimestamp: currentTimestamp,
-          isActive: true,
+          lastActiveTimestamp: Date.now(),
         });
 
-        sessionStatus = "session_refreshed";
-        console.log(`✅ Session refreshed for device: ${deviceId}`);
-      } else {
-        // DIFFERENT device - invalidate old session, create new one
-        previousDevice = existingSession.deviceModel;
-
-        // Mark old session as inactive
-        await ctx.db.patch(existingSession._id, {
-          isActive: false,
-        });
-
-        // Delete old session and create new one
-        await ctx.db.delete(existingSession._id);
-
-        // Create new session for new device
-        await ctx.db.insert("deviceSessions", {
-          phoneNumber,
-          deviceId,
-          deviceModel,
+        console.log("✅ Same device - session refreshed");
+        return {
+          status: "success",
+          sessionStatus: "session_refreshed",
           userId,
-          loginTimestamp: currentTimestamp,
-          lastActiveTimestamp: currentTimestamp,
-          isActive: true,
-        });
+        };
+      } else {
+        // DIFFERENT device - BLOCK login
+        console.log("⚠️ ACTIVE SESSION EXISTS ON DIFFERENT DEVICE");
+        console.log(`Active device: ${existingSession.deviceModel}`);
+        console.log(`Attempting device: ${deviceModel}`);
+        console.log("🚫 LOGIN BLOCKED");
 
-        sessionStatus = "replaced_old_session";
-        console.log(`⚠️ Session replaced: ${previousDevice} → ${deviceModel}`);
+        return {
+          status: "error",
+          error: "already_logged_in",
+          activeDevice: existingSession.deviceModel,
+          message: `Already logged in on ${existingSession.deviceModel}`,
+        };
       }
-    } else {
-      // STEP 3: No existing session - create new one
-      await ctx.db.insert("deviceSessions", {
-        phoneNumber,
-        deviceId,
-        deviceModel,
-        userId,
-        loginTimestamp: currentTimestamp,
-        lastActiveTimestamp: currentTimestamp,
-        isActive: true,
-      });
-
-      sessionStatus = "new_session";
-      console.log(`✅ New session created for device: ${deviceId}`);
     }
+
+    // No active session exists - CREATE NEW SESSION
+    const newSessionId = await ctx.db.insert("deviceSessions", {
+      phoneNumber,
+      deviceId,
+      deviceModel,
+      userId,
+      loginTimestamp: Date.now(),
+      lastActiveTimestamp: Date.now(),
+      isActive: true,
+    });
+
+    console.log("✅ New session created");
+    console.log(`Session ID: ${newSessionId}`);
 
     return {
       status: "success",
-      sessionStatus,
-      previousDevice,
+      sessionStatus: "new_session",
       userId,
-      message:
-        sessionStatus === "replaced_old_session"
-          ? `Previous session on ${previousDevice} has been terminated.`
-          : sessionStatus === "session_refreshed"
-          ? "Session refreshed successfully."
-          : "Session created successfully.",
     };
   },
 });
@@ -963,33 +987,194 @@ export const getActiveDevice = query({
   },
 });
 
+
 export const logoutDevice = mutation({
   args: {
     phoneNumber: v.string(),
     deviceId: v.string(),
   },
-  handler: async (ctx, { phoneNumber, deviceId }) => {
+  handler: async (ctx, args) => {
+    const { phoneNumber, deviceId } = args;
+
+    console.log("LOGOUT DEVICE");
+    console.log(`Phone: ${phoneNumber}`);
+    console.log(`Device: ${deviceId}`);
+
+    // Find the session for this phone and device
     const session = await ctx.db
       .query("deviceSessions")
       .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => 
+        q.and(
+          q.eq(q.field("deviceId"), deviceId),
+          q.eq(q.field("isActive"), true)
+        )
+      )
       .first();
 
-    if (session && session.deviceId === deviceId) {
-      // Delete the session
-      await ctx.db.delete(session._id);
-      console.log(`🔴 Session deleted for device: ${deviceId}`);
-
+    if (!session) {
+      console.log("⚠️ No active session found for this device");
+      
       return {
         status: "success",
-        message: "Device session terminated",
+        message: "No active session to logout",
       };
     }
 
+    // Delete the session (or mark as inactive)
+    await ctx.db.delete(session._id);
+    
+    console.log("✅ Session deleted");
+
     return {
-      status: "no_session_found",
-      message: "No active session found for this device",
+      status: "success",
+      message: "Device logged out successfully",
     };
   },
 });
 
+export const clearDeviceSession = mutation({
+  args: {
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { phoneNumber } = args;
 
+    console.log("CLEAR DEVICE SESSION (ADMIN/WEBSITE)");
+    console.log(`Phone: ${phoneNumber}`);
+
+    // Find all active sessions for this phone number
+    const sessions = await ctx.db
+      .query("deviceSessions")
+      .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .collect();
+
+    if (sessions.length === 0) {
+      console.log("⚠️ No active session found");
+      
+      return {
+        status: "error",
+        message: "No active session found for this phone number",
+      };
+    }
+
+    // Delete all active sessions for this phone number
+    let deletedCount = 0;
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+      console.log(`✅ Deleted session: ${session.deviceModel}`);
+      deletedCount++;
+    }
+
+    console.log(`✅ Total sessions cleared: ${deletedCount}`);
+
+    return {
+      status: "success",
+      message: `Cleared ${deletedCount} active session(s)`,
+      deletedCount,
+    };
+  },
+});
+
+export const clearUserSubscription = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, { userId }) => {
+    console.log("🔥 clearUserSubscription called for:", userId);
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!user) {
+      console.log("❌ User not found");
+      throw new Error("User not found");
+    }
+
+    console.log("Before clearing - isSubscribed:", user.isSubscribed);
+    console.log("Before clearing - subscriptionEnds:", user.subscriptionEnds);
+
+    // Clear subscription fields
+    await ctx.db.patch(user._id, {
+      isSubscribed: false,
+      subscriptionEnds: undefined,
+      subscriptionId: undefined,
+    });
+
+    console.log("✅ Subscription cleared successfully");
+
+    return {
+      status: "success",
+      message: "Subscription cleared",
+      userId: user.userId,
+      phoneNumber: user.phoneNumber
+    };
+  }
+});
+
+export const updateUserProfile = mutation({
+  args: {
+    userId: v.string(),
+    name: v.optional(v.string()),
+    email: v.optional(v.string()),
+  },
+  handler: async (ctx, { userId, name, email }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!user) {
+      return { status: "error", message: "User not found" };
+    }
+
+    const updates: { name?: string; email?: string } = {};
+    if (name && name.trim().length > 0) updates.name = name.trim();
+    if (email && email.trim().length > 0) updates.email = email.trim();
+
+    if (Object.keys(updates).length === 0) {
+      return { status: "error", message: "No fields to update" };
+    }
+
+    await ctx.db.patch(user._id, updates);
+
+    return { status: "success", message: "Profile updated successfully" };
+  },
+});
+
+export const deleteUserByPhone = mutation({
+  args: {
+    phoneNumber: v.string(),
+  },
+  handler: async (ctx, { phoneNumber }) => {
+    console.log("🗑️ deleteUserByPhone called for:", phoneNumber);
+
+    const user = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .first();
+
+    if (!user) {
+      console.log("❌ User not found with phone:", phoneNumber);
+      throw new Error("User not found");
+    }
+
+    console.log("Found user:", user.userId, user.name);
+
+    // Delete the user
+    await ctx.db.delete(user._id);
+
+    console.log("✅ User deleted successfully");
+
+    return {
+      status: "success",
+      message: "User deleted successfully",
+      userId: user.userId,
+      phoneNumber: user.phoneNumber,
+      name: user.name
+    };
+  }
+});

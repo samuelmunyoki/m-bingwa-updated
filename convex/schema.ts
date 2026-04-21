@@ -64,6 +64,7 @@ export default defineSchema({
     paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
     subscriptionEnds: v.optional(v.number()), // ADD THIS
     userId: v.optional(v.string()), // ADD THIS
+    verified: v.optional(v.boolean()),
   })
     .index("by_checkoutRequestID", ["checkoutRequestID"])
     .index("by_paymentAccount", ["paymentAccount"])
@@ -212,12 +213,15 @@ export default defineSchema({
   processResponse: v.optional(v.string()),
   offerName: v.optional(v.string()),
   processedUSSD: v.optional(v.string()),
+  verified: v.optional(v.boolean()),
+  mpesaDate: v.optional(v.float64()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_sender_id", ["senderId"])
     .index("by_time", ["time"])
-    .index("by_processed", ["processed"]),
+    .index("by_processed", ["processed"])
+    .index("by_user_id_time", ["userId", "time"]),
 
   userSenderRelations: defineTable({
     userId: v.string(),
@@ -293,4 +297,218 @@ export default defineSchema({
     .index("by_device", ["deviceId"])     
     .index("by_userId", ["userId"]),
 
+
+  bridgeOffers: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    name: v.string(),
+    type: v.union(v.literal("Data"), v.literal("SMS"), v.literal("Minutes")),
+    price: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"])
+    .index("by_price", ["userId", "price"]),  
+
+  bridgeDevices: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Owner/Sender phone number
+    deviceName: v.string(),
+    devicePhoneNumber: v.string(),     // Receiver device phone number
+    selectedOfferIds: v.array(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"]),  
+
+  bridgeWhitelist: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Receiver phone number (owner)
+    whitelistedNumber: v.string(),     // Sender phone number (allowed)
+    createdAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_receiver", ["phoneNumber"])
+    .index("by_whitelist", ["phoneNumber", "whitelistedNumber"]),  
+
+  bridgeTransactions: defineTable({
+    id: v.string(),
+    userId: v.string(),
+    phoneNumber: v.string(),
+    deviceId: v.string(),
+    offerId: v.string(),
+    status: v.union(v.literal("Success"), v.literal("Failed"), v.literal("Pending")),
+    smsContent: v.optional(v.string()),
+    executedAt: v.optional(v.number()),
+    createdAt: v.number()
+  })
+    .index("by_device", ["deviceId"])
+    .index("by_user", ["userId"])
+    .index("by_status", ["userId", "status"]),
+
+  totalCommission: defineTable({
+    day: v.number(), // Timestamp for the day (e.g., start of day)
+    userId: v.string(),
+    totalCommissionAmount: v.number(),
+    totalAirtimeUsed: v.optional(v.number()),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_day", ["day"])
+    .index("by_user_and_day", ["userId", "day"]),
+
+  onlineBridgeOffers: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    name: v.string(),
+    type: v.union(v.literal("Data"), v.literal("SMS"), v.literal("Minutes")),
+    price: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"])
+    .index("by_price", ["userId", "price"]),
+
+  onlineBridgeDevices: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Owner/Sender phone number
+    deviceName: v.string(),
+    devicePhoneNumber: v.string(),     // Receiver device phone number
+    selectedOfferIds: v.array(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_phone", ["phoneNumber"]),
+
+  onlineBridgeWhitelist: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),           // Receiver phone number (owner)
+    whitelistedNumber: v.string(),     // Sender phone number (allowed)
+    createdAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_receiver", ["phoneNumber"])
+    .index("by_whitelist", ["phoneNumber", "whitelistedNumber"]),  
+
+  onlineBridgeTransactions: defineTable({
+    userId: v.string(),
+    senderPhoneNumber: v.string(),
+    receiverPhoneNumber: v.string(),
+    deviceId: v.string(),
+    offerId: v.string(),
+    amount: v.float64(),
+    smsContent: v.string(),
+    ussdCode: v.optional(v.string()),
+    status: v.string(), // "Pending", "Executing", "Success", "Failed", "Rejected"
+    result: v.optional(v.string()),
+    executedAt: v.optional(v.float64()),
+    createdAt: v.float64(),
+    updatedAt: v.float64(),
+    isDeleted: v.boolean(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_deleted", ["userId", "isDeleted"])
+    .index("by_sender", ["senderPhoneNumber"])
+    .index("by_receiver", ["receiverPhoneNumber"])
+    .index("by_receiver_and_status", ["receiverPhoneNumber", "status"])
+    .index("by_status", ["status"])
+    .index("by_device", ["deviceId"]),  
+
+  serviceStatus: defineTable({
+    phoneNumber: v.string(),
+    isServiceRunning: v.boolean(),
+    lastUpdated: v.number(),
+  })
+   .index("by_phone", ["phoneNumber"]),
+
+  emailTokens: defineTable({
+    email: v.string(),
+    userId: v.string(),
+    token: v.number(),
+    isVerified: v.boolean(),
+    expiresAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"]),
+
+  deviceHeartbeats: defineTable({
+    phoneNumber: v.string(),
+    lastSeenTimestamp: v.number(),
+    userId: v.string(),
+  })
+   .index("by_phoneNumber", ["phoneNumber"])
+   .index("by_userId", ["userId"]), 
+
+  onlineServiceStatus: defineTable({
+    phoneNumber: v.string(),
+    userId: v.string(),
+    isServiceRunning: v.boolean(),
+    updatedAt: v.number(),
+  })
+   .index("by_phoneNumber", ["phoneNumber"])
+   .index("by_userId", ["userId"]), 
+
+  ussdHistory: defineTable({
+    userId: v.string(),
+    ussdCode: v.string(),
+    targetNumber: v.optional(v.string()),
+    offerName: v.optional(v.string()),
+    status: v.string(), // "Success", "Failed", "Timeout", "Cancelled", "Validation Failed"
+    timeTaken: v.string(), 
+    timeStamp: v.string(), 
+    ussdResponse: v.optional(v.string()), 
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_timestamp", ["userId", "timeStamp"])
+    .index("by_user_and_status", ["userId", "status"])
+    .index("by_composite_key", ["userId", "timeStamp", "ussdCode"]), 
+
+  retryConfigs: defineTable({
+    userId: v.string(),
+    name: v.string(),
+    timeoutSeconds: v.number(),
+    autoRetryEnabled: v.boolean(),
+    numberOfRetries: v.number(),
+    retryIntervalMinutes: v.number(),
+    selectedOffers: v.array(v.string()),
+    autoRetryConnectionProblems: v.boolean(),
+    updatedAt: v.number(), 
+  })
+    .index("by_user", ["userId"]),  
+  
+  ussdCodes: defineTable({
+    airtimeUssdCode: v.string(),
+    bongaUssdCode: v.string(),
+    updatedAt: v.number(), 
+  }),  
+
+  userModeSettings: defineTable({
+    userId: v.string(),
+    isNormalMode: v.boolean(),
+    isSimpleMode: v.boolean(),
+    isAdvancedMode: v.boolean(),
+    updatedAt: v.number(), 
+  }).index("by_user", ["userId"]),
+
+  appLogs: defineTable({
+    userId: v.optional(v.string()),
+    deviceModel: v.string(),
+    deviceManufacturer: v.string(),
+    androidVersion: v.string(),
+    tag: v.string(),
+    message: v.string(),
+    level: v.string(), // "D", "I", "W", "E"
+    timestamp: v.number(),
+    sessionId: v.string(), // to group logs from same execution
+  }).index("by_device", ["deviceManufacturer", "deviceModel"])
+    .index("by_user", ["userId"])
+    .index("by_session", ["sessionId"])
+    .index("by_timestamp", ["timestamp"]),
+
 });
+

@@ -16,6 +16,7 @@ export const createMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
+    mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -31,6 +32,7 @@ export const createMpesaMessage = mutation({
       processResponse: args.processResponse ?? undefined,
       offerName: args.offerName ?? "", // Default to empty string if not provided
       processedUSSD: args.processedUSSD ?? "", // Default to empty string if not provided
+      mpesaDate: args.mpesaDate ?? undefined,
     });
 
     // Return the full message object with ID
@@ -44,13 +46,12 @@ export const getMpesaMessagesByUserId = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
     const { userId } = args;
-    let mpesaMessages = await ctx.db
+    // Use compound index to filter by userId and order by time descending efficiently
+    const mpesaMessages = await ctx.db
       .query("mpesaMessages")
-      .filter((q) => q.eq(q.field("userId"), userId))
-      .collect();
-    
-    // Sort by time from latest to earliest (descending order)
-    mpesaMessages = mpesaMessages.sort((a, b) => b.time - a.time);
+      .withIndex("by_user_id_time", (q) => q.eq("userId", userId))
+      .order("desc")
+      .take(500);
 
     // Ensure all messages include the new fields (even if undefined/null)
     const messagesWithAllFields = mpesaMessages.map(message => ({
@@ -59,7 +60,9 @@ export const getMpesaMessagesByUserId = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      verified: message.verified ?? false,
+      mpesaDate: message.mpesaDate ?? null
     }));
 
     return messagesWithAllFields;
@@ -81,7 +84,8 @@ export const getAllMpesaMessages = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      mpesaDate: message.mpesaDate ?? null
     }));
 
     return messagesWithAllFields;
@@ -105,12 +109,13 @@ export const getMpesaMessageById = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      mpesaDate: message.mpesaDate ?? null
     };
-    
+
     // Debug: Log the message to see what fields are present
     console.log("getMpesaMessageById result:", JSON.stringify(messageWithAllFields, null, 2));
-    
+
     return messageWithAllFields;
   },
 });
@@ -184,6 +189,8 @@ export const updateMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
+    verified: v.optional(v.boolean()),
+    mpesaDate: v.optional(v.union(v.string(), v.number())),
   },
   handler: async (ctx, args) => {
     const { messageId, ...updates } = args;
@@ -224,7 +231,8 @@ export const getMpesaMessagesByPhoneNumber = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      mpesaDate: message.mpesaDate ?? null
     }));
 
     return messagesWithAllFields;
@@ -248,7 +256,8 @@ export const getMpesaMessagesBySenderId = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      mpesaDate: message.mpesaDate ?? null
     }));
 
     return messagesWithAllFields;
@@ -282,9 +291,10 @@ export const getMpesaMessagesByProcessedStatus = query({
       processResponse: message.processResponse ?? null,
       processed: message.processed ?? "pending",
       offerName: message.offerName ?? "",
-      processedUSSD: message.processedUSSD ?? ""
+      processedUSSD: message.processedUSSD ?? "",
+      mpesaDate: message.mpesaDate ?? null
     }));
-    
+
     return messagesWithAllFields;
   },
 });
@@ -379,6 +389,7 @@ export const testCreateMpesaMessage = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
+    mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -393,8 +404,9 @@ export const testCreateMpesaMessage = mutation({
       processResponse: args.processResponse ?? undefined,
       offerName: args.offerName ?? "", // Default to empty string
       processedUSSD: args.processedUSSD ?? "", // Default to empty string
+      mpesaDate: args.mpesaDate ?? undefined,
     });
-    
+
     // Return the created message to verify processed field
     const createdMessage = await ctx.db.get(messageId);
     return createdMessage;
@@ -541,41 +553,195 @@ export const deleteMpesaMessagesByPhoneNumber = mutation({
   },
 });
 
+// Mutation to delete mpesa messages that are not pending (processed !== "pending")
+// This is intended to be run as a cron job to clean up processed messages
+// Processes in batches to avoid timeouts and includes error handling
+export const deleteNonPendingMpesaMessages = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const BATCH_SIZE = 100; // Process 100 messages at a time to avoid timeouts
+    const startTime = Date.now();
+
+    try {
+      console.log("🗑️ Starting deleteNonPendingMpesaMessages cron job...");
+
+      // Use the by_processed index to fetch each non-pending status — avoids full table scan
+      const statuses = ["successful", "failed", "not-viable", "disabled"] as const;
+      const nonPendingMessages = (await Promise.all(
+        statuses.map((status) =>
+          ctx.db
+            .query("mpesaMessages")
+            .withIndex("by_processed", (q) => q.eq("processed", status))
+            .take(200)
+        )
+      )).flat();
+
+      console.log(`Found ${nonPendingMessages.length} non-pending messages to delete`);
+
+      if (nonPendingMessages.length === 0) {
+        console.log("✅ No non-pending messages to delete");
+        return {
+          success: true,
+          message: "No non-pending messages found",
+          deletedCount: 0,
+          failedCount: 0,
+          executionTimeMs: Date.now() - startTime
+        };
+      }
+
+      // Delete messages in batches
+      let deletedCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < nonPendingMessages.length; i += BATCH_SIZE) {
+        const batch = nonPendingMessages.slice(i, i + BATCH_SIZE);
+        console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(nonPendingMessages.length / BATCH_SIZE)} (${batch.length} messages)`);
+
+        for (const message of batch) {
+          try {
+            await ctx.db.delete(message._id);
+            deletedCount++;
+          } catch (error) {
+            failedCount++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            errors.push(`Failed to delete message ${message._id}: ${errorMessage}`);
+            console.error(`❌ Error deleting message ${message._id}:`, errorMessage);
+          }
+        }
+      }
+
+      const executionTimeMs = Date.now() - startTime;
+
+      if (failedCount > 0) {
+        console.warn(`⚠️ Cron job completed with errors: Deleted ${deletedCount} messages, failed to delete ${failedCount} messages`);
+        console.warn(`First 5 errors:`, errors.slice(0, 5));
+      } else {
+        console.log(`✅ Cron job completed successfully: Deleted ${deletedCount} non-pending mpesa messages in ${executionTimeMs}ms`);
+      }
+
+      return {
+        success: failedCount === 0,
+        message: failedCount === 0
+          ? `Successfully deleted ${deletedCount} non-pending mpesa messages`
+          : `Deleted ${deletedCount} messages but ${failedCount} deletions failed`,
+        deletedCount,
+        failedCount,
+        totalFound: nonPendingMessages.length,
+        executionTimeMs,
+        errors: errors.slice(0, 10) // Return first 10 errors
+      };
+    } catch (error) {
+      const executionTimeMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`💥 Fatal error in deleteNonPendingMpesaMessages cron job:`, errorMessage);
+
+      return {
+        success: false,
+        message: `Fatal error: ${errorMessage}`,
+        deletedCount: 0,
+        failedCount: 0,
+        executionTimeMs,
+        error: errorMessage
+      };
+    }
+  },
+});
+
 // Mutation to delete mpesa messages older than 30 days
 // This is intended to be run as a cron job to clean up old data
+// Processes in batches to avoid timeouts and includes error handling
 export const deleteOldMpesaMessages = mutation({
   args: {},
   handler: async (ctx) => {
-    console.log("🗑️ Starting deleteOldMpesaMessages cron job...");
+    const BATCH_SIZE = 100; // Process 100 messages at a time to avoid timeouts
+    const startTime = Date.now();
 
-    // Calculate the timestamp for 30 days ago
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    const cutoffDate = new Date(thirtyDaysAgo).toISOString();
+    try {
+      console.log("🗑️ Starting deleteOldMpesaMessages cron job...");
 
-    console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
+      // Calculate the timestamp for 30 days ago
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      const cutoffDate = new Date(thirtyDaysAgo).toISOString();
 
-    // Get all mpesa messages older than 30 days
-    const oldMessages = await ctx.db
-      .query("mpesaMessages")
-      .filter((q) => q.lt(q.field("time"), thirtyDaysAgo))
-      .collect();
+      console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
 
-    console.log(`Found ${oldMessages.length} messages older than 30 days`);
+      // Use the by_time index to efficiently get old messages — avoids full table scan
+      const oldMessages = await ctx.db
+        .query("mpesaMessages")
+        .withIndex("by_time", (q) => q.lt("time", thirtyDaysAgo))
+        .take(500);
 
-    // Delete each old message
-    let deletedCount = 0;
-    for (const message of oldMessages) {
-      await ctx.db.delete(message._id);
-      deletedCount++;
+      console.log(`Found ${oldMessages.length} messages older than 30 days`);
+
+      if (oldMessages.length === 0) {
+        console.log("✅ No messages to delete");
+        return {
+          success: true,
+          message: "No messages older than 30 days found",
+          deletedCount: 0,
+          failedCount: 0,
+          cutoffDate,
+          executionTimeMs: Date.now() - startTime
+        };
+      }
+
+      // Delete messages in batches
+      let deletedCount = 0;
+      let failedCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < oldMessages.length; i += BATCH_SIZE) {
+        const batch = oldMessages.slice(i, i + BATCH_SIZE);
+        console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(oldMessages.length / BATCH_SIZE)} (${batch.length} messages)`);
+
+        for (const message of batch) {
+          try {
+            await ctx.db.delete(message._id);
+            deletedCount++;
+          } catch (error) {
+            failedCount++;
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            errors.push(`Failed to delete message ${message._id}: ${errorMessage}`);
+            console.error(`❌ Error deleting message ${message._id}:`, errorMessage);
+          }
+        }
+      }
+
+      const executionTimeMs = Date.now() - startTime;
+
+      if (failedCount > 0) {
+        console.warn(`⚠️ Cron job completed with errors: Deleted ${deletedCount} messages, failed to delete ${failedCount} messages`);
+        console.warn(`First 5 errors:`, errors.slice(0, 5));
+      } else {
+        console.log(`✅ Cron job completed successfully: Deleted ${deletedCount} mpesa messages older than 30 days in ${executionTimeMs}ms`);
+      }
+
+      return {
+        success: failedCount === 0,
+        message: failedCount === 0
+          ? `Successfully deleted ${deletedCount} mpesa messages older than 30 days`
+          : `Deleted ${deletedCount} messages but ${failedCount} deletions failed`,
+        deletedCount,
+        failedCount,
+        totalFound: oldMessages.length,
+        cutoffDate,
+        executionTimeMs,
+        errors: errors.slice(0, 10) // Return first 10 errors
+      };
+    } catch (error) {
+      const executionTimeMs = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`💥 Fatal error in deleteOldMpesaMessages cron job:`, errorMessage);
+
+      return {
+        success: false,
+        message: `Fatal error: ${errorMessage}`,
+        deletedCount: 0,
+        failedCount: 0,
+        executionTimeMs,
+        error: errorMessage
+      };
     }
-
-    console.log(`✅ Cron job completed: Deleted ${deletedCount} mpesa messages older than 30 days`);
-
-    return {
-      success: true,
-      message: `Successfully deleted ${deletedCount} mpesa messages older than 30 days`,
-      deletedCount,
-      cutoffDate
-    };
   },
 });

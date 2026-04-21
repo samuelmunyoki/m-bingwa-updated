@@ -28,7 +28,91 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   registerDeviceSession,
   validateDeviceSession,
   logoutDevice,
-  handleAirtimeTransactionOptions} from "./mobile/http/handlers";
+  clearDeviceSession,
+  createBridgeOffer,
+  getBridgeOffers,
+  updateBridgeOffer,
+  deleteBridgeOffer,
+  createBridgeDevice,
+  getBridgeDevices,
+  updateBridgeDevice,
+  updateDeviceOffers,
+  deleteBridgeDevice,
+  addToWhitelist,
+  getWhitelist,
+  isWhitelisted,
+  removeFromWhitelist,
+  createBridgeTransaction,
+  getBridgeTransactions,
+  updateTransactionStatus,
+  getTransactionStatusCounts,
+  deleteBridgeTransaction,
+  deleteAllTransactionsForDevice,
+  createOnlineBridgeOffer,
+  getOnlineBridgeOffers,
+  updateOnlineBridgeOffer,
+  deleteOnlineBridgeOffer,
+  createOnlineBridgeDevice,
+  getOnlineBridgeDevices,
+  updateOnlineBridgeDevice,
+  updateOnlineDeviceOffers,
+  deleteOnlineBridgeDevice,
+  addToOnlineWhitelist,
+  getOnlineWhitelist,
+  isOnlineWhitelisted,
+  removeFromOnlineWhitelist,
+  handleAirtimeTransactionOptions,
+  getTotalCommission,
+  getTotalCommissionByUser,
+  getTotalCommissionByUserRange,
+  getTotalCommissionByDay,
+  upsertTotalCommission,
+  incrementTotalCommission,
+  deleteTotalCommission,
+  createOnlineBridgeTransaction,
+  getOnlineBridgeTransactions,
+  getPendingOnlineBridgeTransactions,
+  updateOnlineBridgeTransactionStatus,
+  deleteOnlineBridgeTransaction,
+  getOnlineBridgeTransactionStats,
+  updateServiceStatus,
+  getServiceStatus,
+  getMultipleServiceStatuses,
+  updateDeviceHeartbeat,
+  getBatchDeviceOnlineStatus,
+  setDeviceHeartbeatTestHandler,
+  updateOnlineServiceStatus,
+  getOnlineServiceStatus,
+  getOnlineBatchServiceStatus,
+  batchCreateOnlineBridgeTransactions,
+  batchUpdateOnlineBridgeTransactionStatuses,
+  getPhoneByUserId,
+  clearUserSubscriptionHttp,
+  deleteUserByPhoneHttp,
+  createUSSDHistory,
+  getUSSDHistory,
+  getAvailableStatuses,
+  deleteUSSDHistory,
+  clearUSSDHistory,
+  getAllRetryConfigs,
+  createRetryConfig,
+  updateRetryConfig,
+  deleteRetryConfig,
+  getUssdCodesHttp,
+  updateUssdCodesHttp,
+  getModeSettings,
+  updateModeSettings,
+  insertLogsHttp,
+  getLogsHttp,
+  deleteLogsHandler,
+  countLogsHttp,
+  clearAllDataHandler,
+  setAdminByEmailHttp,
+  updateUserProfile,
+  sendEmailTokenHttp,
+  verifyEmailTokenHttp,
+  getUserByEmailHttp,
+} from "./mobile/http/handlers";
 
 const http = httpRouter();
 
@@ -452,23 +536,581 @@ http.route({
 
 //register device session
 http.route({
-  path: "/register-device-session",
+  path: "/api/register-device-session/",
   method: "POST",
   handler: registerDeviceSession,
 });
 
 //validate device session
 http.route({
-  path: "/validate-device-session",
+  path: "/api/validate-device-session/",
   method: "POST",
   handler: validateDeviceSession,
 });
 
 //logout device session
 http.route({
-  path: "/logout-device",
+  path: "/api/logout-device/",
   method: "POST",
   handler: logoutDevice,
+});
+
+//clear session
+http.route({
+  path: "/api/clear-session/",
+  method: "POST",
+  handler: clearDeviceSession,
+});
+
+// ============= BRIDGE OFFERS ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/offers/create/",
+  method: "POST",
+  handler: createBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/offers/",
+  method: "GET",
+  handler: getBridgeOffers,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/offers/update/",
+  method: "PATCH",
+  handler: updateBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/offers/delete/",
+  method: "DELETE",
+  handler: deleteBridgeOffer,
+});
+
+
+// ============= BRIDGE DEVICES ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/devices/create/",
+  method: "POST",
+  handler: createBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/",
+  method: "GET",
+  handler: getBridgeDevices,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/update/",
+  method: "PATCH",
+  handler: updateBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/update-offers/",
+  method: "PATCH",
+  handler: updateDeviceOffers,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/devices/delete/",
+  method: "DELETE",
+  handler: deleteBridgeDevice,
+});
+
+// ============= BRIDGE WHITELIST ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/add/",
+  method: "POST",
+  handler: addToWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/",
+  method: "GET",
+  handler: getWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/check/",
+  method: "GET",
+  handler: isWhitelisted,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/whitelist/remove/",
+  method: "DELETE",
+  handler: removeFromWhitelist,
+});
+
+// ============= BRIDGE TRANSACTIONS ROUTES =============
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/create/",
+  method: "POST",
+  handler: createBridgeTransaction,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/",
+  method: "GET",
+  handler: getBridgeTransactions,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/update-status/",
+  method: "PATCH",
+  handler: updateTransactionStatus,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/counts/",
+  method: "GET",
+  handler: getTransactionStatusCounts,
+});
+
+// ============= ONLINE BRIDGE OFFERS ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/create/",
+  method: "POST",
+  handler: createOnlineBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/",
+  method: "GET",
+  handler: getOnlineBridgeOffers,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/update/",
+  method: "PATCH",
+  handler: updateOnlineBridgeOffer,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/offers/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeOffer,
+});
+
+// ============= ONLINE BRIDGE DEVICES ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/create/",
+  method: "POST",
+  handler: createOnlineBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/",
+  method: "GET",
+  handler: getOnlineBridgeDevices,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/update/",
+  method: "PATCH",
+  handler: updateOnlineBridgeDevice,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/update-offers/",
+  method: "PATCH",
+  handler: updateOnlineDeviceOffers,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/devices/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeDevice,
+});
+
+// ============= ONLINE BRIDGE WHITELIST ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/add/",
+  method: "POST",
+  handler: addToOnlineWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/",
+  method: "GET",
+  handler: getOnlineWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/is-whitelisted/",
+  method: "GET",
+  handler: isOnlineWhitelisted,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/whitelist/remove/",
+  method: "DELETE",
+  handler: removeFromOnlineWhitelist,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/delete/",
+  method: "DELETE",
+  handler: deleteBridgeTransaction,
+});
+
+http.route({
+  pathPrefix: "/api/bridge/transactions/delete-all/",
+  method: "DELETE",
+  handler: deleteAllTransactionsForDevice,
+});
+
+// ============================================
+// TOTAL COMMISSION ROUTES
+// ============================================
+
+// Get total commission by userId and day
+http.route({
+  pathPrefix: "/api/total-commission/",
+  method: "GET",
+  handler: getTotalCommission,
+});
+
+// Get all commissions for a user
+http.route({
+  pathPrefix: "/api/total-commission/user/",
+  method: "GET",
+  handler: getTotalCommissionByUser,
+});
+
+// Get commissions for a user within a date range
+http.route({
+  pathPrefix: "/api/total-commission/user/range/",
+  method: "GET",
+  handler: getTotalCommissionByUserRange,
+});
+
+// Get all commissions for a specific day
+http.route({
+  pathPrefix: "/api/total-commission/day/",
+  method: "GET",
+  handler: getTotalCommissionByDay,
+});
+
+// Create or update total commission
+http.route({
+  pathPrefix: "/api/total-commission/upsert/",
+  method: "POST",
+  handler: upsertTotalCommission,
+});
+
+// Increment total commission
+http.route({
+  pathPrefix: "/api/total-commission/increment/",
+  method: "POST",
+  handler: incrementTotalCommission,
+});
+
+// Delete total commission
+http.route({
+  pathPrefix: "/api/total-commission/delete/",
+  method: "DELETE",
+  handler: deleteTotalCommission,
+});
+
+/**
+ * POST /api/online-bridge/transactions/create/
+ * Create a new Online Bridge transaction
+ */
+http.route({
+  path: "/api/online-bridge/transactions/create/",
+  method: "POST",
+  handler: createOnlineBridgeTransaction,
+});
+
+/**
+ * GET /api/online-bridge/transactions/
+ * Get all Online Bridge transactions for a user
+ */
+http.route({
+  path: "/api/online-bridge/transactions/",
+  method: "GET",
+  handler: getOnlineBridgeTransactions,
+});
+
+/**
+ * GET /api/online-bridge/transactions/pending/
+ * Get pending Online Bridge transactions for a receiver
+ */
+http.route({
+  path: "/api/online-bridge/transactions/pending/",
+  method: "GET",
+  handler: getPendingOnlineBridgeTransactions,
+});
+
+/**
+ * PATCH /api/online-bridge/transactions/update-status/
+ * Update Online Bridge transaction status
+ */
+http.route({
+  path: "/api/online-bridge/transactions/update-status/",
+  method: "PATCH",
+  handler: updateOnlineBridgeTransactionStatus,
+});
+
+/**
+ * DELETE /api/online-bridge/transactions/delete/
+ * Delete Online Bridge transaction
+ */
+http.route({
+  path: "/api/online-bridge/transactions/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeTransaction,
+});
+
+/**
+ * GET /api/online-bridge/transactions/stats/
+ * Get Online Bridge transaction status counts
+ */
+http.route({
+  path: "/api/online-bridge/transactions/stats/",
+  method: "GET",
+  handler: getOnlineBridgeTransactionStats,
+});
+
+http.route({
+  path: "/api/online-bridge/transactions/batch-create/",
+  method: "POST",
+  handler: batchCreateOnlineBridgeTransactions,
+});
+
+
+http.route({
+  pathPrefix: "/api/service-status/update/",
+  method: "POST",
+  handler: updateServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/service-status/",
+  method: "GET",
+  handler: getServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/service-status/batch/",
+  method: "POST",
+  handler: getMultipleServiceStatuses,
+});
+
+http.route({
+  pathPrefix: "/api/device-heartbeat/",
+  method: "POST",
+  handler: updateDeviceHeartbeat,
+});
+
+http.route({
+  pathPrefix: "/api/device-online-status/batch/",
+  method: "POST",
+  handler: getBatchDeviceOnlineStatus,
+});
+
+http.route({
+  pathPrefix: "/api/device-heartbeat/test/",
+  method: "POST",
+  handler: setDeviceHeartbeatTestHandler,
+});
+
+
+http.route({
+  pathPrefix: "/api/online-service-status/update/",
+  method: "POST",
+  handler: updateOnlineServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/online-service-status/get/",
+  method: "GET",
+  handler: getOnlineServiceStatus,
+});
+
+http.route({
+  pathPrefix: "/api/online-service-status/batch/",
+  method: "POST",
+  handler: getOnlineBatchServiceStatus,
+});
+
+http.route({
+  path: "/api/online-bridge/transactions/batch-update-status/",
+  method: "PATCH",
+  handler: batchUpdateOnlineBridgeTransactionStatuses,
+});
+
+http.route({
+  pathPrefix: "/api/get-phone/",
+  method: "GET",
+  handler: getPhoneByUserId,
+});
+
+
+http.route({
+  pathPrefix: "/api/clear-subscription/",
+  method: "POST",
+  handler: clearUserSubscriptionHttp,
+});
+
+http.route({
+  pathPrefix: "/api/delete-user/",
+  method: "DELETE",
+  handler: deleteUserByPhoneHttp,
+});
+
+// ============= USSD HISTORY ROUTES =============
+
+http.route({
+  pathPrefix: "/api/ussd-history/create/",
+  method: "POST",
+  handler: createUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/",
+  method: "GET",
+  handler: getUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/statuses/",
+  method: "GET",
+  handler: getAvailableStatuses,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/delete/",
+  method: "DELETE",
+  handler: deleteUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/clear/",
+  method: "DELETE",
+  handler: clearUSSDHistory,
+});
+
+// GET all retry configs for a user
+http.route({
+  pathPrefix: "/api/retry-configs/",
+  method: "GET",
+  handler: getAllRetryConfigs,
+});
+
+// POST create retry config
+http.route({
+  pathPrefix: "/api/retry-configs/create/",
+  method: "POST",
+  handler: createRetryConfig,
+});
+
+// PATCH update retry config
+http.route({
+  pathPrefix: "/api/retry-configs/update/",
+  method: "PATCH",
+  handler: updateRetryConfig,
+});
+
+// DELETE retry config
+http.route({
+  pathPrefix: "/api/retry-configs/delete/",
+  method: "DELETE",
+  handler: deleteRetryConfig,
+});
+
+http.route({
+  path: "/api/ussd-codes/",
+  method: "GET",
+  handler: getUssdCodesHttp,
+});
+
+http.route({
+  path: "/api/ussd-codes/update/",
+  method: "POST",
+  handler: updateUssdCodesHttp,
+});
+
+http.route({
+  path: "/api/mode-settings/",
+  method: "GET",
+  handler: getModeSettings,
+});
+
+http.route({
+  path: "/api/mode-settings/update/",
+  method: "POST",
+  handler: updateModeSettings,
+});
+
+http.route({
+  path: "/api/logs",
+  method: "POST",
+  handler: insertLogsHttp,
+});
+ 
+http.route({
+  path: "/api/logs",
+  method: "GET",
+  handler: getLogsHttp,
+});
+
+http.route({
+  path: "/api/logs",
+  method: "DELETE",
+  handler: deleteLogsHandler,
+});
+
+http.route({
+  path: "/api/logs/count",
+  method: "GET",
+  handler: countLogsHttp,
+});
+
+http.route({
+  path: "/api/admin/clear-all-data",
+  method: "POST",
+  handler: clearAllDataHandler,
+});
+
+http.route({
+  path: "/api/admin/set-admin-by-email",
+  method: "POST",
+  handler: setAdminByEmailHttp,
+});
+
+http.route({
+  pathPrefix: "/api/users/update-profile/",
+  method: "PATCH",
+  handler: updateUserProfile,
+});
+
+http.route({
+  pathPrefix: "/api/users/get-by-email/",
+  method: "GET",
+  handler: getUserByEmailHttp,
+});
+
+http.route({
+  path: "/api/email-token/send/",
+  method: "POST",
+  handler: sendEmailTokenHttp,
+});
+
+http.route({
+  path: "/api/email-token/verify/",
+  method: "POST",
+  handler: verifyEmailTokenHttp,
 });
 
 export default http;

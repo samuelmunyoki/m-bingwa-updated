@@ -1,4 +1,4 @@
-import { api } from "../../_generated/api";
+import { api, internal } from "../../_generated/api";
 import { Id } from "../../_generated/dataModel";
 import { httpAction } from "../../_generated/server";
 
@@ -993,6 +993,30 @@ export const createStore = httpAction(async (ctx, request) => {
   }
 });
 
+export const getUserByEmailHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const email = url.searchParams.get("email");
+
+  if (!email) {
+    return createResponse("error", null, "Missing email parameter");
+  }
+
+  try {
+    const user = await ctx.runQuery(api.users.getUserByEmail, { email });
+    if (!user) {
+      return createResponse("success", null, null);
+    }
+    return createResponse("success", {
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+    }, null);
+  } catch (error) {
+    return createResponse("error", null, "Failed to fetch user");
+  }
+});
+
 //Tony exposed these two functions on 2025-07-26 to be accessed via HTTP from the Android app
 // This function adds a phone number to the blacklist
 
@@ -1026,7 +1050,7 @@ export const createUserIfNotExists = httpAction(async (ctx, request) => {
     });
   }
 
-  const { phoneNumber, name, email } = body;
+  const { phoneNumber, name, email, userId } = body;
 
   if (!phoneNumber) {
     const errorResponse = {
@@ -1065,7 +1089,8 @@ export const createUserIfNotExists = httpAction(async (ctx, request) => {
     const result = await ctx.runMutation(api.users.createUserIfNotExists, {
       phoneNumber,
       name,
-      email
+      email,
+      userId: userId || undefined,
     });
     
     console.log("=== MUTATION RESULT ===");
@@ -1250,7 +1275,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD, mpesaDate } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1286,6 +1311,10 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processedUSSD must be a string");
   }
 
+  if (mpesaDate !== undefined && typeof mpesaDate !== "number") {
+    return createResponse("error", null, "mpesaDate must be a number (timestamp)");
+  }
+
   try {
     const createdMessage = await ctx.runMutation(api.features.mpesaMessages.createMpesaMessage, {
       userId,
@@ -1299,7 +1328,8 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       fullMessage,
       processResponse,
       offerName,
-      processedUSSD
+      processedUSSD,
+      mpesaDate
     });
 
     return createResponse("success", {
@@ -1324,9 +1354,9 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   try {
     const messages = await ctx.runQuery(api.features.mpesaMessages.getMpesaMessagesByUserId, { userId });
     return createResponse("success", { messages }, null);
-  } catch (error) {
-    console.error(error);
-    return createResponse("error", null, "Failed to fetch mpesa messages");
+  } catch (error: any) {
+    console.error("getMpesaMessagesByUserId error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Failed to fetch mpesa messages");
   }
 });
 
@@ -1343,7 +1373,7 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD } = body;
+  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD, verified, mpesaDate } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1371,6 +1401,14 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "processedUSSD must be a string");
   }
 
+  if (verified !== undefined && typeof verified !== "boolean") {
+    return createResponse("error", null, "verified must be a boolean");
+  }
+
+  if (mpesaDate !== undefined && typeof mpesaDate !== "number") {
+    return createResponse("error", null, "mpesaDate must be a number (timestamp)");
+  }
+
   try {
     const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessage, {
       messageId,
@@ -1383,7 +1421,9 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
       fullMessage,
       processResponse,
       offerName,
-      processedUSSD
+      processedUSSD,
+      verified,
+      mpesaDate
     });
     
     return createResponse("success", { message: updatedMessage }, null);
@@ -3295,3 +3335,2787 @@ export const logoutDevice = httpAction(async (ctx, request) => {
   }
 });
 
+export const clearDeviceSession = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { phoneNumber } = body;
+
+  // Validate required fields
+  if (!phoneNumber) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: "Missing required field: phoneNumber",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.clearDeviceSession, {
+      phoneNumber,
+    });
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error clearing device session:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to clear device session",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+});
+
+
+
+
+// ============= BRIDGE OFFERS HTTP ACTIONS =============
+
+export const createBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, name, type, price } = body;
+
+  if (!userId || !phoneNumber || !name || !type || price === undefined) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  const validTypes = ["Data", "SMS", "Minutes"];
+  if (!validTypes.includes(type)) {
+    return createResponse("error", null, "Invalid offer type");
+  }
+
+  if (typeof price !== "number" || price <= 0) {
+    return createResponse("error", null, "Invalid price");
+  }
+
+  try {
+    const offerId = await ctx.runMutation(api.features.bridge.createBridgeOffer, {
+      userId,
+      phoneNumber,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", { offerId }, "Offer created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getBridgeOffers = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const offers = await ctx.runQuery(api.features.bridge.getBridgeOffers, { userId });
+    return createResponse("success", { offers }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId, name, type, price } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateBridgeOffer, {
+      offerId: offerId as Id<"bridgeOffers">,
+      userId,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", null, "Offer updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.deleteBridgeOffer, {
+      offerId: offerId as Id<"bridgeOffers">,
+      userId
+    });
+
+    return createResponse("success", null, "Offer deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= BRIDGE DEVICES HTTP ACTIONS =============
+
+export const createBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!userId || !phoneNumber || !deviceName || !devicePhoneNumber || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const deviceId = await ctx.runMutation(api.features.bridge.createBridgeDevice, {
+      userId,
+      phoneNumber,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", { deviceId }, "Device created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getBridgeDevices = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const devices = await ctx.runQuery(api.features.bridge.getBridgeDevices, { userId });
+    return createResponse("success", { devices }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateBridgeDevice, {
+      deviceId: deviceId as Id<"bridgeDevices">,
+      userId,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateDeviceOffers = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, selectedOfferIds } = body;
+
+  if (!deviceId || !userId || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateDeviceOffers, {
+      deviceId: deviceId as Id<"bridgeDevices">,
+      userId,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device offers updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.deleteBridgeDevice, {
+      deviceId: deviceId as Id<"bridgeDevices">,
+      userId
+    });
+
+    return createResponse("success", null, "Device deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= BRIDGE WHITELIST HTTP ACTIONS =============
+
+export const addToWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, whitelistedNumber } = body;
+
+  if (!userId || !phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const id = await ctx.runMutation(api.features.bridge.addToWhitelist, {
+      userId,
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", { id }, "Number whitelisted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getWhitelist = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  try {
+    const whitelist = await ctx.runQuery(api.features.bridge.getWhitelist, { phoneNumber });
+    return createResponse("success", { whitelist }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const isWhitelisted = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const receiverPhone = url.searchParams.get("receiver");
+  const senderPhone = url.searchParams.get("sender");
+
+  if (!receiverPhone || !senderPhone) {
+    return createResponse("error", null, "Missing receiver or sender parameter");
+  }
+
+  try {
+    const isWhitelisted = await ctx.runQuery(api.features.bridge.isWhitelisted, {
+      receiverPhone,
+      senderPhone
+    });
+
+    return createResponse("success", { isWhitelisted }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const removeFromWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumber, whitelistedNumber } = body;
+
+  if (!phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing phoneNumber or whitelistedNumber");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.removeFromWhitelist, {
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", null, "Number removed from whitelist");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= BRIDGE TRANSACTIONS HTTP ACTIONS =============
+
+export const createBridgeTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { id, userId, phoneNumber, deviceId, offerId, status, smsContent } = body; 
+
+  if (!id || !userId || !phoneNumber || !deviceId || !offerId || !status) {  
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  const validStatuses = ["Success", "Failed", "Pending"];
+  if (!validStatuses.includes(status)) {
+    return createResponse("error", null, "Invalid status");
+  }
+
+  try {
+    const transactionId = await ctx.runMutation(api.features.bridge.createBridgeTransaction, {
+      id,  
+      userId,
+      phoneNumber,
+      deviceId,
+      offerId,
+      status,
+      smsContent
+    });
+
+    return createResponse("success", { transactionId }, "Transaction created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getBridgeTransactions = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const deviceId = url.searchParams.get("deviceId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const transactions = await ctx.runQuery(api.features.bridge.getBridgeTransactions, {
+      userId,
+      deviceId: deviceId || undefined
+    });
+
+    return createResponse("success", { transactions }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateTransactionStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { transactionId, status } = body;
+
+  if (!transactionId || !status) {
+    return createResponse("error", null, "Missing transactionId or status");
+  }
+
+  const validStatuses = ["Success", "Failed", "Pending"];
+  if (!validStatuses.includes(status)) {
+    return createResponse("error", null, "Invalid status");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.updateTransactionStatus, {
+      transactionId: transactionId as Id<"bridgeTransactions">,
+      status
+    });
+
+    return createResponse("success", null, "Transaction status updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getTransactionStatusCounts = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const counts = await ctx.runQuery(api.features.bridge.getTransactionStatusCounts, { userId });
+    return createResponse("success", { counts }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+
+
+export const deleteBridgeTransaction = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { transactionId, userId } = body;
+
+  if (!transactionId || !userId) {
+    return createResponse("error", null, "Missing transactionId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.bridge.deleteBridgeTransaction, {
+      transactionId: transactionId as Id<"bridgeTransactions">,
+      userId
+    });
+
+    return createResponse("success", null, "Transaction deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteAllTransactionsForDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.bridge.deleteAllTransactionsForDevice, {
+      deviceId,
+      userId
+    });
+
+    return createResponse("success", { deletedCount: result.deletedCount }, `Deleted ${result.deletedCount} transactions successfully`);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+
+// ============= ONLINE offers HTTP ACTIONS =============
+
+export const createOnlineBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, name, type, price } = body;
+
+  if (!userId || !phoneNumber || !name || !type || price === undefined) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  const validTypes = ["Data", "SMS", "Minutes"];
+  if (!validTypes.includes(type)) {
+    return createResponse("error", null, "Invalid offer type");
+  }
+
+  if (typeof price !== "number" || price <= 0) {
+    return createResponse("error", null, "Invalid price");
+  }
+
+  try {
+    const offerId = await ctx.runMutation(api.features.onlineBridge.createOnlineBridgeOffer, {
+      userId,
+      phoneNumber,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", { offerId }, "Offer created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineBridgeOffers = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const offers = await ctx.runQuery(api.features.onlineBridge.getOnlineBridgeOffers, { userId });
+    return createResponse("success", { offers }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { offerId, userId, name, type, price } = body;
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineBridgeOffer, {
+      offerId: offerId as Id<"onlineBridgeOffers">,
+      userId,
+      name,
+      type,
+      price
+    });
+
+    return createResponse("success", null, "Offer updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOnlineBridgeOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  // Read from query parameters, NOT body
+  const url = new URL(request.url);
+  const offerId = url.searchParams.get("offerId");
+  const userId = url.searchParams.get("userId");
+
+  console.log("DELETE OFFER REQUEST - offerId:", offerId);
+  console.log("DELETE OFFER REQUEST - userId:", userId);
+
+  if (!offerId || !userId) {
+    return createResponse("error", null, "Missing offerId or userId");
+  }
+
+  try {
+    // Cast the string offerId to Id type
+    await ctx.runMutation(api.features.onlineBridge.deleteOnlineBridgeOffer, {
+      offerId: offerId as Id<"onlineBridgeOffers">,
+      userId
+    });
+
+    console.log("OFFER DELETE SUCCESSFUL");
+    return createResponse("success", null, "Offer deleted successfully");
+  } catch (error: any) {
+    console.log("OFFER DELETE FAILED:", error.message);
+    return createResponse("error", null, error.message);
+  }
+});
+// ============= ONLINE BRIDGE DEVICES HTTP ACTIONS =============
+
+export const createOnlineBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!userId || !phoneNumber || !deviceName || !devicePhoneNumber || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const deviceId = await ctx.runMutation(api.features.onlineBridge.createOnlineBridgeDevice, {
+      userId,
+      phoneNumber,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", { deviceId }, "Device created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineBridgeDevices = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const devices = await ctx.runQuery(api.features.onlineBridge.getOnlineBridgeDevices, { userId });
+    return createResponse("success", { devices }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, deviceName, devicePhoneNumber, selectedOfferIds } = body;
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineBridgeDevice, {
+      deviceId: deviceId as Id<"onlineBridgeDevices">,
+      userId,
+      deviceName,
+      devicePhoneNumber,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineDeviceOffers = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { deviceId, userId, selectedOfferIds } = body;
+
+  if (!deviceId || !userId || !selectedOfferIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineDeviceOffers, {
+      deviceId: deviceId as Id<"onlineBridgeDevices">,
+      userId,
+      selectedOfferIds
+    });
+
+    return createResponse("success", null, "Device offers updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOnlineBridgeDevice = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  // Read from query parameters, NOT body
+  const url = new URL(request.url);
+  const deviceId = url.searchParams.get("deviceId");
+  const userId = url.searchParams.get("userId");
+
+  console.log("DELETE DEVICE REQUEST - deviceId:", deviceId);
+  console.log("DELETE DEVICE REQUEST - userId:", userId);
+
+  if (!deviceId || !userId) {
+    return createResponse("error", null, "Missing deviceId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.deleteOnlineBridgeDevice, {
+      deviceId: deviceId as Id<"onlineBridgeDevices">,
+      userId
+    });
+
+    console.log("DEVICE DELETE SUCCESSFUL");
+    return createResponse("success", null, "Device deleted successfully");
+  } catch (error: any) {
+    console.log("DEVICE DELETE FAILED:", error.message);
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============= ONLINE BRIDGE WHITELIST HTTP ACTIONS =============
+
+export const addToOnlineWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber, whitelistedNumber } = body;
+
+  if (!userId || !phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const id = await ctx.runMutation(api.features.onlineBridge.addToOnlineWhitelist, {
+      userId,
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    return createResponse("success", { id }, "Number whitelisted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineWhitelist = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  try {
+    const whitelist = await ctx.runQuery(api.features.onlineBridge.getOnlineWhitelist, { phoneNumber });
+    return createResponse("success", { whitelist }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const isOnlineWhitelisted = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const receiverPhone = url.searchParams.get("receiver");
+  const senderPhone = url.searchParams.get("sender");
+
+  if (!receiverPhone || !senderPhone) {
+    return createResponse("error", null, "Missing receiver or sender parameter");
+  }
+
+  try {
+    const isWhitelisted = await ctx.runQuery(api.features.onlineBridge.isOnlineWhitelisted, {
+      receiverPhone,
+      senderPhone
+    });
+
+    return createResponse("success", { isWhitelisted }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const removeFromOnlineWhitelist = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  // Read from query parameters, NOT body
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+  const whitelistedNumber = url.searchParams.get("whitelistedNumber");
+
+  console.log("DELETE REQUEST - phoneNumber:", phoneNumber);
+  console.log("DELETE REQUEST - whitelistedNumber:", whitelistedNumber);
+
+  if (!phoneNumber || !whitelistedNumber) {
+    return createResponse("error", null, "Missing phoneNumber or whitelistedNumber");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.removeFromOnlineWhitelist, {
+      phoneNumber,
+      whitelistedNumber
+    });
+
+    console.log("DELETE SUCCESSFUL");
+    return createResponse("success", null, "Number removed from whitelist");
+  } catch (error: any) {
+    console.log("DELETE FAILED:", error.message);
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ============================================
+// TOTAL COMMISSION HTTP HANDLERS
+// ============================================
+
+// Helper to normalize commission data with default totalAirtimeUsed
+const normalizeCommission = <T extends { totalAirtimeUsed?: number }>(commission: T | null) => {
+  if (!commission) return null;
+  return {
+    ...commission,
+    totalAirtimeUsed: commission.totalAirtimeUsed ?? 0,
+  };
+};
+
+const normalizeCommissions = <T extends { totalAirtimeUsed?: number }>(commissions: T[]) => {
+  return commissions.map(c => ({
+    ...c,
+    totalAirtimeUsed: c.totalAirtimeUsed ?? 0,
+  }));
+};
+
+/**
+ * HTTP handler to get total commission by userId and day
+ * GET /api/total-commission/
+ * Query params: userId, day
+ */
+export const getTotalCommission = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const dayParam = url.searchParams.get("day");
+
+  if (!userId || !dayParam) {
+    return createResponse("error", null, "Missing userId or day parameter");
+  }
+
+  try {
+    const day = parseInt(dayParam);
+    const commission = await ctx.runQuery(
+      api.features.totalCommission.getByUserAndDay,
+      { userId, day }
+    );
+
+    return createResponse("success", { commission: normalizeCommission(commission) });
+  } catch (error: any) {
+    console.error("Error fetching total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get all commissions for a user
+ * GET /api/total-commission/user/
+ * Query params: userId
+ */
+export const getTotalCommissionByUser = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByUserId,
+      { userId }
+    );
+
+    return createResponse("success", { commissions: normalizeCommissions(commissions) });
+  } catch (error: any) {
+    console.error("Error fetching user commissions:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch user commissions: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get commissions for a user within a date range
+ * GET /api/total-commission/user/range/
+ * Query params: userId, startDay, endDay
+ */
+export const getTotalCommissionByUserRange = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const startDayParam = url.searchParams.get("startDay");
+  const endDayParam = url.searchParams.get("endDay");
+
+  if (!userId || !startDayParam || !endDayParam) {
+    return createResponse("error", null, "Missing required parameters: userId, startDay, endDay");
+  }
+
+  try {
+    const startDay = parseInt(startDayParam);
+    const endDay = parseInt(endDayParam);
+
+    if (isNaN(startDay) || isNaN(endDay)) {
+      return createResponse("error", null, "Invalid date parameters: startDay and endDay must be valid numbers");
+    }
+
+    if (startDay > endDay) {
+      return createResponse("error", null, "Invalid date range: startDay must be less than or equal to endDay");
+    }
+
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByUserIdAndDateRange,
+      { userId, startDay, endDay }
+    );
+
+    const normalizedCommissions = normalizeCommissions(commissions);
+    return createResponse("success", {
+      commissions: normalizedCommissions,
+      count: normalizedCommissions.length,
+      startDay,
+      endDay
+    });
+  } catch (error: any) {
+    console.error("Error fetching user commissions by range:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch user commissions by range: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to get all commissions for a specific day
+ * GET /api/total-commission/day/
+ * Query params: day
+ */
+export const getTotalCommissionByDay = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const dayParam = url.searchParams.get("day");
+
+  if (!dayParam) {
+    return createResponse("error", null, "Missing day parameter");
+  }
+
+  try {
+    const day = parseInt(dayParam);
+    const commissions = await ctx.runQuery(
+      api.features.totalCommission.getByDay,
+      { day }
+    );
+
+    return createResponse("success", { commissions: normalizeCommissions(commissions) });
+  } catch (error: any) {
+    console.error("Error fetching day commissions:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to fetch day commissions: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to create or update total commission
+ * POST /api/total-commission/upsert/
+ * Body: { userId, day, totalCommissionAmount, totalAirtimeUsed }
+ */
+export const upsertTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day, totalCommissionAmount, totalAirtimeUsed } = body;
+
+  if (!userId || day === undefined || totalCommissionAmount === undefined || totalAirtimeUsed === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day, totalCommissionAmount, totalAirtimeUsed"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.upsertTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+        totalCommissionAmount: parseFloat(totalCommissionAmount),
+        totalAirtimeUsed: parseFloat(totalAirtimeUsed),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error upserting total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to upsert total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to increment total commission
+ * POST /api/total-commission/increment/
+ * Body: { userId, day, commissionAmount, airtimeAmount }
+ */
+export const incrementTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day, commissionAmount, airtimeAmount } = body;
+
+  if (!userId || day === undefined || commissionAmount === undefined || airtimeAmount === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day, commissionAmount, airtimeAmount"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.incrementTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+        commissionAmount: parseFloat(commissionAmount),
+        airtimeAmount: parseFloat(airtimeAmount),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error incrementing total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to increment total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * HTTP handler to delete a commission record
+ * DELETE /api/total-commission/delete/
+ * Body: { userId, day }
+ */
+export const deleteTotalCommission = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, day } = body;
+
+  if (!userId || day === undefined) {
+    return createResponse(
+      "error",
+      null,
+      "Missing required fields: userId, day"
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.totalCommission.deleteTotalCommission,
+      {
+        userId,
+        day: parseInt(day),
+      }
+    );
+
+    return createResponse("success", result);
+  } catch (error: any) {
+    console.error("Error deleting total commission:", error);
+    return createResponse(
+      "error",
+      null,
+      `Failed to delete total commission: ${error.message}`
+    );
+  }
+});
+
+/**
+ * POST /api/online-bridge/transactions/create/
+ * Create a new Online Bridge transaction
+ */
+export const createOnlineBridgeTransaction = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      
+      const {
+        userId,
+        senderPhoneNumber,
+        receiverPhoneNumber,
+        deviceId,
+        offerId,
+        amount,
+        smsContent,
+        ussdCode,
+        status,
+      } = body;
+
+      // Validate required fields
+      if (
+        !userId ||
+        !senderPhoneNumber ||
+        !receiverPhoneNumber ||
+        !deviceId ||
+        !offerId ||
+        amount === undefined ||
+        !smsContent ||
+        !status
+      ) {
+        return new Response(
+          JSON.stringify({ error: "Missing required fields" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const transactionId = await ctx.runMutation(
+        api.features.onlineBridge.createOnlineBridgeTransaction,
+        {
+          userId,
+          senderPhoneNumber,
+          receiverPhoneNumber,
+          deviceId,
+          offerId,
+          amount: parseFloat(amount),
+          smsContent,
+          ussdCode,
+          status,
+        }
+      );
+
+      const transaction = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionById,
+        { transactionId }
+      );
+
+      return new Response(JSON.stringify(transaction), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("createOnlineBridgeTransactionHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/online-bridge/transactions/
+ * Get all Online Bridge transactions for a user
+ */
+export const getOnlineBridgeTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const userId = url.searchParams.get("userId");
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactions,
+        { userId }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/online-bridge/transactions/pending/
+ * Get pending Online Bridge transactions for a receiver
+ */
+export const getPendingOnlineBridgeTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const receiverPhoneNumber = url.searchParams.get("receiverPhoneNumber");
+
+      if (!receiverPhoneNumber) {
+        return new Response(
+          JSON.stringify({ error: "Missing receiverPhoneNumber" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getPendingOnlineBridgeTransactions,
+        { receiverPhoneNumber }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getPendingOnlineBridgeTransactionsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * PATCH /api/online-bridge/transactions/update-status/
+ * Update Online Bridge transaction status
+ */
+export const updateOnlineBridgeTransactionStatus = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { transactionId, status, result, ussdCode, executedAt } = body;
+
+      if (!transactionId || !status) {
+        return new Response(
+          JSON.stringify({ error: "Missing transactionId or status" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(
+        api.features.onlineBridge.updateOnlineBridgeTransactionStatus,
+        {
+          transactionId: transactionId as Id<"onlineBridgeTransactions">,
+          status,
+          result,
+          ussdCode,
+          executedAt: executedAt ? parseFloat(executedAt) : undefined,
+        }
+      );
+
+      const transaction = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionById,
+        { transactionId: transactionId as Id<"onlineBridgeTransactions"> }
+      );
+
+      return new Response(JSON.stringify(transaction), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("updateOnlineBridgeTransactionStatusHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * DELETE /api/online-bridge/transactions/delete/
+ * Delete (soft delete) Online Bridge transaction
+ */
+export const deleteOnlineBridgeTransaction = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { transactionId } = body;
+
+      if (!transactionId) {
+        return new Response(
+          JSON.stringify({ error: "Missing transactionId" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(
+        api.features.onlineBridge.deleteOnlineBridgeTransaction,
+        { transactionId: transactionId as Id<"onlineBridgeTransactions"> }
+      );
+
+      return new Response(
+        JSON.stringify({ message: "Transaction deleted successfully" }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    } catch (error: any) {
+      console.error("deleteOnlineBridgeTransactionHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * GET /api/online-bridge/transactions/stats/
+ * Get Online Bridge transaction status counts
+ */
+export const getOnlineBridgeTransactionStats = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const userId = url.searchParams.get("userId");
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const stats = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionStatusCounts,
+        { userId }
+      );
+
+      return new Response(JSON.stringify(stats), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionStatsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+export const updateServiceStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumber, isServiceRunning } = body;
+
+  if (!phoneNumber || typeof isServiceRunning !== "boolean") {
+    return createResponse("error", null, "Missing phoneNumber or isServiceRunning");
+  }
+
+  try {
+    await ctx.runMutation(api.features.serviceStatus.updateServiceStatus, {
+      phoneNumber,
+      isServiceRunning,
+    });
+
+    return createResponse("success", null, "Service status updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getServiceStatus = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+
+  if (!phoneNumber) {
+    return createResponse("error", null, "Missing phoneNumber parameter");
+  }
+
+  try {
+    const status = await ctx.runQuery(api.features.serviceStatus.getServiceStatus, {
+      phoneNumber,
+    });
+
+    return createResponse("success", status, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getMultipleServiceStatuses = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { phoneNumbers } = body;
+
+  if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+    return createResponse("error", null, "Missing or invalid phoneNumbers array");
+  }
+
+  try {
+    const statuses = await ctx.runQuery(api.features.serviceStatus.getMultipleServiceStatuses, {
+      phoneNumbers,
+    });
+
+    return createResponse("success", { statuses }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+
+export const updateDeviceHeartbeat = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumber, userId } = body;
+
+    if (!phoneNumber || !userId) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber or userId",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.serviceStatus.updateDeviceHeartbeat, {
+      phoneNumber,
+      userId,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: { id: result },
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const getBatchDeviceOnlineStatus = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumbers } = body;
+
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing or invalid phoneNumbers array",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runQuery(api.features.serviceStatus.getBatchDeviceOnlineStatus, {
+      phoneNumbers,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+
+export const setDeviceHeartbeatTestHandler = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumber, userId, timestampOffset } = body;
+
+    if (!phoneNumber || !userId || timestampOffset === undefined) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber, userId, or timestampOffset",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.serviceStatus.setDeviceHeartbeatManually, {
+      phoneNumber,
+      userId,
+      timestampOffset,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const updateOnlineServiceStatus = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumber, userId, isServiceRunning } = body;
+
+    if (!phoneNumber || !userId || typeof isServiceRunning !== "boolean") {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber, userId, or isServiceRunning",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runMutation(api.features.serviceStatus.updateOnlineServiceStatus, {
+      phoneNumber,
+      userId,
+      isServiceRunning,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: { id: result },
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const getOnlineServiceStatus = httpAction(async (ctx, request) => {
+  try {
+    const url = new URL(request.url);
+    const phoneNumber = url.searchParams.get("phoneNumber");
+
+    if (!phoneNumber) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing phoneNumber query parameter",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runQuery(api.features.serviceStatus.getOnlineServiceStatus, {
+      phoneNumber,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const getOnlineBatchServiceStatus = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { phoneNumbers } = body;
+
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          error: "Missing or invalid phoneNumbers array",
+          timestamp: Date.now(),
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const result = await ctx.runQuery(api.features.serviceStatus.getOnlineBatchServiceStatus, {
+      phoneNumbers,
+    });
+
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: result,
+        timestamp: Date.now(),
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message,
+        timestamp: Date.now(),
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+/**
+ * POST /api/online-bridge/transactions/batch-create/
+ * Batch create multiple Online Bridge transactions
+ */
+export const batchCreateOnlineBridgeTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { transactions } = body;
+
+      if (!transactions || !Array.isArray(transactions)) {
+        return new Response(
+          JSON.stringify({ error: "Missing or invalid transactions array" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate each transaction has required fields
+      for (const txn of transactions) {
+        if (
+          !txn.userId ||
+          !txn.senderPhoneNumber ||
+          !txn.receiverPhoneNumber ||
+          !txn.deviceId ||
+          !txn.offerId ||
+          txn.amount === undefined ||
+          !txn.smsContent ||
+          !txn.status
+        ) {
+          return new Response(
+            JSON.stringify({ error: "Invalid transaction data" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const result = await ctx.runMutation(
+        api.features.onlineBridge.batchCreateOnlineBridgeTransactions,
+        { transactions }
+      );
+
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          message: `${result.count} transactions created`,
+          transactionIds: result.transactionIds,
+        }),
+        {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      console.error("batchCreateOnlineBridgeTransactionsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
+ * PATCH /api/online-bridge/transactions/batch-update-status/
+ * Batch update transaction statuses
+ */
+export const batchUpdateOnlineBridgeTransactionStatuses = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { updates } = body;
+
+      if (!updates || !Array.isArray(updates)) {
+        return new Response(
+          JSON.stringify({ error: "Missing or invalid updates array" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      // Validate each update has required fields
+      for (const update of updates) {
+        if (!update.transactionId || !update.status) {
+          return new Response(
+            JSON.stringify({ error: "Invalid update data" }),
+            { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      const result = await ctx.runMutation(
+        api.features.onlineBridge.batchUpdateOnlineBridgeTransactionStatuses,
+        { updates }
+      );
+
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          message: `${result.count} transactions updated`,
+          count: result.count,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      console.error("batchUpdateOnlineBridgeTransactionStatusesHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+export const getPhoneByUserId = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  
+  // Extract userId from path like: /api/get-phone/user_wkpda399lf
+  const pathParts = url.pathname.split('/').filter(p => p);
+  const userId = pathParts[pathParts.length - 1]; // Last part is userId
+
+  console.log("📱 getPhoneByUserId called for:", userId);
+
+  if (!userId || userId === "get-phone") {
+    return new Response(
+      JSON.stringify({ error: "Missing userId in path" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const user = await ctx.runQuery(api.users.getUserById, { userId });
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        userId: user.userId,
+        phoneNumber: user.phoneNumber,
+        name: user.name,
+        email: user.email
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: `${error}` }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const clearUserSubscriptionHttp = httpAction(async (ctx, request) => {
+  console.log("🔥 clearUserSubscriptionHttp called");
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(p => p);
+  const userId = pathParts[pathParts.length - 1];
+
+  if (!userId || userId === "clear-subscription") {
+    return new Response(
+      JSON.stringify({ error: "Missing userId in path" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.clearUserSubscription, { userId });
+
+    return new Response(
+      JSON.stringify(result),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: `${error}` }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+export const deleteUserByPhoneHttp = httpAction(async (ctx, request) => {
+  console.log("deleteUserByPhoneHttp called");
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split('/').filter(p => p);
+  const phoneNumber = pathParts[pathParts.length - 1];
+
+  if (!phoneNumber || phoneNumber === "delete-user") {
+    return new Response(
+      JSON.stringify({ error: "Missing phoneNumber in path" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.deleteUserByPhone, { phoneNumber });
+
+    return new Response(
+      JSON.stringify(result),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        }
+      }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: `${error}` }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+});
+
+
+// ============= USSD HISTORY HTTP ACTIONS =============
+
+export const createUSSDHistory = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, ussdCode, targetNumber, offerName, status, timeTaken, timeStamp, ussdResponse  } = body;
+
+  if (!userId || !ussdCode || !status || !timeTaken || !timeStamp) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  // Validate status
+  const validStatuses = ["Success", "Failed", "Timeout", "Cancelled", "Validation Failed"];
+  if (!validStatuses.includes(status)) {
+    return createResponse("error", null, "Invalid status value");
+  }
+
+  try {
+    const historyId = await ctx.runMutation(api.features.ussdHistory.createUSSDHistory, {
+      userId,
+      ussdCode,
+      targetNumber,
+      offerName,
+      status,
+      timeTaken,
+      timeStamp,
+      ussdResponse
+    });
+
+    return createResponse("success", { historyId }, "USSD history created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getUSSDHistory = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const status = url.searchParams.get("status");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    let history;
+    
+    if (status && status !== "All") {
+      history = await ctx.runQuery(api.features.ussdHistory.getUSSDHistoryByStatus, { 
+        userId, 
+        status 
+      });
+    } else {
+      history = await ctx.runQuery(api.features.ussdHistory.getUSSDHistory, { userId });
+    }
+
+    return createResponse("success", { history }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getAvailableStatuses = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const statuses = await ctx.runQuery(api.features.ussdHistory.getAvailableStatuses, { userId });
+    return createResponse("success", { statuses }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteUSSDHistory = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const historyId = url.searchParams.get("historyId");
+  const userId = url.searchParams.get("userId");
+
+  console.log("DELETE USSD HISTORY REQUEST - historyId:", historyId);
+  console.log("DELETE USSD HISTORY REQUEST - userId:", userId);
+
+  if (!historyId || !userId) {
+    return createResponse("error", null, "Missing historyId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.ussdHistory.deleteUSSDHistory, {
+      historyId: historyId as Id<"ussdHistory">,
+      userId
+    });
+
+    console.log("USSD HISTORY DELETE SUCCESSFUL");
+    return createResponse("success", null, "USSD history deleted successfully");
+  } catch (error: any) {
+    console.log("USSD HISTORY DELETE FAILED:", error.message);
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const clearUSSDHistory = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.ussdHistory.clearUSSDHistory, {
+      userId
+    });
+
+    return createResponse("success", result, "USSD history cleared successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ─── GET all retry configs for a user ────────────────────────────────────────
+
+export const getAllRetryConfigs = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const configs = await ctx.runQuery(
+      api.features.retryConfigs.getAllRetryConfigs,
+      { userId }
+    );
+    return createResponse("success", { configs }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch retry configurations");
+  }
+});
+
+// ─── POST create retry config ─────────────────────────────────────────────────
+
+export const createRetryConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const {
+    userId,
+    name,
+    timeoutSeconds,
+    autoRetryEnabled,
+    numberOfRetries,
+    retryIntervalMinutes,
+    selectedOffers,
+    autoRetryConnectionProblems,
+  } = body;
+
+  if (
+    !userId ||
+    !name ||
+    timeoutSeconds === undefined ||
+    autoRetryEnabled === undefined ||
+    numberOfRetries === undefined ||
+    retryIntervalMinutes === undefined ||
+    !Array.isArray(selectedOffers) ||
+    autoRetryConnectionProblems === undefined
+  ) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.retryConfigs.createRetryConfig,
+      {
+        userId,
+        name,
+        timeoutSeconds,
+        autoRetryEnabled,
+        numberOfRetries,
+        retryIntervalMinutes,
+        selectedOffers,
+        autoRetryConnectionProblems,
+      }
+    );
+
+    if (result.status === "success") {
+      return createResponse("success", { id: result.id }, null);
+    } else {
+      return createResponse("error", null, result.message);
+    }
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to create retry configuration");
+  }
+});
+
+// ─── PATCH update retry config ────────────────────────────────────────────────
+
+export const updateRetryConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { id, userId, ...updates } = body;
+
+  if (!id || !userId) {
+    return createResponse("error", null, "Missing id or userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.retryConfigs.updateRetryConfig,
+      { id, userId, ...updates }
+    );
+
+    if (result.status === "success") {
+      return createResponse("success", null, null);
+    } else {
+      return createResponse("error", null, result.message);
+    }
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update retry configuration");
+  }
+});
+
+// ─── DELETE retry config ──────────────────────────────────────────────────────
+
+export const deleteRetryConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { id, userId } = body;
+
+  if (!id || !userId) {
+    return createResponse("error", null, "Missing id or userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.retryConfigs.deleteRetryConfig,
+      { id, userId }
+    );
+
+    if (result.status === "success") {
+      return createResponse("success", null, null);
+    } else {
+      return createResponse("error", null, result.message);
+    }
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to delete retry configuration");
+  }
+});
+
+export const getUssdCodesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  try {
+    const result = await ctx.runQuery(api.features.ussdCodes.getUssdCodes, {});
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch USSD codes");
+  }
+});
+
+export const updateUssdCodesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { airtimeUssdCode, bongaUssdCode } = body;
+
+  if (!airtimeUssdCode || !bongaUssdCode) {
+    return createResponse("error", null, "Missing airtimeUssdCode or bongaUssdCode");
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.features.ussdCodes.upsertUssdCodes,
+      { airtimeUssdCode, bongaUssdCode }
+    );
+    return createResponse("success", null, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update USSD codes");
+  }
+});
+
+export const getModeSettings = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId query parameter");
+  }
+
+  try {
+    const result = await ctx.runQuery(
+      api.features.userModeSettings.getUserModeSettings,
+      { userId }
+    );
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch mode settings");
+  }
+});
+
+export const updateModeSettings = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, isNormalMode, isSimpleMode, isAdvancedMode } = body;
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId");
+  }
+
+  if (
+    typeof isNormalMode !== "boolean" ||
+    typeof isSimpleMode !== "boolean" ||
+    typeof isAdvancedMode !== "boolean"
+  ) {
+    return createResponse("error", null, "isNormalMode, isSimpleMode and isAdvancedMode must be booleans");
+  }
+
+  try {
+    await ctx.runMutation(
+      api.features.userModeSettings.upsertUserModeSettings,
+      { userId, isNormalMode, isSimpleMode, isAdvancedMode }
+    );
+    return createResponse("success", null, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update mode settings");
+  }
+});
+
+
+export const insertLogsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+ 
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+ 
+  const { logs } = body;
+ 
+  if (!Array.isArray(logs) || logs.length === 0) {
+    return createResponse("error", null, "Missing or empty logs array");
+  }
+ 
+  try {
+    const result = await ctx.runMutation(
+      api.features.appLogs.insertLogs,
+      { logs }
+    );
+    return createResponse("success", result, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to insert logs");
+  }
+});
+
+// GET /api/logs?manufacturer=samsung&limit=200
+// GET /api/logs?sessionId=abc123
+// GET /api/logs?userId=user_xxx&limit=200
+export const getLogsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const manufacturer = url.searchParams.get("manufacturer");
+  const sessionId = url.searchParams.get("sessionId");
+  const userId = url.searchParams.get("userId");
+  const tag = url.searchParams.get("tag") ?? undefined;
+  const limit = url.searchParams.get("limit")
+    ? parseInt(url.searchParams.get("limit")!)
+    : undefined;
+
+  try {
+    if (manufacturer) {
+      const logs = await ctx.runQuery(api.features.appLogs.getLogsByManufacturer, {
+        manufacturer,
+        limit,
+        tag,
+      });
+      return createResponse("success", { logs }, null);
+    }
+
+    if (sessionId) {
+      const logs = await ctx.runQuery(api.features.appLogs.getLogsBySession, {
+        sessionId,
+      });
+      return createResponse("success", { logs }, null);
+    }
+
+    if (userId) {
+      const logs = await ctx.runQuery(api.features.appLogs.getLogsByUser, {
+        userId,
+        limit,
+      });
+      return createResponse("success", { logs }, null);
+    }
+
+    return createResponse("error", null, "Provide manufacturer, sessionId, or userId query param");
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch logs");
+  }
+});
+
+
+export const deleteLogsHandler = httpAction(async (ctx, _request) => {
+  try {
+    await ctx.runMutation(internal.features.appLogs.clearAllLogsScheduled, {});
+    return createResponse("success", { message: "Log deletion started. Poll GET /api/logs/count to check progress." });
+  } catch (e) {
+    return createResponse("error", null, `Failed to start log deletion: ${e}`);
+  }
+});
+
+export const countLogsHttp = httpAction(async (ctx, _request) => {
+  try {
+    const result = await ctx.runQuery(api.features.appLogs.countAllLogs, {});
+    return createResponse("success", result);
+  } catch (e) {
+    return createResponse("error", null, `Failed to count logs: ${e}`);
+  }
+});
+
+// ============= ADMIN: CLEAR ALL DATA =============
+
+const ALL_TABLES = [
+  "users",/** "bundles", "subscription_price", "mpesa_transactions",
+  "sms", "scheduled_events", "stores", "notifications", "blacklist",
+  "otps", "cooldownTimers", "system", "transactions", "mpesaMessages",
+  "userSenderRelations", "promoCodes", "promoUsers", "airtimeTransactions",
+  "deviceSessions", "bridgeOffers", "bridgeDevices", "bridgeWhitelist",
+  "bridgeTransactions", "totalCommission", "onlineBridgeOffers",
+  "onlineBridgeDevices", "onlineBridgeWhitelist", "onlineBridgeTransactions",
+  "serviceStatus", "deviceHeartbeats", "onlineServiceStatus", "ussdHistory",
+  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",**/
+];
+
+export const clearAllDataHandler = httpAction(async (ctx, request) => {
+  try {
+    const body = await request.json();
+    const { secretKey } = body;
+
+    const expectedKey = process.env.ADMIN_SECRET_KEY;
+
+    if (!expectedKey) {
+      return createResponse("error", null, "ADMIN_SECRET_KEY environment variable is not set");
+    }
+
+    if (secretKey !== expectedKey) {
+      return createResponse("error", null, "Unauthorized");
+    }
+
+    const clearTable = async (table: string) => {
+      let totalDeleted = 0;
+      let deleted = 0;
+      do {
+        deleted = await ctx.runMutation(internal.internalAdmin.clearTableBatch, { table });
+        totalDeleted += deleted;
+      } while (deleted > 0);
+      return totalDeleted;
+    };
+
+    const settled = await Promise.allSettled(ALL_TABLES.map((table) => clearTable(table)));
+
+    const results: Record<string, number> = {};
+    const failed: Record<string, string> = {};
+
+    ALL_TABLES.forEach((table, i) => {
+      const outcome = settled[i];
+      if (outcome.status === "fulfilled") {
+        results[table] = outcome.value;
+      } else {
+        failed[table] = outcome.reason?.message ?? String(outcome.reason);
+      }
+    });
+
+    return createResponse("success", { deleted: results, failed });
+  } catch (e) {
+    return createResponse("error", null, `Failed to clear data: ${e}`);
+  }
+});
+
+// HTTP Action to set or unset admin by email
+export const setAdminByEmailHttp = httpAction(async (ctx, request) => {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, isAdmin } = body ?? {};
+
+  if (!email || typeof email !== "string") {
+    return createResponse("error", null, "Missing or invalid 'email' field");
+  }
+  if (typeof isAdmin !== "boolean") {
+    return createResponse("error", null, "Missing or invalid 'isAdmin' field (must be true or false)");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.setAdminByEmail, { email, isAdmin });
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+    return createResponse("success", { message: result.message });
+  } catch (e) {
+    return createResponse("error", null, `Failed to update admin status: ${e}`);
+  }
+});
+
+export const updateUserProfile = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, name, email } = body ?? {};
+
+  if (!userId || typeof userId !== "string") {
+    return createResponse("error", null, "Missing or invalid 'userId' field");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.updateUserProfile, { userId, name, email });
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+    return createResponse("success", { message: result.message });
+  } catch (e) {
+    return createResponse("error", null, `Failed to update profile: ${e}`);
+  }
+});
+
+export const sendEmailTokenHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, userId } = body ?? {};
+  if (!email || !userId) {
+    return createResponse("error", null, "Missing email or userId");
+  }
+
+  try {
+    const result = await ctx.runAction(api.actions.email.sendEmailToken, { email, userId });
+    if (!result.success) {
+      return createResponse("error", null, result.message ?? "Failed to send token");
+    }
+    return createResponse("success", {
+      message: "Token sent",
+      devToken: result.devToken ?? null,
+    });
+  } catch (e) {
+    return createResponse("error", null, `Failed to send token: ${e}`);
+  }
+});
+
+export const verifyEmailTokenHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, token } = body ?? {};
+  if (!email || !token) {
+    return createResponse("error", null, "Missing email or token");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.emailTokens.verifyEmailToken, { email, token });
+    if (!result.success) {
+      return createResponse("error", null, result.message ?? "Invalid token");
+    }
+    return createResponse("success", { message: "Token verified" });
+  } catch (e) {
+    return createResponse("error", null, `Verification failed: ${e}`);
+  }
+});

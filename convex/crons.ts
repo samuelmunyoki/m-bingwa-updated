@@ -18,4 +18,11 @@ crons.daily(
   api.features.mpesaMessages.deleteOldMpesaMessages
 );
 
+// Delete non-pending mpesa messages - runs daily at midnight (00:00 UTC)
+crons.daily(
+  "Delete non-pending mpesa messages",
+  { hourUTC: 0, minuteUTC: 0 },
+  api.features.mpesaMessages.deleteNonPendingMpesaMessages
+);
+
 export default crons;

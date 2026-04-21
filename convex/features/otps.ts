@@ -1,4 +1,4 @@
-import { query } from "../_generated/server";
+import { internalMutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { mutation } from "../functions";
 
@@ -62,5 +62,23 @@ export const getLatestOtp = query({
       .first();
 
     return otp;
+  },
+});
+
+// Internal mutation — bypasses the trigger that sends SMS to saved phoneNumber.
+// Used by sendPhoneVerificationOtp action which sends SMS directly to the entered number.
+export const storeVerificationOtp = internalMutation({
+  args: {
+    userId: v.string(),
+    phoneNumber: v.string(),
+    otpCode: v.number(),
+  },
+  handler: async (ctx, { userId, phoneNumber, otpCode }) => {
+    await ctx.db.insert("otps", {
+      userId,
+      phoneNumber,
+      otpCode,
+      isVerified: false,
+    });
   },
 });
