@@ -5,7 +5,7 @@ import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 
 export default function Page() {
@@ -53,20 +53,27 @@ function LoadingSpinner() {
 function NavigateToPlatform() {
   const router = useRouter();
   const { user } = useUser();
-  const dbUser = useQuery(
-    api.users.getUserByEmail,
-    user ? { email: user.emailAddresses[0]?.emailAddress ?? "" } : "skip"
-  );
 
   useEffect(() => {
     if (!user) return;
-    if (dbUser === undefined) return; // still loading
-    if (dbUser?.userId) {
-      router.push(`/dashboard/${dbUser.userId}`); // use database userId
-    } else {
-      router.push(`/dashboard/${user.id}`); // new user — Convex will create them
+    const email = user.emailAddresses[0]?.emailAddress;
+    if (!email) {
+      router.push(`/dashboard/${user.id}`);
+      return;
     }
-  }, [router, user, dbUser]);
+    const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    client.query(api.users.getUserByEmail, { email })
+      .then((dbUser) => {
+        if (dbUser?.userId) {
+          router.push(`/dashboard/${dbUser.userId}`);
+        } else {
+          router.push(`/dashboard/${user.id}`);
+        }
+      })
+      .catch(() => {
+        router.push(`/dashboard/${user.id}`);
+      });
+  }, [user, router]);
 
   return null;
 }
