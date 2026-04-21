@@ -18,11 +18,12 @@ import {
   format,
   differenceInDays,
 } from "date-fns";
-import { CalendarDays, Clock, CreditCard, CalendarRange, AlertTriangle } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, CalendarRange, AlertTriangle, BadgeCheck, Gift } from "lucide-react";
 
 import React, { useCallback, useState, useEffect } from "react";
 import { AdminPriceSettings } from "./subscription-setting";
 import { useAction, useQuery, useMutation } from "convex/react";
+import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -116,17 +117,11 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
     setPromoError(null);
 
     try {
-      // Use the validatePromoCode query from backend
-      const response = await fetch("/api/validate-promo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          promoCode: promoCode.toUpperCase(),
-          userId: user.userId,
-        }),
+      const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+      const result = await client.query(api.features.promo_codes.validatePromoCode, {
+        promoCode: promoCode.toUpperCase(),
+        userId: user.userId,
       });
-
-      const result = await response.json();
 
       if (result.status === "success" && result.isValid) {
         setValidatedPromo(result.data);
@@ -306,203 +301,151 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
 
   return (
     <>
-      <div className="flex flex-1 h-full ">
-        <div className="p-6 md:p-5  md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white  dark:bg-neutral-900 flex flex-col gap-2 flex-1">
-          <h2 className="text-lg text-neutral-600 font-medium mb-4">
-            Subscriptions Management
-          </h2>
+      <div className="flex flex-1 h-full">
+        <div className="p-6 md:p-5 md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1">
+
+          {/* Page Header */}
+          <div className="flex items-center gap-2 mb-2">
+            <CreditCard className="w-5 h-5 text-neutral-500" />
+            <h2 className="text-lg text-neutral-600 font-medium">Subscriptions Management</h2>
+          </div>
+          <div className="border-b border-neutral-200 mb-4" />
 
           <ScrollArea className="h-full pr-4">
-            <AdminPriceSettings
-              isAdmin={user.isAdmin}
-              currentPrice={pricePerDay}
-            />
+            <AdminPriceSettings isAdmin={user.isAdmin} currentPrice={pricePerDay} />
+
             {isLoading ? (
               <div className="flex flex-col justify-center items-center w-full h-[200px]">
                 <div className="flex flex-row gap-2 justify-center h-full items-center">
-                  <svg
-                    aria-hidden="true"
-                    className="inline w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-neutral-500"
-                    viewBox="0 0 100 101"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-                      fill="currentColor"
-                    />
-                    <path
-                      d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-                      fill="currentFill"
-                    />
+                  <svg aria-hidden="true" className="inline w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-neutral-500" viewBox="0 0 100 101" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z" fill="currentColor" />
+                    <path d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z" fill="currentFill" />
                   </svg>
-                  <span className="text-neutral-500 ">Loading ...</span>
+                  <span className="text-neutral-500">Loading ...</span>
                 </div>
               </div>
             ) : (
-              <>
-                {/* ===== PHASE 3: CURRENT SUBSCRIPTION CARD (WITH PHASE 2 TIMESTAMPS) ===== */}
+              <div className="flex flex-col gap-6">
+
+                {/* Active Subscription Card */}
                 {user.isSubscribed && (
-                  <Card className="shadow-none border-none flex-1 mb-4">
-                    <CardHeader>
-                      <CardTitle>Current Subscription</CardTitle>
-                      <CardDescription>
-                        Your subscription is active.
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-3">
-                          <Clock className="w-5 h-5 text-gray-500" />
+                  <div className="border border-neutral-200 rounded-lg p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                      <BadgeCheck className="w-5 h-5 text-green-600" />
+                      <h3 className="font-semibold text-neutral-700">Current Subscription</h3>
+                      <span className="ml-auto text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">Active</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      <div className="flex-1 flex flex-col items-center justify-center border border-neutral-100 rounded-lg p-4">
+                        <span className="text-4xl font-bold text-neutral-800">{remainingDays}</span>
+                        <span className="text-sm text-gray-500 mt-1">day{remainingDays !== 1 ? "s" : ""} remaining</span>
+                      </div>
+                      <div className="flex-1 flex flex-col justify-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <CalendarRange className="w-4 h-4 text-gray-400 flex-shrink-0" />
                           <div>
-                            <p className="text-sm font-medium text-gray-500">
-                              Remaining Days
-                            </p>
-                            <p className="text-base font-semibold">
-                              {remainingDays} day{remainingDays !== 1 ? "s" : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <CalendarRange className="w-5 h-5 text-gray-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-500">
-                              Subscription Ends
-                            </p>
-                            <p className="text-base">
+                            <p className="text-xs text-gray-500">Subscription Ends</p>
+                            <p className="text-sm font-medium text-neutral-700">
                               {user.subscriptionEnds
-                                ? format(
-                                    new Date(user.subscriptionEnds * 1000),
-                                    "MMMM d, yyyy 'at' hh:mm a"
-                                  )
+                                ? format(new Date(user.subscriptionEnds * 1000), "MMMM d, yyyy 'at' hh:mm a")
                                 : "Not available"}
                             </p>
                           </div>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* ===== PHASE 1: PROMO CODE SECTION ===== */}
-                <Card className="shadow-none border-none flex-1 mb-4">
-                  <div className="space-y-6 p-6 border border-gray-200 rounded-lg">
-                    <div>
-                      <CardTitle className="text-lg flex items-center gap-2 mb-2">
-                        <span>🎁</span> Have a Promo Code?
-                      </CardTitle>
-                      <CardDescription>
-                        Redeem your promo code to extend your subscription for free
-                      </CardDescription>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="space-y-2">
-                          <Label htmlFor="promoCode">Promo Code</Label>
-                          <Input
-                            id="promoCode"
-                            type="text"
-                            value={promoCode}
-                            onChange={(e) => {
-                              const value = e.target.value.toUpperCase();
-                              if (value.length <= 7) {
-                                setPromoCode(value);
-                                setPromoError(null);
-                                setValidatedPromo(null);
-                              }
-                            }}
-                            placeholder="Enter promo code (7 characters)"
-                            className="w-full font-mono"
-                            disabled={isValidatingPromo || isApplyingPromo || !!promoSuccess}
-                            maxLength={7}
-                          />
-                          <p className="text-xs text-gray-500">
-                            Format: 7 characters (letters and numbers)
-                          </p>
-                        </div>
-                      </div>
-
-                      {promoError && (
-                        <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                          <p className="text-sm text-red-600">{promoError}</p>
-                        </div>
-                      )}
-
-                      {validatedPromo && !promoSuccess && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                          <p className="text-sm font-semibold text-blue-700">
-                            ✓ Valid promo code!
-                          </p>
-                          <p className="text-sm text-blue-600 mt-1">
-                            +{validatedPromo.validDays} days will be added
-                          </p>
-                          {validatedPromo.description && (
-                            <p className="text-xs text-gray-600 mt-1">
-                              {validatedPromo.description}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {promoSuccess && (
-                        <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                          <p className="text-sm font-semibold text-green-700">
-                            ✓ {promoSuccess}
-                          </p>
-                        </div>
-                      )}
-
-                      {!promoSuccess && !validatedPromo && (
-                        <Button
-                          onClick={handleValidatePromo}
-                          disabled={promoCode.length !== 7 || isValidatingPromo}
-                          type="button"
-                          className="px-6 w-full lg:w-[300px]"
-                        >
-                          {isValidatingPromo ? "Validating..." : "Validate Promo Code"}
-                        </Button>
-                      )}
-
-                      {validatedPromo && !promoSuccess && (
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={handleApplyPromo}
-                            disabled={isApplyingPromo}
-                            type="button"
-                            className="px-6 w-full lg:w-[300px] bg-green-600 hover:bg-green-700"
-                          >
-                            {isApplyingPromo ? "Applying..." : "Apply Promo Code"}
-                          </Button>
-                          <Button
-                            onClick={handleClearPromo}
-                            variant="outline"
-                            disabled={isApplyingPromo}
-                            type="button"
-                            className="px-6"
-                          >
-                            Clear
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   </div>
-                </Card>
+                )}
 
-                {/* ===== PHASES 2 & 3: SUBSCRIPTION PURCHASE/EXTENSION WITH TIMESTAMPS ===== */}
-                <div className="flex flex-col md:flex-row gap-4 border rounded-md border-gray-300 p-4 mt-3">
-                  <Card className="shadow-none border-none flex-1">
-                    <CardHeader>
-                      <CardTitle>
-                        {user.isSubscribed ? "Extend Subscription" : "Personalized Subscription"}
-                      </CardTitle>
-                      <CardDescription>
-                        {user.isSubscribed
-                          ? "Add more days to your current subscription."
-                          : "Set custom your subscription period."}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
+                {/* Promo Code Section */}
+                <div className="border border-neutral-200 rounded-lg p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Gift className="w-5 h-5 text-neutral-500" />
+                    <h3 className="font-semibold text-neutral-700">Have a Promo Code?</h3>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">Redeem your promo code to extend your subscription for free</p>
+
+                  <div className="flex flex-col sm:flex-row gap-3 items-start">
+                    <div className="flex-1 space-y-1">
+                      <Input
+                        id="promoCode"
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => {
+                          const value = e.target.value.toUpperCase();
+                          if (value.length <= 7) {
+                            setPromoCode(value);
+                            setPromoError(null);
+                            setValidatedPromo(null);
+                          }
+                        }}
+                        placeholder="Enter 7-character code"
+                        className={`w-full font-mono ${promoCode.length === 7 && !promoError ? "border-green-400 focus-visible:ring-green-300" : ""}`}
+                        disabled={isValidatingPromo || isApplyingPromo || !!promoSuccess}
+                        maxLength={7}
+                      />
+                      <p className="text-xs text-gray-400">Format: 7 characters (letters and numbers)</p>
+                    </div>
+
+                    {!promoSuccess && !validatedPromo && (
+                      <Button
+                        onClick={handleValidatePromo}
+                        disabled={promoCode.length !== 7 || isValidatingPromo}
+                        type="button"
+                        className="w-full sm:w-auto"
+                      >
+                        {isValidatingPromo ? "Validating..." : "Validate"}
+                      </Button>
+                    )}
+
+                    {validatedPromo && !promoSuccess && (
+                      <div className="flex gap-2">
+                        <Button onClick={handleApplyPromo} disabled={isApplyingPromo} type="button" className="bg-green-600 hover:bg-green-700">
+                          {isApplyingPromo ? "Applying..." : "Apply"}
+                        </Button>
+                        <Button onClick={handleClearPromo} variant="outline" disabled={isApplyingPromo} type="button">
+                          Clear
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {promoError && (
+                    <div className="mt-3 bg-red-50 border border-red-200 rounded-md p-3">
+                      <p className="text-sm text-red-600">{promoError}</p>
+                    </div>
+                  )}
+
+                  {validatedPromo && !promoSuccess && (
+                    <div className="mt-3 bg-neutral-50 border border-neutral-200 rounded-md p-3">
+                      <p className="text-sm font-semibold text-neutral-700">✓ Valid promo code</p>
+                      <p className="text-sm text-neutral-600 mt-0.5">+{validatedPromo.validDays} days will be added to your subscription</p>
+                      {validatedPromo.description && <p className="text-xs text-gray-500 mt-1">{validatedPromo.description}</p>}
+                    </div>
+                  )}
+
+                  {promoSuccess && (
+                    <div className="mt-3 bg-green-50 border border-green-200 rounded-md p-3">
+                      <p className="text-sm font-semibold text-green-700">✓ {promoSuccess}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Calendar + Details — unified panel */}
+                <div className="border border-neutral-200 rounded-lg p-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CalendarDays className="w-5 h-5 text-neutral-500" />
+                    <h3 className="font-semibold text-neutral-700">
+                      {user.isSubscribed ? "Extend Subscription" : "Choose Your Plan"}
+                    </h3>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-4">
+                    {user.isSubscribed ? "Pick an end date to add more days to your current subscription." : "Pick an end date for your new subscription."}
+                  </p>
+
+                  <div className="flex flex-col md:flex-row gap-6">
+                    {/* Calendar */}
+                    <div className="flex-1">
                       <Calendar
                         mode="single"
                         selected={selectedDate}
@@ -513,8 +456,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
                         }}
                         modifiers={{
                           today: (date) => isSameDay(date, user.isSubscribed ? startDate : today),
-                          selected: (date) =>
-                            selectedDate ? isSameDay(date, selectedDate) : false,
+                          selected: (date) => selectedDate ? isSameDay(date, selectedDate) : false,
                           inRange: isInRange,
                         }}
                         modifiersStyles={{
@@ -524,90 +466,74 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
                         }}
                         defaultMonth={selectedDate || (user.isSubscribed ? startDate : today)}
                       />
-                    </CardContent>
-                    <CardFooter className="text-sm text-muted-foreground">
-                      {user.isSubscribed
-                        ? "Pick the end date of your extended subscription."
-                        : "Pick the end date of your subscription."}
-                    </CardFooter>
-                  </Card>
+                    </div>
 
-                  <Card className="shadow-none border-none flex-1">
-                    <CardHeader>
-                      <CardTitle className="font-normal text-xl">
-                        {user.isSubscribed ? "Extension Details" : "Subscription Details"}
-                      </CardTitle>
-                      <CardDescription>Summary of your plan</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex items-center space-x-3">
-                          <CalendarDays className="w-5 h-5 text-gray-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-500">
+                    {/* Details */}
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-neutral-600 mb-3">
+                          {user.isSubscribed ? "Extension Details" : "Subscription Details"}
+                        </p>
+                        <div className="divide-y divide-neutral-100">
+                          <div className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <CalendarDays className="w-4 h-4" />
                               {user.isSubscribed ? "Extension Starts" : "Start Date"}
-                            </p>
-                            <p className="text-base">
-                              {format(startDate, "MMMM d, yyyy 'at' hh:mm a")}
-                            </p>
+                            </div>
+                            <span className="text-sm font-medium text-neutral-700">
+                              {format(startDate, "MMM d, yyyy")}
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <CalendarRange className="w-5 h-5 text-gray-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-500">
+                          <div className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <CalendarRange className="w-4 h-4" />
                               End Date
-                            </p>
-                            <p className="text-base">
+                            </div>
+                            <span className="text-sm font-medium text-neutral-700">
                               {selectedDate
                                 ? (() => {
                                     const endDateTime = new Date(selectedDate);
                                     endDateTime.setHours(startDate.getHours());
                                     endDateTime.setMinutes(startDate.getMinutes());
                                     endDateTime.setSeconds(startDate.getSeconds());
-                                    return format(endDateTime, "MMMM d, yyyy 'at' hh:mm a");
+                                    return format(endDateTime, "MMM d, yyyy");
                                   })()
-                                : "Not selected"}
-                            </p>
+                                : "—"}
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <Clock className="w-5 h-5 text-gray-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-500">
+                          <div className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <Clock className="w-4 h-4" />
                               Duration
-                            </p>
-                            <p className="text-base">
-                              {subscriptionDays} day
-                              {subscriptionDays !== 1 ? "s" : ""}
-                            </p>
+                            </div>
+                            <span className="text-sm font-medium text-neutral-700">
+                              {subscriptionDays > 0 ? `${subscriptionDays} day${subscriptionDays !== 1 ? "s" : ""}` : "—"}
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center space-x-3">
-                          <CreditCard className="w-5 h-5 text-gray-500" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-500">
+                          <div className="flex items-center justify-between py-3">
+                            <div className="flex items-center gap-2 text-sm text-gray-500">
+                              <CreditCard className="w-4 h-4" />
                               Total Charge
-                            </p>
-                            <p className="text-base font-semibold">
-                              {totalCharge} KES
-                            </p>
+                            </div>
+                            <span className="text-sm font-bold text-neutral-800">
+                              {totalCharge > 0 ? `KES ${Math.round(totalCharge)}` : "—"}
+                            </span>
                           </div>
                         </div>
                       </div>
-                    </CardContent>
-                    <CardFooter className="flex justify-end pt-4">
+
                       <Button
                         disabled={!selectedDate}
-                        className="w-full sm:w-auto"
+                        className="w-full mt-4"
                         onClick={() => openDialog()}
                       >
                         {user.isSubscribed ? "Extend Subscription" : "Purchase Subscription"}
                       </Button>
-                    </CardFooter>
-                  </Card>
+                    </div>
+                  </div>
                 </div>
-              </>
+
+              </div>
             )}
           </ScrollArea>
         </div>
