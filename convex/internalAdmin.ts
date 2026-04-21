@@ -2,7 +2,7 @@ import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
 export const ALL_TABLES = [
-  "users", "bundles", "subscription_price", "mpesa_transactions",
+  "users", /**"bundles", "subscription_price", "mpesa_transactions",
   "sms", "scheduled_events", "stores", "notifications", "blacklist",
   "otps", "cooldownTimers", "system", "transactions", "mpesaMessages",
   "userSenderRelations", "promoCodes", "promoUsers", "airtimeTransactions",
@@ -10,7 +10,7 @@ export const ALL_TABLES = [
   "bridgeTransactions", "totalCommission", "onlineBridgeOffers",
   "onlineBridgeDevices", "onlineBridgeWhitelist", "onlineBridgeTransactions",
   "serviceStatus", "deviceHeartbeats", "onlineServiceStatus", "ussdHistory",
-  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",
+  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",**/
 ] as const;
 
 // Deletes up to 500 docs from a single table. Returns how many were deleted.

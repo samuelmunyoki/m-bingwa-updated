@@ -111,6 +111,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateUserProfile,
   sendEmailTokenHttp,
   verifyEmailTokenHttp,
+  getUserByEmailHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1092,6 +1093,12 @@ http.route({
   pathPrefix: "/api/users/update-profile/",
   method: "PATCH",
   handler: updateUserProfile,
+});
+
+http.route({
+  pathPrefix: "/api/users/get-by-email/",
+  method: "GET",
+  handler: getUserByEmailHttp,
 });
 
 http.route({

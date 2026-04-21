@@ -5,6 +5,8 @@ import { Authenticated, Unauthenticated, AuthLoading } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 
 export default function Page() {
   return (
@@ -51,12 +53,20 @@ function LoadingSpinner() {
 function NavigateToPlatform() {
   const router = useRouter();
   const { user } = useUser();
+  const dbUser = useQuery(
+    api.users.getUserByEmail,
+    user ? { email: user.emailAddresses[0]?.emailAddress ?? "" } : "skip"
+  );
 
   useEffect(() => {
-    if (user && user.id) {
-      router.push(`/dashboard/${user.id}`);
+    if (!user) return;
+    if (dbUser === undefined) return; // still loading
+    if (dbUser?.userId) {
+      router.push(`/dashboard/${dbUser.userId}`); // use database userId
+    } else {
+      router.push(`/dashboard/${user.id}`); // new user — Convex will create them
     }
-  }, [router, user]);
+  }, [router, user, dbUser]);
 
   return null;
 }

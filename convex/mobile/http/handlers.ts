@@ -993,6 +993,30 @@ export const createStore = httpAction(async (ctx, request) => {
   }
 });
 
+export const getUserByEmailHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const email = url.searchParams.get("email");
+
+  if (!email) {
+    return createResponse("error", null, "Missing email parameter");
+  }
+
+  try {
+    const user = await ctx.runQuery(api.users.getUserByEmail, { email });
+    if (!user) {
+      return createResponse("success", null, null);
+    }
+    return createResponse("success", {
+      userId: user.userId,
+      name: user.name,
+      email: user.email,
+      phoneNumber: user.phoneNumber,
+    }, null);
+  } catch (error) {
+    return createResponse("error", null, "Failed to fetch user");
+  }
+});
+
 //Tony exposed these two functions on 2025-07-26 to be accessed via HTTP from the Android app
 // This function adds a phone number to the blacklist
 
@@ -1026,7 +1050,7 @@ export const createUserIfNotExists = httpAction(async (ctx, request) => {
     });
   }
 
-  const { phoneNumber, name, email } = body;
+  const { phoneNumber, name, email, userId } = body;
 
   if (!phoneNumber) {
     const errorResponse = {
@@ -1065,7 +1089,8 @@ export const createUserIfNotExists = httpAction(async (ctx, request) => {
     const result = await ctx.runMutation(api.users.createUserIfNotExists, {
       phoneNumber,
       name,
-      email
+      email,
+      userId: userId || undefined,
     });
     
     console.log("=== MUTATION RESULT ===");
@@ -5922,7 +5947,7 @@ export const countLogsHttp = httpAction(async (ctx, _request) => {
 // ============= ADMIN: CLEAR ALL DATA =============
 
 const ALL_TABLES = [
-  "users", "bundles", "subscription_price", "mpesa_transactions",
+  "users",/** "bundles", "subscription_price", "mpesa_transactions",
   "sms", "scheduled_events", "stores", "notifications", "blacklist",
   "otps", "cooldownTimers", "system", "transactions", "mpesaMessages",
   "userSenderRelations", "promoCodes", "promoUsers", "airtimeTransactions",
@@ -5930,7 +5955,7 @@ const ALL_TABLES = [
   "bridgeTransactions", "totalCommission", "onlineBridgeOffers",
   "onlineBridgeDevices", "onlineBridgeWhitelist", "onlineBridgeTransactions",
   "serviceStatus", "deviceHeartbeats", "onlineServiceStatus", "ussdHistory",
-  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",
+  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",**/
 ];
 
 export const clearAllDataHandler = httpAction(async (ctx, request) => {

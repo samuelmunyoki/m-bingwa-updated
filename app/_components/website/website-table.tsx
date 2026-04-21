@@ -13,7 +13,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowUpDown, ChevronDown, MoreHorizontal } from "lucide-react";
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Package, Wifi, MessageSquare, Clock, Zap, Box } from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -38,7 +38,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { AddBundleModal } from "@/components/ui/add-bundle-modal";
 import { EditBundleModal } from "@/components/ui/edit-bundle-modal";
@@ -52,13 +51,28 @@ type Bundle = {
   duration: string;
   price: number;
   bundlesUSSD: string;
+  isMultiSession: boolean;
+  dialingSIM: "SIM1" | "SIM2";
+  commission?: number;
+  offerType?: string;
+  autoReschedule?: string;
+  isSimpleUSSD?: boolean;
+  responseValidatorText?: string;
+};
+
+const offerTypeConfig: Record<string, { icon: React.ReactNode; className: string }> = {
+  Data:    { icon: <Wifi className="h-3 w-3" />,           className: "bg-blue-100 text-blue-700 border-blue-200" },
+  SMS:     { icon: <MessageSquare className="h-3 w-3" />,  className: "bg-red-100 text-red-700 border-red-200" },
+  Minutes: { icon: <Clock className="h-3 w-3" />,          className: "bg-green-100 text-green-700 border-green-200" },
+  Airtime: { icon: <Zap className="h-3 w-3" />,            className: "bg-yellow-100 text-yellow-700 border-yellow-200" },
+  Bundles: { icon: <Box className="h-3 w-3" />,            className: "bg-purple-100 text-purple-700 border-purple-200" },
+  Other:   { icon: <Package className="h-3 w-3" />,        className: "bg-gray-100 text-gray-700 border-gray-200" },
 };
 
 export function BundlesTable({ userId }: { userId: string }) {
   const bundles = useQuery(api.features.bundles.getAllBundles, { userId });
   const toggleStatus = useMutation(api.features.bundles.toggleBundleStatus);
   const deleteBundle = useMutation(api.features.bundles.deleteBundle);
-  const updateBundle = useMutation(api.features.bundles.updateBundle);
 
   const [editingBundle, setEditingBundle] = React.useState<Bundle | null>(null);
 
@@ -83,54 +97,126 @@ export function BundlesTable({ userId }: { userId: string }) {
       enableHiding: false,
     },
     {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <div
-          className={
-            row.getValue("status") === "disabled"
-              ? "text-red-500"
-              : "text-blue-500"
-          }
-        >
-          {row.getValue("status")}
-        </div>
-      ),
-    },
-    {
       accessorKey: "offerName",
       header: ({ column }) => (
         <Button
           variant="ghost"
+          className="px-0 font-semibold text-xs uppercase tracking-wide"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
           Offer Name
-          <ArrowUpDown className="ml-2 h-4 w-4" />
+          <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
         </Button>
+      ),
+      cell: ({ row }) => (
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium text-sm">{row.getValue("offerName")}</span>
+          <span className="text-xs text-muted-foreground">{row.original.duration}</span>
+        </div>
       ),
     },
     {
-      accessorKey: "duration",
-      header: "Duration",
+      accessorKey: "offerType",
+      header: "Type",
+      cell: ({ row }) => {
+        const type = (row.getValue("offerType") as string) ?? "Other";
+        const config = offerTypeConfig[type] ?? offerTypeConfig["Other"];
+        return (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${config.className}`}>
+            {config.icon}
+            {type}
+          </span>
+        );
+      },
     },
     {
-      accessorKey: "bundlesUSSD",
-      header: "Bundles USSD",
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as string;
+        const isAvailable = status === "available";
+        return (
+          <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${
+            isAvailable ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${isAvailable ? "bg-green-500" : "bg-red-500"}`} />
+            {isAvailable ? "Available" : "Disabled"}
+          </span>
+        );
+      },
     },
     {
       accessorKey: "price",
-      header: "Price",
+      header: ({ column }) => (
+        <Button
+          variant="ghost"
+          className="px-0 font-semibold text-xs uppercase tracking-wide"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Price
+          <ArrowUpDown className="ml-2 h-3.5 w-3.5" />
+        </Button>
+      ),
+      cell: ({ row }) => (
+        <span className="font-semibold text-sm">KES {parseFloat(row.getValue("price")).toFixed(2)}</span>
+      ),
+    },
+    {
+      accessorKey: "commission",
+      header: "Commission",
       cell: ({ row }) => {
-        const price = parseFloat(row.getValue("price"));
-        const formatted = new Intl.NumberFormat("en-US", {
-          style: "currency",
-          currency: "KES",
-        }).format(price);
-        return <div>{formatted}</div>;
+        const commission = row.getValue("commission") as number | undefined;
+        if (!commission) return <span className="text-muted-foreground text-xs">—</span>;
+        return <span className="text-sm text-green-600 font-medium">KES {commission.toFixed(2)}</span>;
+      },
+    },
+    {
+      accessorKey: "bundlesUSSD",
+      header: "USSD",
+      cell: ({ row }) => (
+        <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono whitespace-nowrap">
+          {row.getValue("bundlesUSSD")}
+        </code>
+      ),
+    },
+    {
+      accessorKey: "dialingSIM",
+      header: "SIM",
+      cell: ({ row }) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+          {row.getValue("dialingSIM")}
+        </span>
+      ),
+    },
+    {
+      id: "processingType",
+      header: "Processing",
+      cell: ({ row }) => {
+        const { isMultiSession, isSimpleUSSD } = row.original;
+        if (isMultiSession) {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+              Multi-Session
+            </span>
+          );
+        }
+        if (isSimpleUSSD) {
+          return (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
+              Simple USSD
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+            Normal USSD
+          </span>
+        );
       },
     },
     {
       id: "actions",
+      enableHiding: false,
       cell: ({ row }) => {
         const bundle = row.original;
         return (
@@ -144,7 +230,10 @@ export function BundlesTable({ userId }: { userId: string }) {
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuItem
-                onClick={() => navigator.clipboard.writeText(bundle._id)}
+                onClick={() => {
+                  navigator.clipboard.writeText(bundle._id);
+                  toast.success("Bundle ID copied");
+                }}
               >
                 Copy Bundle ID
               </DropdownMenuItem>
@@ -153,23 +242,20 @@ export function BundlesTable({ userId }: { userId: string }) {
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => toggleStatus({ id: bundle._id, userId })}
-                className={
-                  bundle.status === "available"
-                    ? "text-red-500"
-                    : "text-blue-500"
-                }
+                onClick={async () => {
+                  await toggleStatus({ id: bundle._id, userId });
+                  toast.success(`Bundle ${bundle.status === "available" ? "disabled" : "enabled"}`);
+                }}
+                className={bundle.status === "available" ? "text-orange-600" : "text-green-600"}
               >
-                {bundle.status === "available" ? "Disable" : "Activate"}
+                {bundle.status === "available" ? "Disable" : "Enable"}
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => {
-                  if (
-                    window.confirm(
-                      "Are you sure you want to delete this bundle?"
-                    )
-                  ) {
+                  if (window.confirm("Are you sure you want to delete this bundle?")) {
                     deleteBundle({ id: bundle._id, userId });
+                    toast.success("Bundle deleted");
                   }
                 }}
                 className="text-red-500"
@@ -184,15 +270,12 @@ export function BundlesTable({ userId }: { userId: string }) {
   ];
 
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
   const table = useReactTable({
-    data: bundles || [],
+    data: (bundles as Bundle[]) || [],
     columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
@@ -202,192 +285,130 @@ export function BundlesTable({ userId }: { userId: string }) {
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-    },
-    initialState: {
-      pagination: {
-        pageSize: 6,
-      },
-    },
+    state: { sorting, columnFilters, columnVisibility, rowSelection },
+    initialState: { pagination: { pageSize: 8 } },
   });
-
-  const handleUpdateBundle = async (
-    updatedBundle: Partial<Omit<Bundle, "_id" | "_creationTime" | "userId">>
-  ) => {
-    if (editingBundle) {
-      await updateBundle({
-        id: editingBundle._id,
-        userId,
-        ...updatedBundle,
-      });
-      setEditingBundle(null);
-      toast.success("Bundle updated successfully");
-    }
-  };
 
   if (bundles === undefined) {
     return (
-      <div className="flex flex-col justify-center items-center w-full h-[200px]">
-        <div className="flex flex-row gap-2 justify-center h-full items-center">
-          <svg
-            aria-hidden="true"
-            className="inline w-8 h-8 text-gray-200 animate-spin dark:text-gray-600 fill-neutral-500"
-            viewBox="0 0 100 101"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-              fill="currentColor"
-            />
-            <path
-              d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-              fill="currentFill"
-            />
-          </svg>
-          <span className="text-neutral-500 ">Loading ...</span>
+      <div className="flex items-center justify-center w-full h-48 gap-2 text-muted-foreground">
+        <div className="w-5 h-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
+        <span className="text-sm">Loading offers...</span>
+      </div>
+    );
+  }
+
+  if (bundles.length === 0) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center py-16 gap-4">
+        <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
+          <Package className="h-7 w-7 text-muted-foreground" />
         </div>
+        <div className="text-center">
+          <p className="font-semibold text-base">No offers yet</p>
+          <p className="text-sm text-muted-foreground mt-1">Create your first offer to get started.</p>
+        </div>
+        <AddBundleModal userId={userId} />
       </div>
     );
   }
 
   return (
     <div className="w-full space-y-4">
-      <Card className="shadow-none">
-        <CardContent className="pt-6">
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between w-full ">
-              <div className="flex items-center space-x-2">
-                <Input
-                  placeholder="Filter offers..."
-                  value={
-                    (table
-                      .getColumn("offerName")
-                      ?.getFilterValue() as string) ?? ""
-                  }
-                  onChange={(event) =>
-                    table
-                      .getColumn("offerName")
-                      ?.setFilterValue(event.target.value)
-                  }
-                  className=" max-w-sm"
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline">
-                      Columns <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {table
-                      .getAllColumns()
-                      .filter((column) => column.getCanHide())
-                      .map((column) => {
-                        return (
-                          <DropdownMenuCheckboxItem
-                            key={column.id}
-                            className="capitalize"
-                            checked={column.getIsVisible()}
-                            onCheckedChange={(value) =>
-                              column.toggleVisibility(!!value)
-                            }
-                          >
-                            {column.id}
-                          </DropdownMenuCheckboxItem>
-                        );
-                      })}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-              <div className="ml-auto">
-                <AddBundleModal userId={userId} />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="rounded-md border">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Input
+            placeholder="Search offers..."
+            value={(table.getColumn("offerName")?.getFilterValue() as string) ?? ""}
+            onChange={(e) => table.getColumn("offerName")?.setFilterValue(e.target.value)}
+            className="max-w-xs h-9"
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9">
+                Columns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {table
+                .getAllColumns()
+                .filter((col) => col.getCanHide())
+                .map((col) => (
+                  <DropdownMenuCheckboxItem
+                    key={col.id}
+                    className="capitalize"
+                    checked={col.getIsVisible()}
+                    onCheckedChange={(value) => col.toggleVisibility(!!value)}
+                  >
+                    {col.id}
+                  </DropdownMenuCheckboxItem>
+                ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        <AddBundleModal userId={userId} />
+      </div>
+
+      <div className="rounded-lg border overflow-hidden">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow key={headerGroup.id} className="bg-muted/50 hover:bg-muted/50">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
+                  <TableHead key={header.id} className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                   </TableHead>
                 ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="hover:bg-muted/30 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="capitalize">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
+                <TableCell colSpan={columns.length} className="h-24 text-center text-muted-foreground text-sm">
+                  No offers match your search.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
-        </div>
-        <div className="space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
+
+      <div className="flex items-center justify-between py-1">
+        <p className="text-xs text-muted-foreground">
+          {table.getFilteredSelectedRowModel().rows.length > 0
+            ? `${table.getFilteredSelectedRowModel().rows.length} of ${table.getFilteredRowModel().rows.length} selected`
+            : `${table.getFilteredRowModel().rows.length} offer${table.getFilteredRowModel().rows.length !== 1 ? "s" : ""}`}
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => table.previousPage()} disabled={!table.getCanPreviousPage()}>
             Previous
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
+          <span className="text-xs text-muted-foreground">
+            Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => table.nextPage()} disabled={!table.getCanNextPage()}>
             Next
           </Button>
         </div>
       </div>
+
       {editingBundle && (
-        <EditBundleModal
-          bundle={editingBundle}
-          onClose={() => setEditingBundle(null)}
-          onUpdate={handleUpdateBundle}
-        />
+        <EditBundleModal bundle={editingBundle} onClose={() => setEditingBundle(null)} />
       )}
     </div>
   );

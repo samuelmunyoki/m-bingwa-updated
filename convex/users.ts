@@ -504,8 +504,9 @@ export const createUserIfNotExists = mutation({
     phoneNumber: v.string(),
     name: v.optional(v.string()),
     email: v.optional(v.string()),
+    userId: v.optional(v.string()),
   },
-  handler: async (ctx, { phoneNumber, name, email }) => {
+  handler: async (ctx, { phoneNumber, name, email, userId: providedUserId }) => {
     console.log("createUserIfNotExists CALLED");
     console.log("phoneNumber:", phoneNumber);
     console.log("name:", name);
@@ -543,8 +544,8 @@ export const createUserIfNotExists = mutation({
       };
     }
     
-    // Generate a unique userId
-    const userId = `user_${Math.random().toString(36).substr(2, 25)}`;
+    // Use provided userId (e.g. from Clerk) or generate one
+    const userId = providedUserId || `user_${Math.random().toString(36).substr(2, 25)}`;
     console.log("🆕 Creating new user with userId:", userId);
     
     try {
