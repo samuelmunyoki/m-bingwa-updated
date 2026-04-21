@@ -23,7 +23,6 @@ import { CalendarDays, Clock, CreditCard, CalendarRange, AlertTriangle, BadgeChe
 import React, { useCallback, useState, useEffect } from "react";
 import { AdminPriceSettings } from "./subscription-setting";
 import { useAction, useQuery, useMutation } from "convex/react";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -117,11 +116,15 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
     setPromoError(null);
 
     try {
-      const client = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-      const result = await client.query(api.features.promo_codes.validatePromoCode, {
-        promoCode: promoCode.toUpperCase(),
-        userId: user.userId,
+      const response = await fetch("/api/validate-promo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          promoCode: promoCode.toUpperCase(),
+          userId: user.userId,
+        }),
       });
+      const result = await response.json();
 
       if (result.status === "success" && result.isValid) {
         setValidatedPromo(result.data);
@@ -311,7 +314,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
           </div>
           <div className="border-b border-neutral-200 mb-4" />
 
-          <ScrollArea className="h-full pr-4">
+          <ScrollArea className="flex-1 min-h-0 pr-4">
             <AdminPriceSettings isAdmin={user.isAdmin} currentPrice={pricePerDay} />
 
             {isLoading ? (
