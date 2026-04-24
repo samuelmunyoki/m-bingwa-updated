@@ -112,6 +112,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   sendEmailTokenHttp,
   verifyEmailTokenHttp,
   getUserByEmailHttp,
+  ensureClerkUser,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1111,6 +1112,12 @@ http.route({
   path: "/api/email-token/verify/",
   method: "POST",
   handler: verifyEmailTokenHttp,
+});
+
+http.route({
+  path: "/api/users/ensure-clerk/",
+  method: "POST",
+  handler: ensureClerkUser,
 });
 
 export default http;

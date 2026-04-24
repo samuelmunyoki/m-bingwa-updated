@@ -14,6 +14,7 @@ import {
   IconCreditCard,
   IconAdjustments,
   IconDeviceMobileMessage,
+  IconChartBar,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
@@ -33,6 +34,7 @@ import USSD_DialerMain from "@/app/_components/ussd_dialer";
 import SchedulerMain from "@/app/_components/scheduler";
 import BlacklistMain from "@/app/_components/blacklist";
 import SettingsMain from "@/app/_components/settings";
+import StatisticsMain from "@/app/_components/statistics";
 import ConvexMigration from "@/app/_components/migration";
 import {
   Accordion,
@@ -201,6 +203,13 @@ export default function Dashboard() {
       href: "#",
       icon: (
         <IconWorldWww className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
+      label: "Statistics",
+      href: "#",
+      icon: (
+        <IconChartBar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
     // {
@@ -372,6 +381,7 @@ export default function Dashboard() {
         {navItem === "Store" && <StoreMain userId={userId} />}
         {navItem === "Transactions" && <TransactionsMain userId={userId} />}
         {navItem === "Website" && <WebsiteMain userId={userId} />}
+        {navItem === "Statistics" && <StatisticsMain userId={userId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
       </div>
     </div>

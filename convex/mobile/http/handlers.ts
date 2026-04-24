@@ -1752,14 +1752,15 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
   }
 
   try {
-    const { 
-      ussdCode, 
-      userId, 
-      repeatDays, 
-      status, 
-      scheduledTimeStamp, 
-      repeatDaily, 
+    const {
+      ussdCode,
+      userId,
+      repeatDays,
+      status,
+      scheduledTimeStamp,
+      repeatDaily,
       messageId,
+      localId,
       offerId,
       offerName,
       offerDuration,
@@ -1779,6 +1780,7 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       scheduledTimeStamp,
       repeatDaily,
       messageId,
+      localId,
       offerId,
       offerName,
       offerDuration,
@@ -5859,20 +5861,26 @@ export const insertLogsHttp = httpAction(async (ctx, request) => {
   }
  
   const { logs } = body;
- 
+
   if (!Array.isArray(logs) || logs.length === 0) {
     return createResponse("error", null, "Missing or empty logs array");
   }
- 
+
+  const sanitizedLogs = logs.map((log: any) => {
+    const entry = { ...log };
+    if (entry.userId === null) delete entry.userId;
+    return entry;
+  });
+
   try {
     const result = await ctx.runMutation(
       api.features.appLogs.insertLogs,
-      { logs }
+      { logs: sanitizedLogs }
     );
     return createResponse("success", result, null);
   } catch (error) {
     console.error(error);
-    return createResponse("error", null, "Failed to insert logs");
+    return createResponse("error", null, `Failed to insert logs: ${error instanceof Error ? error.message : String(error)}`);
   }
 });
 
@@ -5921,7 +5929,7 @@ export const getLogsHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Provide manufacturer, sessionId, or userId query param");
   } catch (error) {
     console.error(error);
-    return createResponse("error", null, "Failed to fetch logs");
+    return createResponse("error", null, `Failed to fetch logs: ${error instanceof Error ? error.message : String(error)}`);
   }
 });
 
@@ -6117,5 +6125,70 @@ export const verifyEmailTokenHttp = httpAction(async (ctx, request) => {
     return createResponse("success", { message: "Token verified" });
   } catch (e) {
     return createResponse("error", null, `Verification failed: ${e}`);
+  }
+});
+
+// Ensure a user exists in Clerk (find by email, or create via Backend API)
+export const ensureClerkUser = httpAction(async (_ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { email, firstName, lastName } = body ?? {};
+  if (!email) {
+    return createResponse("error", null, "Missing email");
+  }
+
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    return createResponse("error", null, "Server misconfiguration: missing CLERK_SECRET_KEY");
+  }
+
+  try {
+    // 1. Try to find existing user by email
+    const searchResp = await fetch(
+      `https://api.clerk.com/v1/users?email_address=${encodeURIComponent(email)}&limit=1`,
+      { headers: { Authorization: `Bearer ${secretKey}` } }
+    );
+    if (searchResp.ok) {
+      const users: any[] = await searchResp.json();
+      if (users.length > 0) {
+        return createResponse("success", { clerkUserId: users[0].id, isNew: false });
+      }
+    }
+
+    // 2. User not found — create via Backend API
+    const createResp = await fetch("https://api.clerk.com/v1/users", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email_address: [email],
+        first_name: firstName ?? "",
+        last_name: lastName ?? "",
+        skip_password_requirement: true,
+        skip_password_checks: true,
+      }),
+    });
+
+    const created = await createResp.json();
+    if (!createResp.ok) {
+      console.error("Clerk create user failed:", JSON.stringify(created));
+      return createResponse("error", null, created?.errors?.[0]?.message ?? "Failed to create Clerk user");
+    }
+
+    return createResponse("success", { clerkUserId: created.id, isNew: true });
+  } catch (e) {
+    console.error("ensureClerkUser error:", e);
+    return createResponse("error", null, `Internal error: ${e}`);
   }
 });

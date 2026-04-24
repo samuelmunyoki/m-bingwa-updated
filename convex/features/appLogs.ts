@@ -36,16 +36,16 @@ export const getLogsByManufacturer = query({
       .query("appLogs")
       .withIndex("by_device", (q) =>
         q.eq("deviceManufacturer", args.manufacturer.toLowerCase())
-      )
-      .order("desc");
+      );
 
     if (args.tag) {
       return await q
         .filter((q) => q.eq(q.field("tag"), args.tag))
+        .order("desc")
         .take(limit);
     }
 
-    return await q.take(limit);
+    return await q.order("desc").take(limit);
   },
 });
  
