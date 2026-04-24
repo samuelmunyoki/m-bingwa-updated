@@ -36,6 +36,7 @@ import type * as features_retryConfigs from "../features/retryConfigs.js";
 import type * as features_scheduled_events from "../features/scheduled_events.js";
 import type * as features_serviceStatus from "../features/serviceStatus.js";
 import type * as features_sms from "../features/sms.js";
+import type * as features_statistics from "../features/statistics.js";
 import type * as features_stores from "../features/stores.js";
 import type * as features_subscription_price from "../features/subscription_price.js";
 import type * as features_totalCommission from "../features/totalCommission.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   "features/scheduled_events": typeof features_scheduled_events;
   "features/serviceStatus": typeof features_serviceStatus;
   "features/sms": typeof features_sms;
+  "features/statistics": typeof features_statistics;
   "features/stores": typeof features_stores;
   "features/subscription_price": typeof features_subscription_price;
   "features/totalCommission": typeof features_totalCommission;

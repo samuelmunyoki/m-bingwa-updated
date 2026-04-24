@@ -105,6 +105,7 @@ export default defineSchema({
     scheduledTimeStamp: v.number(),
     repeatDaily: v.boolean(),
     messageId: v.optional(v.string()),
+    localId: v.optional(v.string()),
     offerId: v.optional(v.string()),
     offerName: v.optional(v.string()),
     offerDuration: v.optional(v.string()),
@@ -116,7 +117,8 @@ export default defineSchema({
     responseValidatorText: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
-    .index("by_messageId", ["messageId"]),
+    .index("by_messageId", ["messageId"])
+    .index("by_localId", ["localId", "userId"]),
 
   stores: defineTable({
     storeName: v.string(),
@@ -433,6 +435,26 @@ export default defineSchema({
   })
     .index("by_email", ["email"])
     .index("by_token", ["token"]),
+
+  commissionByType: defineTable({
+    userId: v.string(),
+    day: v.number(),
+    offerType: v.string(),
+    commissionAmount: v.number(),
+    salesCount: v.number(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_user_and_day", ["userId", "day"])
+    .index("by_user_day_type", ["userId", "day", "offerType"]),
+
+  autoSaverStats: defineTable({
+    userId: v.string(),
+    day: v.number(),
+    savedCount: v.number(),
+    skippedCount: v.number(),
+  })
+    .index("by_user_id", ["userId"])
+    .index("by_user_and_day", ["userId", "day"]),
 
   deviceHeartbeats: defineTable({
     phoneNumber: v.string(),
