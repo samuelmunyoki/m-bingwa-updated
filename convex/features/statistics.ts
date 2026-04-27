@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query } from "../_generated/server";
+import { query, mutation } from "../_generated/server";
 
 export const getMessagesForStats = query({
   args: {
@@ -60,7 +60,7 @@ export const getAutoSaverStatsInRange = query({
   },
 });
 
-export const upsertCommissionByType = query({
+export const upsertCommissionByType = mutation({
   args: {
     userId: v.string(),
     day: v.number(),
@@ -75,6 +75,51 @@ export const upsertCommissionByType = query({
         q.eq("userId", args.userId).eq("day", args.day).eq("offerType", args.offerType)
       )
       .first();
-    return existing;
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        commissionAmount: args.commissionAmount,
+        salesCount: args.salesCount,
+      });
+      return { success: true, action: "updated" };
+    }
+    await ctx.db.insert("commissionByType", {
+      userId: args.userId,
+      day: args.day,
+      offerType: args.offerType,
+      commissionAmount: args.commissionAmount,
+      salesCount: args.salesCount,
+    });
+    return { success: true, action: "created" };
+  },
+});
+
+export const upsertAutoSaverStats = mutation({
+  args: {
+    userId: v.string(),
+    day: v.number(),
+    savedCount: v.number(),
+    skippedCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("autoSaverStats")
+      .withIndex("by_user_and_day", (q) =>
+        q.eq("userId", args.userId).eq("day", args.day)
+      )
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        savedCount: args.savedCount,
+        skippedCount: args.skippedCount,
+      });
+      return { success: true, action: "updated" };
+    }
+    await ctx.db.insert("autoSaverStats", {
+      userId: args.userId,
+      day: args.day,
+      savedCount: args.savedCount,
+      skippedCount: args.skippedCount,
+    });
+    return { success: true, action: "created" };
   },
 });

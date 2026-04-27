@@ -113,6 +113,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   verifyEmailTokenHttp,
   getUserByEmailHttp,
   ensureClerkUser,
+  upsertCommissionByTypeHttp,
+  upsertAutoSaverStatsHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1118,6 +1120,20 @@ http.route({
   path: "/api/users/ensure-clerk/",
   method: "POST",
   handler: ensureClerkUser,
+});
+
+// ============= STATS SYNC ROUTES =============
+
+http.route({
+  path: "/api/stats/commission-by-type/upsert/",
+  method: "POST",
+  handler: upsertCommissionByTypeHttp,
+});
+
+http.route({
+  path: "/api/stats/autosaver/upsert/",
+  method: "POST",
+  handler: upsertAutoSaverStatsHttp,
 });
 
 export default http;
