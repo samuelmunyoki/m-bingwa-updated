@@ -2,9 +2,8 @@ import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 
 export const createBalanceRequest = mutation({
-  args: { userId: v.string(), deviceId: v.string() },
-  handler: async (ctx, { userId, deviceId }) => {
-    // Cancel any previous pending requests for this user
+  args: { userId: v.string(), deviceId: v.string(), simSlot: v.optional(v.string()) },
+  handler: async (ctx, { userId, deviceId, simSlot }) => {
     const existing = await ctx.db
       .query("balanceRequests")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -17,6 +16,7 @@ export const createBalanceRequest = mutation({
     const requestId = await ctx.db.insert("balanceRequests", {
       userId,
       deviceId,
+      simSlot,
       status: "pending",
       requestedAt: Date.now(),
     });

@@ -3,6 +3,11 @@ import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
 
+function toBase64Url(input: string): string {
+  return Buffer.from(input).toString("base64")
+    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
 async function getAccessToken(clientEmail: string, privateKey: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const claim = {
@@ -13,22 +18,22 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
     iat: now,
   };
 
-  const headerB64 = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }))
-    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-  const claimB64 = btoa(JSON.stringify(claim))
-    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  const headerB64 = toBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claimB64 = toBase64Url(JSON.stringify(claim));
   const signingInput = `${headerB64}.${claimB64}`;
 
-  const pemKey = privateKey.replace(/\\n/g, "\n");
+  // Normalize private key — handle both literal \n and actual newlines
+  const pemKey = privateKey.replace(/\\n/g, "\n").trim();
   const keyData = pemKey
-    .replace(/-----BEGIN PRIVATE KEY-----/, "")
-    .replace(/-----END PRIVATE KEY-----/, "")
-    .replace(/\n/g, "");
-  const binaryKey = Uint8Array.from(atob(keyData), (c) => c.charCodeAt(0));
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\s/g, "");
+
+  const binaryKey = Buffer.from(keyData, "base64");
 
   const cryptoKey = await crypto.subtle.importKey(
     "pkcs8",
-    binaryKey.buffer,
+    binaryKey,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
@@ -37,10 +42,10 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
   const signature = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     cryptoKey,
-    new TextEncoder().encode(signingInput)
+    Buffer.from(signingInput)
   );
 
-  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+  const signatureB64 = Buffer.from(signature).toString("base64")
     .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 
   const jwt = `${signingInput}.${signatureB64}`;
@@ -50,13 +55,17 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
-  const tokenData = await tokenResp.json();
+  const tokenData: any = await tokenResp.json();
+  if (!tokenData.access_token) {
+    console.error("Token exchange failed:", JSON.stringify(tokenData));
+    throw new Error(`Token exchange failed: ${tokenData.error_description ?? tokenData.error ?? "unknown"}`);
+  }
   return tokenData.access_token;
 }
 
 export const sendBalanceCheckPush = action({
-  args: { userId: v.string(), requestId: v.string() },
-  handler: async (ctx, { userId, requestId }): Promise<{ success: boolean; error?: string }> => {
+  args: { userId: v.string(), requestId: v.string(), simSlot: v.string() },
+  handler: async (ctx, { userId, requestId, simSlot }): Promise<{ success: boolean; error?: string }> => {
     const clientEmail: string | undefined = process.env.FCM_CLIENT_EMAIL;
     const privateKey: string | undefined = process.env.FCM_PRIVATE_KEY;
     const projectId: string | undefined = process.env.FCM_PROJECT_ID;
@@ -91,7 +100,7 @@ export const sendBalanceCheckPush = action({
           body: JSON.stringify({
             message: {
               token: fcmRecord.token,
-              data: { type: "check_balance", requestId, userId },
+              data: { type: "check_balance", requestId, userId, simSlot },
             },
           }),
         }
