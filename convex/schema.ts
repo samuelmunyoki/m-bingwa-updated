@@ -15,6 +15,7 @@ export default defineSchema({
     subscriptionEnds: v.optional(v.number()),
     subscriptionId: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
+    webSessionToken: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_checkoutRequestID", ["subscriptionId"])
@@ -531,6 +532,28 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_session", ["sessionId"])
     .index("by_timestamp", ["timestamp"]),
+
+  fcmTokens: defineTable({
+    userId: v.string(),
+    deviceId: v.string(),
+    token: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_deviceId", ["deviceId"]),
+
+  balanceRequests: defineTable({
+    userId: v.string(),
+    deviceId: v.string(),
+    status: v.union(v.literal("pending"), v.literal("completed"), v.literal("failed")),
+    requestedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    airtimeBalance: v.optional(v.string()),
+    bongaPoints: v.optional(v.string()),
+    expiryDate: v.optional(v.string()),
+    error: v.optional(v.string()),
+  })
+    .index("by_userId", ["userId"]),
 
 });
 

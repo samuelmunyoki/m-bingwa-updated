@@ -115,6 +115,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   ensureClerkUser,
   upsertCommissionByTypeHttp,
   upsertAutoSaverStatsHttp,
+  registerWebSessionHttp,
+  registerFcmTokenHttp,
+  submitBalanceResultHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1134,6 +1137,24 @@ http.route({
   path: "/api/stats/autosaver/upsert/",
   method: "POST",
   handler: upsertAutoSaverStatsHttp,
+});
+
+http.route({
+  path: "/api/web-session/register/",
+  method: "POST",
+  handler: registerWebSessionHttp,
+});
+
+http.route({
+  path: "/api/fcm-token/register/",
+  method: "POST",
+  handler: registerFcmTokenHttp,
+});
+
+http.route({
+  path: "/api/balance/result/",
+  method: "POST",
+  handler: submitBalanceResultHttp,
 });
 
 export default http;

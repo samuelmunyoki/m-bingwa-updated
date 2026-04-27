@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionsMain } from "@/app/_components/transactions/transactions";
-import FloatingNotification from "@/components/ui/floating-notification";
+import BalanceBar from "@/app/_components/balance/BalanceBar";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -76,6 +76,35 @@ export default function Dashboard() {
   }, [userId, router]);
 
   const dbUser = useQuery(api.users.getUserById, { userId });
+
+  // ── Web session guard ─────────────────────────────────────────────────────
+  const registerWebSession = useMutation(api.users.registerWebSession);
+  const liveWebToken = useQuery(
+    api.users.getWebSessionToken,
+    userId !== "skip" ? { userId } : "skip"
+  );
+
+  useEffect(() => {
+    if (userId === "skip") return;
+    const stored = localStorage.getItem("wsToken");
+    if (!stored) {
+      // First login on this browser — register a new session
+      registerWebSession({ userId }).then((res: any) => {
+        if (res?.token) localStorage.setItem("wsToken", res.token);
+      });
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!liveWebToken) return;
+    const stored = localStorage.getItem("wsToken");
+    if (stored && stored !== liveWebToken) {
+      // Another browser logged in — kick this one out
+      localStorage.removeItem("wsToken");
+      signOut().then(() => router.push("/sign-in?reason=session_replaced"));
+    }
+  }, [liveWebToken]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (dbUser == undefined || dbUser == null) {
@@ -370,7 +399,7 @@ export default function Dashboard() {
         </SidebarBody>
       </Sidebar>
       <div className="z-30 w-full !h-full flex flex-col lg:mr-1 lg:pb-1 overflow-hidden">
-        <FloatingNotification message="Some settings were changes. Kindly connect your agent smartphone to internet for syncing."/>
+        <BalanceBar userId={userId} />
         {navItem === "Dashboard" && isAdmin && <DashboardMain />}
         {navItem === "USSD Dialer" && <USSD_DialerMain user={dbUser} />}
         {navItem === "Blacklist" && <BlacklistMain user={dbUser} />}
