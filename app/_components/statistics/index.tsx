@@ -552,7 +552,7 @@ function Overview({ stats, onNavigate }: { stats: Stats; onNavigate: (v: View) =
         />
         <StatCard
           title="Top Bundles"
-          value={stats.topBundle[0] === "—" ? "—" : stats.topBundle[0].length > 10 ? stats.topBundle[0].slice(0, 10) + "…" : stats.topBundle[0]}
+          value={stats.topBundle[0] === "—" ? "—" : stats.topBundle[0]}
           subtitle={`${stats.weekBundles} sold this week`}
           bars={stats.bundleBars.length ? stats.bundleBars : [{ label: "", value: 0 }]}
           color="#3B82F6"
