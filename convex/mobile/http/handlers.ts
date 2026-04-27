@@ -6192,3 +6192,62 @@ export const ensureClerkUser = httpAction(async (_ctx, request) => {
     return createResponse("error", null, `Internal error: ${e}`);
   }
 });
+
+// ============= STATS SYNC HANDLERS =============
+
+export const upsertCommissionByTypeHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+  const { userId, day, offerType, commissionAmount, salesCount } = body;
+  if (!userId || day === undefined || !offerType || commissionAmount === undefined || salesCount === undefined) {
+    return createResponse("error", null, "Missing required fields");
+  }
+  try {
+    const result = await ctx.runMutation(api.features.statistics.upsertCommissionByType, {
+      userId,
+      day,
+      offerType,
+      commissionAmount,
+      salesCount,
+    });
+    return createResponse("success", result);
+  } catch (e: any) {
+    console.error("upsertCommissionByType error:", e);
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const upsertAutoSaverStatsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+  const { userId, day, savedCount, skippedCount } = body;
+  if (!userId || day === undefined || savedCount === undefined || skippedCount === undefined) {
+    return createResponse("error", null, "Missing required fields");
+  }
+  try {
+    const result = await ctx.runMutation(api.features.statistics.upsertAutoSaverStats, {
+      userId,
+      day,
+      savedCount,
+      skippedCount,
+    });
+    return createResponse("success", result);
+  } catch (e: any) {
+    console.error("upsertAutoSaverStats error:", e);
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});

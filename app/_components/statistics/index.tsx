@@ -25,7 +25,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Period = 0 | 1 | 2;
+type Period = 0 | 1 | 2; // 0=Daily (Sun-Sat), 1=Weekly (W1-W4), 2=Monthly (6 months)
 type View = "overview" | "commission" | "airtime" | "bundles" | "sales" | "autosaver";
 
 interface BarItem {
@@ -42,64 +42,71 @@ function getTodayMidnight(): number {
   return d.getTime();
 }
 
-function tsToMidnight(ts: number): number {
-  const d = new Date(ts);
+function getWeekStart(): number {
+  const d = new Date();
   d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  return d.getTime() - d.getDay() * 86_400_000; // Sunday
 }
 
-function dayLabel(ts: number, period: Period): string {
-  const d = new Date(ts);
-  if (period === 1) return ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][d.getDay()];
-  return `${d.getDate()}`;
+function getMonthStart(): number {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
 }
 
-// ─── Bar Generators ───────────────────────────────────────────────────────────
+function getMonthEnd(): number {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime(); // exclusive
+}
 
-function genCommBars(
-  records: { day: number; totalCommissionAmount: number; totalAirtimeUsed?: number | null }[],
+function get6MonthsAgoStart(): number {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth() - 5, 1).getTime();
+}
+
+// ─── Bar Generator (matches Android: Daily/Weekly/Monthly) ────────────────────
+
+function genBars(
   period: Period,
-  field: "totalCommissionAmount" | "totalAirtimeUsed"
+  getValue: (start: number, end: number) => number
 ): BarItem[] {
-  const days = period === 0 ? 1 : period === 1 ? 7 : 30;
-  const today = getTodayMidnight();
-  return Array.from({ length: days }, (_, i) => {
-    const dayTs = today - (days - 1 - i) * 86_400_000;
-    const rec = records.find((r) => tsToMidnight(r.day) === dayTs);
-    const val =
-      field === "totalAirtimeUsed"
-        ? (rec?.totalAirtimeUsed ?? 0)
-        : (rec?.totalCommissionAmount ?? 0);
-    return { label: days === 1 ? "Today" : dayLabel(dayTs, period), value: val };
-  });
-}
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayTs = today.getTime();
 
-function genMsgBars(
-  messages: { time: number; processed?: string | null }[],
-  period: Period
-): BarItem[] {
-  const days = period === 0 ? 1 : period === 1 ? 7 : 30;
-  const today = getTodayMidnight();
-  return Array.from({ length: days }, (_, i) => {
-    const dayTs = today - (days - 1 - i) * 86_400_000;
-    const dayEnd = dayTs + 86_400_000;
-    const count = messages.filter(
-      (m) => m.time >= dayTs && m.time < dayEnd && m.processed === "successful"
-    ).length;
-    return { label: days === 1 ? "Today" : dayLabel(dayTs, period), value: count };
-  });
-}
+  if (period === 0) {
+    // Daily: 7 bars Sun–Sat for the current week
+    const weekStart = todayTs - today.getDay() * 86_400_000;
+    return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, i) => {
+      const s = weekStart + i * 86_400_000;
+      return { label, value: getValue(s, s + 86_400_000) };
+    });
+  }
 
-function genAutoSaverBars(
-  records: { day: number; savedCount: number }[],
-  period: Period
-): BarItem[] {
-  const days = period === 0 ? 1 : period === 1 ? 7 : 30;
-  const today = getTodayMidnight();
-  return Array.from({ length: days }, (_, i) => {
-    const dayTs = today - (days - 1 - i) * 86_400_000;
-    const rec = records.find((r) => tsToMidnight(r.day) === dayTs);
-    return { label: days === 1 ? "Today" : dayLabel(dayTs, period), value: rec?.savedCount ?? 0 };
+  if (period === 1) {
+    // Weekly: W1–W4/W5 for current month (7-day chunks from 1st)
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const monthStart = new Date(year, month, 1).getTime();
+    const monthEnd = new Date(year, month + 1, 1).getTime();
+    const bars: BarItem[] = [];
+    let cur = monthStart;
+    let w = 1;
+    while (cur < monthEnd) {
+      const next = Math.min(cur + 7 * 86_400_000, monthEnd);
+      bars.push({ label: `W${w}`, value: getValue(cur, next) });
+      cur = next;
+      w++;
+    }
+    return bars;
+  }
+
+  // Monthly: past 6 months with abbreviated names
+  const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
+    const s = d.getTime();
+    const e = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+    return { label: names[d.getMonth()], value: getValue(s, e) };
   });
 }
 
@@ -168,11 +175,7 @@ function FullChart({
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
     <ResponsiveContainer width="100%" height={170}>
-      <BarChart
-        data={data}
-        barCategoryGap="25%"
-        margin={{ top: 4, right: 4, left: 4, bottom: 0 }}
-      >
+      <BarChart data={data} barCategoryGap="25%" margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
         <XAxis
           dataKey="label"
           tick={{ fontSize: 10, fill: "#9CA3AF" }}
@@ -180,10 +183,7 @@ function FullChart({
           tickLine={false}
           interval={data.length > 14 ? Math.floor(data.length / 7) : 0}
         />
-        <Tooltip
-          content={<CustomTooltip formatter={formatter} />}
-          cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
-        />
+        <Tooltip content={<CustomTooltip formatter={formatter} />} cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }} />
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {data.map((d, i) => (
             <Cell
@@ -212,42 +212,25 @@ interface StatCardProps {
   onClick: () => void;
 }
 
-function StatCard({
-  title,
-  value,
-  subtitle,
-  bars,
-  color,
-  gradient,
-  border,
-  icon,
-  onClick,
-}: StatCardProps) {
+function StatCard({ title, value, subtitle, bars, color, gradient, border, icon, onClick }: StatCardProps) {
   return (
     <button
       onClick={onClick}
       className={cn(
         "group relative flex flex-col gap-2 p-4 rounded-2xl border transition-all duration-200 text-left w-full",
         "hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:shadow-md",
-        gradient,
-        border
+        gradient, border
       )}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-xl bg-white/70 dark:bg-white/10 shadow-sm">
-            {icon}
-          </div>
-          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-            {title}
-          </span>
+          <div className="p-1.5 rounded-xl bg-white/70 dark:bg-white/10 shadow-sm">{icon}</div>
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{title}</span>
         </div>
         <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-neutral-500 group-hover:translate-x-0.5 transition-all duration-200" />
       </div>
       <div className="mt-0.5">
-        <div className="text-2xl font-bold text-neutral-800 dark:text-neutral-100 leading-tight tracking-tight">
-          {value}
-        </div>
+        <div className="text-2xl font-bold text-neutral-800 dark:text-neutral-100 leading-tight tracking-tight">{value}</div>
         <div className="text-xs text-neutral-400 mt-0.5 font-medium truncate">{subtitle}</div>
       </div>
       <MiniBar data={bars} color={color} />
@@ -255,16 +238,10 @@ function StatCard({
   );
 }
 
-// ─── Period Toggle ────────────────────────────────────────────────────────────
+// ─── Period Toggle (Daily / Weekly / Monthly) ─────────────────────────────────
 
-function PeriodToggle({
-  period,
-  onChange,
-}: {
-  period: Period;
-  onChange: (p: Period) => void;
-}) {
-  const labels = ["Today", "Week", "Month"];
+function PeriodToggle({ period, onChange }: { period: Period; onChange: (p: Period) => void }) {
+  const labels = ["Daily", "Weekly", "Monthly"];
   return (
     <div className="flex items-center bg-gray-100 dark:bg-neutral-800 rounded-xl p-1 gap-0.5">
       {labels.map((l, i) => (
@@ -285,24 +262,15 @@ function PeriodToggle({
   );
 }
 
-// ─── Summary Numbers ──────────────────────────────────────────────────────────
+// ─── Summary Numbers (TODAY / THIS WEEK / THIS MONTH) ─────────────────────────
 
-function SummaryNumbers({
-  items,
-}: {
-  items: { label: string; value: string; color: string }[];
-}) {
+function SummaryNumbers({ items }: { items: { label: string; value: string; color: string }[] }) {
   return (
     <div className="grid grid-cols-3 gap-2 mb-1">
       {items.map((item, i) => (
-        <div
-          key={i}
-          className="bg-gray-50 dark:bg-neutral-800 rounded-2xl p-3 text-center border border-neutral-100 dark:border-neutral-700"
-        >
+        <div key={i} className="bg-gray-50 dark:bg-neutral-800 rounded-2xl p-3 text-center border border-neutral-100 dark:border-neutral-700">
           <div className={cn("text-lg font-bold leading-tight", item.color)}>{item.value}</div>
-          <div className="text-[10px] text-neutral-400 mt-0.5 font-semibold uppercase tracking-wide">
-            {item.label}
-          </div>
+          <div className="text-[10px] text-neutral-400 mt-0.5 font-semibold uppercase tracking-wide">{item.label}</div>
         </div>
       ))}
     </div>
@@ -312,11 +280,7 @@ function SummaryNumbers({
 // ─── Section Title ────────────────────────────────────────────────────────────
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3">
-      {children}
-    </h3>
-  );
+  return <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3">{children}</h3>;
 }
 
 // ─── Detail Row ───────────────────────────────────────────────────────────────
@@ -339,20 +303,9 @@ const STATUS_PILL: Record<string, string> = {
   disabled: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
 };
 
-function DetailRow({
-  label,
-  sub,
-  right,
-  typeBadge,
-  statusBadge,
-  rank,
-}: {
-  label: string;
-  sub?: string;
-  right: string;
-  typeBadge?: string;
-  statusBadge?: string;
-  rank?: number;
+function DetailRow({ label, sub, right, typeBadge, statusBadge, rank }: {
+  label: string; sub?: string; right: string;
+  typeBadge?: string; statusBadge?: string; rank?: number;
 }) {
   return (
     <div className="flex items-center justify-between py-3 border-b border-neutral-100 dark:border-neutral-800 last:border-0">
@@ -363,30 +316,18 @@ function DetailRow({
           </span>
         )}
         <div className="min-w-0">
-          <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 truncate">
-            {label}
-          </div>
+          <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200 truncate">{label}</div>
           {sub && <div className="text-xs text-neutral-400 mt-0.5">{sub}</div>}
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0 ml-3">
         {typeBadge && (
-          <span
-            className={cn(
-              "text-[10px] px-2 py-0.5 rounded-full font-bold",
-              TYPE_PILL[typeBadge] ?? TYPE_PILL.Other
-            )}
-          >
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold", TYPE_PILL[typeBadge] ?? TYPE_PILL.Other)}>
             {typeBadge}
           </span>
         )}
         {statusBadge && (
-          <span
-            className={cn(
-              "text-[10px] px-2 py-0.5 rounded-full font-bold capitalize",
-              STATUS_PILL[statusBadge] ?? "bg-gray-100 text-gray-500"
-            )}
-          >
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-bold capitalize", STATUS_PILL[statusBadge] ?? "bg-gray-100 text-gray-500")}>
             {statusBadge.replace("-", " ")}
           </span>
         )}
@@ -416,7 +357,7 @@ function ListCard({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
-// ─── Empty State ──────────────────────────────────────────────────────────────
+// ─── Empty / Loading States ───────────────────────────────────────────────────
 
 function EmptyState({ message }: { message: string }) {
   return (
@@ -424,22 +365,16 @@ function EmptyState({ message }: { message: string }) {
       <div className="w-12 h-12 rounded-2xl bg-neutral-100 dark:bg-neutral-700 flex items-center justify-center">
         <BarChart2 className="h-6 w-6 text-neutral-300 dark:text-neutral-500" />
       </div>
-      <p className="text-xs text-neutral-400 text-center max-w-[220px] leading-relaxed">
-        {message}
-      </p>
+      <p className="text-xs text-neutral-400 text-center max-w-[220px] leading-relaxed">{message}</p>
     </div>
   );
 }
-
-// ─── Loading Skeleton ─────────────────────────────────────────────────────────
 
 function LoadingState() {
   return (
     <div className="flex flex-col gap-3 animate-pulse">
       <div className="grid grid-cols-2 gap-3">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-36 rounded-2xl bg-gray-100 dark:bg-neutral-800" />
-        ))}
+        {[...Array(4)].map((_, i) => <div key={i} className="h-36 rounded-2xl bg-gray-100 dark:bg-neutral-800" />)}
       </div>
       <div className="h-28 rounded-2xl bg-gray-100 dark:bg-neutral-800" />
     </div>
@@ -448,24 +383,70 @@ function LoadingState() {
 
 // ─── Stats Computation ────────────────────────────────────────────────────────
 
+type CommRec = { day: number; totalCommissionAmount: number; totalAirtimeUsed?: number | null };
+type MsgRec = { time: number; processed?: string | null; offerName?: string | null };
+type ByTypeRec = { offerType: string; commissionAmount: number; salesCount: number };
+type AutoRec = { day: number; savedCount: number; skippedCount: number };
+
 function computeStats(
-  commData: { day: number; totalCommissionAmount: number; totalAirtimeUsed?: number | null }[] | undefined,
-  msgData: { time: number; processed?: string | null; offerName?: string | null }[] | undefined,
-  byTypeData: { offerType: string; commissionAmount: number; salesCount: number }[] | undefined,
-  autoSaverData: { day: number; savedCount: number; skippedCount: number }[] | undefined,
+  commData: CommRec[] | undefined,
+  msgData: MsgRec[] | undefined,
+  byTypeData: ByTypeRec[] | undefined,
+  autoSaverData: AutoRec[] | undefined,
   period: Period
 ) {
-  const commRecords = commData ?? [];
+  const comm = commData ?? [];
   const msgs = msgData ?? [];
+  const byType = byTypeData ?? [];
+  const auto = autoSaverData ?? [];
 
-  const totalCommission = commRecords.reduce((s, r) => s + r.totalCommissionAmount, 0);
-  const totalAirtime = commRecords.reduce((s, r) => s + (r.totalAirtimeUsed ?? 0), 0);
-  const commBars = genCommBars(commRecords, period, "totalCommissionAmount");
-  const airtimeBars = genCommBars(commRecords, period, "totalAirtimeUsed");
+  const todayStart = getTodayMidnight();
+  const todayEnd = todayStart + 86_400_000;
+  const weekStart = getWeekStart();
+  const weekEnd = weekStart + 7 * 86_400_000;
+  const monthStart = getMonthStart();
+  const monthEnd = getMonthEnd();
 
-  const successful = msgs.filter((m) => m.processed === "successful");
+  // ── Commission ──────────────────────────────────────────────────────────────
+  const commInRange = (s: number, e: number) => comm.filter(r => r.day >= s && r.day < e);
+  const sumComm = (recs: CommRec[]) => recs.reduce((t, r) => t + r.totalCommissionAmount, 0);
+  const sumAirtime = (recs: CommRec[]) => recs.reduce((t, r) => t + (r.totalAirtimeUsed ?? 0), 0);
+
+  const todayCommission = sumComm(commInRange(todayStart, todayEnd));
+  const weekCommission = sumComm(commInRange(weekStart, weekEnd));
+  const monthCommission = sumComm(commInRange(monthStart, monthEnd));
+  const lastWeekCommission = sumComm(commInRange(weekStart - 7 * 86_400_000, weekStart));
+
+  const todayAirtime = sumAirtime(commInRange(todayStart, todayEnd));
+  const weekAirtime = sumAirtime(commInRange(weekStart, weekEnd));
+  const monthAirtime = sumAirtime(commInRange(monthStart, monthEnd));
+
+  const commBars = genBars(period, (s, e) => sumComm(commInRange(s, e)));
+  const airtimeBars = genBars(period, (s, e) => sumAirtime(commInRange(s, e)));
+
+  // ── Messages / Sales ────────────────────────────────────────────────────────
+  const msgsInRange = (s: number, e: number) => msgs.filter(m => m.time >= s && m.time < e);
+  const successIn = (s: number, e: number) => msgsInRange(s, e).filter(m => m.processed === "successful");
+
+  const todaySales = successIn(todayStart, todayEnd).length;
+  const weekSales = successIn(weekStart, weekEnd).length;
+  const monthSales = successIn(monthStart, monthEnd).length;
+
+  const salesBars = genBars(period, (s, e) => successIn(s, e).length);
+
+  // Status breakdown for the full dataset
+  const salesByStatus: Record<string, number> = {};
+  msgs.forEach(m => {
+    const st = m.processed ?? "pending";
+    salesByStatus[st] = (salesByStatus[st] ?? 0) + 1;
+  });
+  const totalMsgs = msgs.length;
+  const successRate = totalMsgs > 0 ? Math.round((salesByStatus["successful"] ?? 0) / totalMsgs * 100) : 0;
+
+  // ── Bundles ─────────────────────────────────────────────────────────────────
+  const weekSuccessful = successIn(weekStart, weekEnd);
   const bundleMap: Record<string, number> = {};
-  successful.forEach((m) => {
+  weekSuccessful.forEach(m => {
     const n = (m.offerName ?? "Unknown").trim() || "Unknown";
     bundleMap[n] = (bundleMap[n] ?? 0) + 1;
   });
@@ -477,37 +458,53 @@ function computeStats(
     fullName: name,
   }));
 
-  const salesByStatus: Record<string, number> = {};
-  msgs.forEach((m) => {
-    const s = m.processed ?? "pending";
-    salesByStatus[s] = (salesByStatus[s] ?? 0) + 1;
-  });
-  const totalSales = msgs.length;
-  const successRate =
-    totalSales > 0
-      ? Math.round(((salesByStatus["successful"] ?? 0) / totalSales) * 100)
-      : 0;
-  const salesBars = genMsgBars(msgs, period);
+  const bundleBarsChart = genBars(period, (s, e) => successIn(s, e).length);
 
-  const totalSaved = (autoSaverData ?? []).reduce((s, r) => s + r.savedCount, 0);
-  const totalSkipped = (autoSaverData ?? []).reduce((s, r) => s + r.skippedCount, 0);
-  const autoSaverBars = genAutoSaverBars(autoSaverData ?? [], period);
+  const todayBundles = successIn(todayStart, todayEnd).length;
+  const weekBundles = weekSales;
+  const monthBundles = monthSales;
 
+  // ── AutoSaver ───────────────────────────────────────────────────────────────
+  const autoInRange = (s: number, e: number) => auto.filter(r => r.day >= s && r.day < e);
+  const sumSaved = (recs: AutoRec[]) => recs.reduce((t, r) => t + r.savedCount, 0);
+  const sumSkipped = (recs: AutoRec[]) => recs.reduce((t, r) => t + r.skippedCount, 0);
+
+  const todaySaved = sumSaved(autoInRange(todayStart, todayEnd));
+  const weekSaved = sumSaved(autoInRange(weekStart, weekEnd));
+  const monthSaved = sumSaved(autoInRange(monthStart, monthEnd));
+  const totalSkipped = sumSkipped(auto);
+
+  const autoSaverBars = genBars(period, (s, e) => sumSaved(autoInRange(s, e)));
+
+  // ── By Type ─────────────────────────────────────────────────────────────────
   const typeMap: Record<string, { amount: number; count: number }> = {};
-  (byTypeData ?? []).forEach((r) => {
+  byType.forEach(r => {
     if (!typeMap[r.offerType]) typeMap[r.offerType] = { amount: 0, count: 0 };
     typeMap[r.offerType].amount += r.commissionAmount;
     typeMap[r.offerType].count += r.salesCount;
   });
-  const commByType = Object.entries(typeMap)
-    .map(([type, d]) => ({ type, ...d }))
-    .sort((a, b) => b.amount - a.amount);
+  const commByType = Object.entries(typeMap).map(([type, d]) => ({ type, ...d })).sort((a, b) => b.amount - a.amount);
+
+  // ── Percent change ───────────────────────────────────────────────────────────
+  const commPctChange = lastWeekCommission > 0
+    ? ((weekCommission - lastWeekCommission) / lastWeekCommission * 100).toFixed(0)
+    : weekCommission > 0 ? "+100" : "0";
+  const commIsUp = weekCommission >= lastWeekCommission;
 
   return {
-    totalCommission, totalAirtime, commBars, airtimeBars,
-    topBundle, totalBundlesSold: successful.length, bundleEntries, bundleBars,
-    salesByStatus, totalSales, successRate, salesBars,
-    totalSaved, totalSkipped, autoSaverBars,
+    // Commission
+    todayCommission, weekCommission, monthCommission, lastWeekCommission,
+    commPctChange, commIsUp, commBars,
+    // Airtime
+    todayAirtime, weekAirtime, monthAirtime, airtimeBars,
+    // Sales
+    todaySales, weekSales, monthSales, salesBars, salesByStatus, totalMsgs, successRate,
+    // Bundles
+    topBundle, bundleEntries, bundleBars, bundleBarsChart,
+    todayBundles, weekBundles, monthBundles,
+    // AutoSaver
+    todaySaved, weekSaved, monthSaved, totalSkipped, autoSaverBars,
+    // By type
     commByType,
   };
 }
@@ -516,67 +513,76 @@ type Stats = ReturnType<typeof computeStats>;
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-function Overview({
-  stats,
-  period,
-  onNavigate,
-}: {
-  stats: Stats;
-  period: Period;
-  onNavigate: (v: View) => void;
-}) {
-  const periodLabel = ["today", "this week", "this month"][period];
-
+function Overview({ stats, onNavigate }: { stats: Stats; onNavigate: (v: View) => void }) {
   return (
     <div className="flex flex-col gap-3 pb-4">
+      {/* Commission Banner */}
+      <button
+        onClick={() => onNavigate("commission")}
+        className="group flex flex-col gap-2 p-5 rounded-2xl border border-emerald-200 dark:border-emerald-800/40 bg-gradient-to-br from-emerald-50 to-green-100/90 dark:from-emerald-950/40 dark:to-green-900/20 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 text-left w-full"
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">This Week's Commission</span>
+          <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-neutral-500 group-hover:translate-x-0.5 transition-all" />
+        </div>
+        <div className="text-3xl font-bold text-neutral-800 dark:text-neutral-100 tracking-tight">
+          {fmtKsh(stats.weekCommission)}
+        </div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className={stats.commIsUp ? "text-emerald-600 font-semibold" : "text-red-500 font-semibold"}>
+            {stats.commIsUp ? "↑" : "↓"} {Math.abs(Number(stats.commPctChange))}% from last week
+          </span>
+          <span className="text-neutral-300">•</span>
+          <span className="text-neutral-400">{fmtKsh(stats.lastWeekCommission)} prev</span>
+        </div>
+        <div className="text-[10px] text-emerald-600/60 font-medium mt-1">Tap for details →</div>
+      </button>
+
+      {/* Stat Cards Grid */}
       <div className="grid grid-cols-2 gap-3">
         <StatCard
-          title="Commission"
-          value={fmtKsh(stats.totalCommission)}
-          subtitle={`Earned ${periodLabel}`}
-          bars={stats.commBars}
+          title="New Users"
+          value={`${stats.weekSaved}`}
+          subtitle={`↑ ${stats.todaySaved} today`}
+          bars={stats.autoSaverBars}
           color="#10B981"
           gradient="bg-gradient-to-br from-emerald-50 to-green-100/90 dark:from-emerald-950/40 dark:to-green-900/20"
           border="border-emerald-200 dark:border-emerald-800/40"
-          icon={<TrendingUp className="h-4 w-4 text-emerald-600" />}
-          onClick={() => onNavigate("commission")}
+          icon={<Users className="h-4 w-4 text-emerald-600" />}
+          onClick={() => onNavigate("autosaver")}
         />
         <StatCard
-          title="Airtime"
-          value={fmtKsh(stats.totalAirtime)}
-          subtitle={`Spent ${periodLabel}`}
-          bars={stats.airtimeBars}
+          title="Top Bundles"
+          value={stats.topBundle[0] === "—" ? "—" : stats.topBundle[0].length > 10 ? stats.topBundle[0].slice(0, 10) + "…" : stats.topBundle[0]}
+          subtitle={`${stats.weekBundles} sold this week`}
+          bars={stats.bundleBars.length ? stats.bundleBars : [{ label: "", value: 0 }]}
           color="#3B82F6"
           gradient="bg-gradient-to-br from-blue-50 to-indigo-100/90 dark:from-blue-950/40 dark:to-indigo-900/20"
           border="border-blue-200 dark:border-blue-800/40"
-          icon={<Zap className="h-4 w-4 text-blue-600" />}
-          onClick={() => onNavigate("airtime")}
-        />
-        <StatCard
-          title="Top Bundle"
-          value={stats.topBundle[0] === "—" ? "—" : `${stats.totalBundlesSold}`}
-          subtitle={
-            stats.topBundle[0] === "—"
-              ? "No sales yet"
-              : `${stats.topBundle[0].length > 14 ? stats.topBundle[0].slice(0, 14) + "…" : stats.topBundle[0]} · ${stats.topBundle[1]}x`
-          }
-          bars={stats.bundleBars.length ? stats.bundleBars : [{ label: "", value: 0 }]}
-          color="#8B5CF6"
-          gradient="bg-gradient-to-br from-violet-50 to-purple-100/90 dark:from-violet-950/40 dark:to-purple-900/20"
-          border="border-violet-200 dark:border-violet-800/40"
-          icon={<Package className="h-4 w-4 text-violet-600" />}
+          icon={<Package className="h-4 w-4 text-blue-600" />}
           onClick={() => onNavigate("bundles")}
         />
         <StatCard
           title="Total Sales"
-          value={`${stats.totalSales}`}
-          subtitle={`${stats.successRate}% success rate`}
+          value={`${stats.weekSales}`}
+          subtitle="successful this week"
           bars={stats.salesBars}
           color="#F59E0B"
           gradient="bg-gradient-to-br from-amber-50 to-orange-100/90 dark:from-amber-950/40 dark:to-orange-900/20"
           border="border-amber-200 dark:border-amber-800/40"
           icon={<BarChart2 className="h-4 w-4 text-amber-600" />}
           onClick={() => onNavigate("sales")}
+        />
+        <StatCard
+          title="Airtime Used"
+          value={fmtKsh(stats.weekAirtime)}
+          subtitle="This week"
+          bars={stats.airtimeBars}
+          color="#9C27B0"
+          gradient="bg-gradient-to-br from-violet-50 to-purple-100/90 dark:from-violet-950/40 dark:to-purple-900/20"
+          border="border-violet-200 dark:border-violet-800/40"
+          icon={<Zap className="h-4 w-4 text-violet-600" />}
+          onClick={() => onNavigate("airtime")}
         />
       </div>
 
@@ -590,23 +596,14 @@ function Overview({
             <Users className="h-5 w-5 text-cyan-600" />
           </div>
           <div>
-            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-              AutoSaver
-            </div>
-            <div className="text-3xl font-bold text-neutral-800 dark:text-neutral-100 leading-tight tracking-tight">
-              {stats.totalSaved}
-            </div>
-            <div className="text-xs text-neutral-400 font-medium mt-0.5">
-              {stats.totalSkipped > 0 ? `${stats.totalSkipped} skipped · ` : ""}
-              new contacts {periodLabel}
-            </div>
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">AutoSaver</div>
+            <div className="text-3xl font-bold text-neutral-800 dark:text-neutral-100 leading-tight tracking-tight">{stats.todaySaved}</div>
+            <div className="text-xs text-neutral-400 font-medium mt-0.5">saved today</div>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-28">
-            <MiniBar data={stats.autoSaverBars} color="#06B6D4" />
-          </div>
-          <ChevronRight className="h-5 w-5 text-neutral-300 group-hover:text-neutral-500 group-hover:translate-x-0.5 transition-all duration-200" />
+          <div className="w-28"><MiniBar data={stats.autoSaverBars} color="#06B6D4" /></div>
+          <ChevronRight className="h-5 w-5 text-neutral-300 group-hover:text-neutral-500 group-hover:translate-x-0.5 transition-all" />
         </div>
       </button>
     </div>
@@ -615,31 +612,21 @@ function Overview({
 
 // ─── Commission Detail ────────────────────────────────────────────────────────
 
-function CommissionDetail({ stats, period }: { stats: Stats; period: Period }) {
-  const todayVal = stats.commBars.at(-1)?.value ?? 0;
-  const activeDays = stats.commBars.filter((b) => b.value > 0).length;
-
+function CommissionDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
   return (
     <div className="flex flex-col gap-3 pb-4">
-      <SummaryNumbers
-        items={[
-          { label: "Today", value: fmtKsh(todayVal), color: "text-emerald-600" },
-          {
-            label: period === 1 ? "This Week" : "This Month",
-            value: fmtKsh(stats.totalCommission),
-            color: "text-emerald-600",
-          },
-          {
-            label: "Avg / day",
-            value: fmtKsh(activeDays > 0 ? stats.totalCommission / activeDays : 0),
-            color: "text-neutral-500",
-          },
-        ]}
-      />
-      <ChartCard title="Earnings Trend">
+      <SummaryNumbers items={[
+        { label: "Today", value: fmtKsh(stats.todayCommission), color: "text-emerald-600" },
+        { label: "This Week", value: fmtKsh(stats.weekCommission), color: "text-emerald-600" },
+        { label: "This Month", value: fmtKsh(stats.monthCommission), color: "text-neutral-500" },
+      ]} />
+      <ChartCard title="Progress">
+        <div className="flex justify-end mb-3">
+          <PeriodToggle period={period} onChange={onPeriodChange} />
+        </div>
         <FullChart data={stats.commBars} color="#10B981" formatter={fmtKsh} />
       </ChartCard>
-      <ListCard title="By Offer Type">
+      <ListCard title="Details">
         {stats.commByType.length === 0 ? (
           <EmptyState message="Commission by offer type will appear here once your device syncs." />
         ) : (
@@ -647,8 +634,8 @@ function CommissionDetail({ stats, period }: { stats: Stats; period: Period }) {
             <DetailRow
               key={i}
               rank={i + 1}
-              label={item.type}
-              sub={`${item.count} sale${item.count !== 1 ? "s" : ""}`}
+              label={`${item.type} Bundles`}
+              sub={`${item.count} sale${item.count !== 1 ? "s" : ""} · ${((item.amount / stats.weekCommission) * 100).toFixed(1)}% of total`}
               right={fmtKsh(item.amount)}
               typeBadge={item.type}
             />
@@ -661,38 +648,27 @@ function CommissionDetail({ stats, period }: { stats: Stats; period: Period }) {
 
 // ─── Airtime Detail ───────────────────────────────────────────────────────────
 
-function AirtimeDetail({ stats, period }: { stats: Stats; period: Period }) {
-  const todayVal = stats.airtimeBars.at(-1)?.value ?? 0;
-  const activeDays = stats.airtimeBars.filter((b) => b.value > 0).length;
-
+function AirtimeDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
   return (
     <div className="flex flex-col gap-3 pb-4">
-      <SummaryNumbers
-        items={[
-          { label: "Today", value: fmtKsh(todayVal), color: "text-blue-600" },
-          {
-            label: period === 1 ? "This Week" : "This Month",
-            value: fmtKsh(stats.totalAirtime),
-            color: "text-blue-600",
-          },
-          {
-            label: "Avg / day",
-            value: fmtKsh(activeDays > 0 ? stats.totalAirtime / activeDays : 0),
-            color: "text-neutral-500",
-          },
-        ]}
-      />
-      <ChartCard title="Airtime Trend">
-        <FullChart data={stats.airtimeBars} color="#3B82F6" formatter={fmtKsh} />
+      <SummaryNumbers items={[
+        { label: "Today", value: fmtKsh(stats.todayAirtime), color: "text-violet-600" },
+        { label: "This Week", value: fmtKsh(stats.weekAirtime), color: "text-violet-600" },
+        { label: "This Month", value: fmtKsh(stats.monthAirtime), color: "text-neutral-500" },
+      ]} />
+      <ChartCard title="Progress">
+        <div className="flex justify-end mb-3">
+          <PeriodToggle period={period} onChange={onPeriodChange} />
+        </div>
+        <FullChart data={stats.airtimeBars} color="#9C27B0" formatter={fmtKsh} />
       </ChartCard>
-      <ListCard title="Daily Breakdown">
-        {stats.airtimeBars.filter((b) => b.value > 0).length === 0 ? (
+      <ListCard title="Details">
+        {stats.airtimeBars.filter(b => b.value > 0).length === 0 ? (
           <EmptyState message="No airtime data for this period." />
         ) : (
-          [...stats.airtimeBars]
-            .reverse()
-            .filter((b) => b.value > 0)
-            .map((b, i) => <DetailRow key={i} label={b.label} right={fmtKsh(b.value)} />)
+          [...stats.airtimeBars].reverse().filter(b => b.value > 0).map((b, i) => (
+            <DetailRow key={i} rank={i + 1} label={b.label} right={fmtKsh(b.value)} />
+          ))
         )}
       </ListCard>
     </div>
@@ -701,30 +677,21 @@ function AirtimeDetail({ stats, period }: { stats: Stats; period: Period }) {
 
 // ─── Bundles Detail ───────────────────────────────────────────────────────────
 
-function BundlesDetail({ stats }: { stats: Stats }) {
+function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
   return (
     <div className="flex flex-col gap-3 pb-4">
-      <SummaryNumbers
-        items={[
-          { label: "Total Sold", value: `${stats.totalBundlesSold}`, color: "text-violet-600" },
-          {
-            label: "Bundle Types",
-            value: `${stats.bundleEntries.length}`,
-            color: "text-violet-600",
-          },
-          {
-            label: "Top Bundle",
-            value: stats.topBundle[0] === "—" ? "—" : `${stats.topBundle[1]}x`,
-            color: "text-neutral-500",
-          },
-        ]}
-      />
-      {stats.bundleBars.length > 0 && (
-        <ChartCard title="Sales by Bundle">
-          <FullChart data={stats.bundleBars} color="#8B5CF6" />
-        </ChartCard>
-      )}
-      <ListCard title="Bundle Rankings">
+      <SummaryNumbers items={[
+        { label: "Top Seller", value: stats.topBundle[0] === "—" ? "—" : stats.topBundle[0].length > 10 ? stats.topBundle[0].slice(0, 10) + "…" : stats.topBundle[0], color: "text-blue-600" },
+        { label: "Total Sold", value: `${stats.weekBundles}`, color: "text-blue-600" },
+        { label: "Bundles", value: `${stats.bundleEntries.length}`, color: "text-neutral-500" },
+      ]} />
+      <ChartCard title="Progress">
+        <div className="flex justify-end mb-3">
+          <PeriodToggle period={period} onChange={onPeriodChange} />
+        </div>
+        <FullChart data={stats.bundleBarsChart} color="#3B82F6" />
+      </ChartCard>
+      <ListCard title="Details">
         {stats.bundleEntries.length === 0 ? (
           <EmptyState message="No bundle sales for this period." />
         ) : (
@@ -733,11 +700,7 @@ function BundlesDetail({ stats }: { stats: Stats }) {
               key={i}
               rank={i + 1}
               label={name}
-              sub={
-                i === 0
-                  ? "Top seller"
-                  : `${Math.round((count / stats.totalBundlesSold) * 100)}% of sales`
-              }
+              sub={i === 0 ? "Top seller" : `${Math.round((count / stats.weekBundles) * 100)}% of sales`}
               right={`${count} sold`}
             />
           ))
@@ -749,7 +712,7 @@ function BundlesDetail({ stats }: { stats: Stats }) {
 
 // ─── Sales Detail ─────────────────────────────────────────────────────────────
 
-function SalesDetail({ stats, period }: { stats: Stats; period: Period }) {
+function SalesDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
   const statusLabels: Record<string, string> = {
     successful: "Successful",
     failed: "Failed",
@@ -757,33 +720,20 @@ function SalesDetail({ stats, period }: { stats: Stats; period: Period }) {
     "not-viable": "Not Viable",
     disabled: "Disabled",
   };
-
   return (
     <div className="flex flex-col gap-3 pb-4">
-      <SummaryNumbers
-        items={[
-          { label: "Total", value: `${stats.totalSales}`, color: "text-amber-600" },
-          {
-            label: "Successful",
-            value: `${stats.salesByStatus["successful"] ?? 0}`,
-            color: "text-emerald-600",
-          },
-          {
-            label: "Success Rate",
-            value: `${stats.successRate}%`,
-            color:
-              stats.successRate >= 70
-                ? "text-emerald-600"
-                : stats.successRate >= 40
-                ? "text-amber-600"
-                : "text-red-500",
-          },
-        ]}
-      />
-      <ChartCard title="Daily Volume">
+      <SummaryNumbers items={[
+        { label: "Today", value: `${stats.todaySales}`, color: "text-amber-600" },
+        { label: "This Week", value: `${stats.weekSales}`, color: "text-amber-600" },
+        { label: "This Month", value: `${stats.monthSales}`, color: "text-neutral-500" },
+      ]} />
+      <ChartCard title="Progress">
+        <div className="flex justify-end mb-3">
+          <PeriodToggle period={period} onChange={onPeriodChange} />
+        </div>
         <FullChart data={stats.salesBars} color="#F59E0B" />
       </ChartCard>
-      <ListCard title="By Status">
+      <ListCard title="Details">
         {Object.keys(stats.salesByStatus).length === 0 ? (
           <EmptyState message="No transactions for this period." />
         ) : (
@@ -794,7 +744,7 @@ function SalesDetail({ stats, period }: { stats: Stats; period: Period }) {
                 key={i}
                 rank={i + 1}
                 label={statusLabels[status] ?? status}
-                sub={`${Math.round(((count as number) / stats.totalSales) * 100)}% of total`}
+                sub={`${Math.round(((count as number) / stats.totalMsgs) * 100)}% of total`}
                 right={`${count}`}
                 statusBadge={status}
               />
@@ -807,35 +757,27 @@ function SalesDetail({ stats, period }: { stats: Stats; period: Period }) {
 
 // ─── AutoSaver Detail ─────────────────────────────────────────────────────────
 
-function AutoSaverDetail({ stats, period }: { stats: Stats; period: Period }) {
-  const todayVal = stats.autoSaverBars.at(-1)?.value ?? 0;
-
+function AutoSaverDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
   return (
     <div className="flex flex-col gap-3 pb-4">
-      <SummaryNumbers
-        items={[
-          { label: "Today", value: `${todayVal}`, color: "text-cyan-600" },
-          {
-            label: period === 1 ? "This Week" : "This Month",
-            value: `${stats.totalSaved}`,
-            color: "text-cyan-600",
-          },
-          { label: "Skipped", value: `${stats.totalSkipped}`, color: "text-neutral-400" },
-        ]}
-      />
-      <ChartCard title="New Contacts Trend">
+      <SummaryNumbers items={[
+        { label: "Today", value: `${stats.todaySaved}`, color: "text-cyan-600" },
+        { label: "This Week", value: `${stats.weekSaved}`, color: "text-cyan-600" },
+        { label: "This Month", value: `${stats.monthSaved}`, color: "text-neutral-500" },
+      ]} />
+      <ChartCard title="Progress">
+        <div className="flex justify-end mb-3">
+          <PeriodToggle period={period} onChange={onPeriodChange} />
+        </div>
         <FullChart data={stats.autoSaverBars} color="#06B6D4" />
       </ChartCard>
-      <ListCard title="Daily Breakdown">
-        {stats.autoSaverBars.filter((b) => b.value > 0).length === 0 ? (
+      <ListCard title="Details">
+        {stats.autoSaverBars.filter(b => b.value > 0).length === 0 ? (
           <EmptyState message="AutoSaver data will appear here once your device syncs." />
         ) : (
-          [...stats.autoSaverBars]
-            .reverse()
-            .filter((b) => b.value > 0)
-            .map((b, i) => (
-              <DetailRow key={i} label={b.label} right={`${b.value} saved`} />
-            ))
+          [...stats.autoSaverBars].reverse().filter(b => b.value > 0).map((b, i) => (
+            <DetailRow key={i} rank={i + 1} label={b.label} right={`${b.value} saved`} />
+          ))
         )}
       </ListCard>
     </div>
@@ -845,7 +787,7 @@ function AutoSaverDetail({ stats, period }: { stats: Stats; period: Period }) {
 // ─── View Titles ──────────────────────────────────────────────────────────────
 
 const VIEW_TITLES: Record<View, string> = {
-  overview: "Statistics",
+  overview: "Dashboard",
   commission: "Commission",
   airtime: "Airtime Used",
   bundles: "Top Bundles",
@@ -856,40 +798,24 @@ const VIEW_TITLES: Record<View, string> = {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export default function StatisticsMain({ userId }: { userId: string }) {
-  const [period, setPeriod] = useState<Period>(1);
+  const [period, setPeriod] = useState<Period>(0);
   const [view, setView] = useState<View>("overview");
 
-  const { startTs, endTs } = useMemo(() => {
-    const today = getTodayMidnight();
-    const end = today + 86_400_000;
-    const start =
-      period === 0
-        ? today
-        : period === 1
-        ? today - 6 * 86_400_000
-        : today - 29 * 86_400_000;
-    return { startTs: start, endTs: end };
-  }, [period]);
+  // Always fetch 6 months of data — bar generators slice it per period client-side
+  const startTs = get6MonthsAgoStart();
+  const endTs = getTodayMidnight() + 86_400_000;
 
   const commData = useQuery(api.features.totalCommission.getByUserIdAndDateRange, {
-    userId,
-    startDay: startTs,
-    endDay: endTs,
+    userId, startDay: startTs, endDay: endTs,
   });
   const msgData = useQuery(api.features.statistics.getMessagesForStats, {
-    userId,
-    startTime: startTs,
-    endTime: endTs,
+    userId, startTime: startTs, endTime: endTs,
   });
   const byTypeData = useQuery(api.features.statistics.getCommissionByTypeInRange, {
-    userId,
-    startDay: startTs,
-    endDay: endTs,
+    userId, startDay: startTs, endDay: endTs,
   });
   const autoSaverData = useQuery(api.features.statistics.getAutoSaverStatsInRange, {
-    userId,
-    startDay: startTs,
-    endDay: endTs,
+    userId, startDay: startTs, endDay: endTs,
   });
 
   const stats = useMemo(
@@ -904,28 +830,21 @@ export default function StatisticsMain({ userId }: { userId: string }) {
       <div className="p-4 md:p-5 md:pl-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900 flex flex-col gap-4 flex-1 w-full overflow-hidden">
 
         {/* Header */}
-        <div className="flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            {view !== "overview" && (
-              <button
-                onClick={() => setView("overview")}
-                className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
-              >
-                <ArrowLeft className="h-4 w-4 text-neutral-500" />
-              </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {view !== "overview" && (
+            <button
+              onClick={() => setView("overview")}
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4 text-neutral-500" />
+            </button>
+          )}
+          <div>
+            <h2 className="text-base font-bold text-neutral-700 dark:text-neutral-200">{VIEW_TITLES[view]}</h2>
+            {view === "overview" && (
+              <p className="text-xs text-neutral-400 font-medium">Your business performance</p>
             )}
-            <div>
-              <h2 className="text-base font-bold text-neutral-700 dark:text-neutral-200">
-                {VIEW_TITLES[view]}
-              </h2>
-              {view === "overview" && (
-                <p className="text-xs text-neutral-400 font-medium">
-                  Your business performance
-                </p>
-              )}
-            </div>
           </div>
-          <PeriodToggle period={period} onChange={setPeriod} />
         </div>
 
         {/* Content */}
@@ -933,17 +852,17 @@ export default function StatisticsMain({ userId }: { userId: string }) {
           {isLoading ? (
             <LoadingState />
           ) : view === "overview" ? (
-            <Overview stats={stats} period={period} onNavigate={setView} />
+            <Overview stats={stats} onNavigate={setView} />
           ) : view === "commission" ? (
-            <CommissionDetail stats={stats} period={period} />
+            <CommissionDetail stats={stats} period={period} onPeriodChange={setPeriod} />
           ) : view === "airtime" ? (
-            <AirtimeDetail stats={stats} period={period} />
+            <AirtimeDetail stats={stats} period={period} onPeriodChange={setPeriod} />
           ) : view === "bundles" ? (
-            <BundlesDetail stats={stats} />
+            <BundlesDetail stats={stats} period={period} onPeriodChange={setPeriod} />
           ) : view === "sales" ? (
-            <SalesDetail stats={stats} period={period} />
+            <SalesDetail stats={stats} period={period} onPeriodChange={setPeriod} />
           ) : (
-            <AutoSaverDetail stats={stats} period={period} />
+            <AutoSaverDetail stats={stats} period={period} onPeriodChange={setPeriod} />
           )}
         </ScrollArea>
       </div>
