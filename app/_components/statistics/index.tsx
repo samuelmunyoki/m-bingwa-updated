@@ -83,21 +83,20 @@ function genBars(
   }
 
   if (period === 1) {
-    // Weekly: W1–W4/W5 for current month (7-day chunks from 1st)
+    // Weekly: W1–W5 matching Java's Calendar.WEEK_OF_MONTH (weeks start on Sunday)
     const year = today.getFullYear();
     const month = today.getMonth();
-    const monthStart = new Date(year, month, 1).getTime();
-    const monthEnd = new Date(year, month + 1, 1).getTime();
-    const bars: BarItem[] = [];
-    let cur = monthStart;
-    let w = 1;
-    while (cur < monthEnd) {
-      const next = Math.min(cur + 7 * 86_400_000, monthEnd);
-      bars.push({ label: `W${w}`, value: getValue(cur, next) });
-      cur = next;
-      w++;
-    }
-    return bars;
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const maxWeek = Math.ceil((daysInMonth + firstDayOfWeek) / 7);
+    return Array.from({ length: maxWeek }, (_, i) => {
+      const w = i + 1;
+      const startDay = Math.max(1, (w - 1) * 7 - firstDayOfWeek + 1);
+      const endDay = Math.min(daysInMonth, w * 7 - firstDayOfWeek);
+      const s = new Date(year, month, startDay).getTime();
+      const e = new Date(year, month, endDay + 1).getTime();
+      return { label: `W${w}`, value: getValue(s, e) };
+    });
   }
 
   // Monthly: past 6 months with abbreviated names
