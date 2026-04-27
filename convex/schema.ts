@@ -545,7 +545,7 @@ export default defineSchema({
   balanceRequests: defineTable({
     userId: v.string(),
     deviceId: v.string(),
-    simSlot: v.string(),
+    simSlot: v.optional(v.string()),
     status: v.union(v.literal("pending"), v.literal("completed"), v.literal("failed")),
     requestedAt: v.number(),
     completedAt: v.optional(v.number()),

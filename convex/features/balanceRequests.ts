@@ -2,7 +2,7 @@ import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 
 export const createBalanceRequest = mutation({
-  args: { userId: v.string(), deviceId: v.string(), simSlot: v.string() },
+  args: { userId: v.string(), deviceId: v.string(), simSlot: v.optional(v.string()) },
   handler: async (ctx, { userId, deviceId, simSlot }) => {
     const existing = await ctx.db
       .query("balanceRequests")
