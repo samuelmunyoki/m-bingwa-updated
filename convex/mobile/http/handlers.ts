@@ -6251,3 +6251,51 @@ export const upsertAutoSaverStatsHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+export const registerWebSessionHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+  let body;
+  try { body = await request.json(); } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+  const { userId } = body ?? {};
+  if (!userId) return createResponse("error", null, "Missing userId");
+  try {
+    const result = await ctx.runMutation(api.users.registerWebSession, { userId });
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const registerFcmTokenHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, deviceId, token } = body ?? {};
+  if (!userId || !deviceId || !token) return createResponse("error", null, "Missing userId, deviceId or token");
+  try {
+    await ctx.runMutation(api.features.balanceRequests.upsertFcmToken, { userId, deviceId, token });
+    return createResponse("success", { message: "FCM token registered" });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const submitBalanceResultHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { requestId, airtimeBalance, bongaPoints, expiryDate } = body ?? {};
+  if (!requestId || !airtimeBalance || bongaPoints === undefined) return createResponse("error", null, "Missing fields");
+  try {
+    const result = await ctx.runMutation(api.features.balanceRequests.submitBalanceResult, {
+      requestId, airtimeBalance, bongaPoints, expiryDate,
+    });
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});

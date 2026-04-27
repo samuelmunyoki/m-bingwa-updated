@@ -857,18 +857,17 @@ export const registerDeviceSession = mutation({
           userId,
         };
       } else {
-        // DIFFERENT device - BLOCK login
+        // DIFFERENT device - deactivate old session, let new device in
         console.log("⚠️ ACTIVE SESSION EXISTS ON DIFFERENT DEVICE");
-        console.log(`Active device: ${existingSession.deviceModel}`);
-        console.log(`Attempting device: ${deviceModel}`);
-        console.log("🚫 LOGIN BLOCKED");
+        console.log(`Previous device: ${existingSession.deviceModel} — deactivating`);
+        console.log(`New device: ${deviceModel} — allowing in`);
 
-        return {
-          status: "error",
-          error: "already_logged_in",
-          activeDevice: existingSession.deviceModel,
-          message: `Already logged in on ${existingSession.deviceModel}`,
-        };
+        await ctx.db.patch(existingSession._id, {
+          isActive: false,
+          lastActiveTimestamp: Date.now(),
+        });
+
+        console.log("✅ Old session deactivated — new session will be created");
       }
     }
 
@@ -1177,4 +1176,29 @@ export const deleteUserByPhone = mutation({
       name: user.name
     };
   }
+});
+
+export const registerWebSession = mutation({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+    if (!user) return { status: "error", error: "User not found" };
+    const token = crypto.randomUUID();
+    await ctx.db.patch(user._id, { webSessionToken: token });
+    return { status: "success", token };
+  },
+});
+
+export const getWebSessionToken = query({
+  args: { userId: v.string() },
+  handler: async (ctx, { userId }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+    return user?.webSessionToken ?? null;
+  },
 });
