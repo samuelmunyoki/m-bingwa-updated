@@ -118,12 +118,15 @@ export const sendBalanceCheckPush = action({
 
       return { success: true };
     } catch (e: any) {
-      console.error("FCM action error:", e);
+      console.error("FCM error name:", e?.name);
+      console.error("FCM error message:", e?.message);
+      console.error("FCM error stack:", e?.stack);
+      const errMsg = e?.message || e?.name || String(e) || "Unknown error";
       await ctx.runMutation(api.features.balanceRequests.failBalanceRequest, {
         requestId,
-        error: e.message,
+        error: errMsg,
       });
-      return { success: false, error: e.message };
+      return { success: false, error: errMsg };
     }
   },
 });
