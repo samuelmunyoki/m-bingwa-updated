@@ -27,6 +27,12 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
 
   const pemKey = privateKey.replace(/\\n/g, "\n").trim();
 
+  console.log("Key starts with:", pemKey.substring(0, 50));
+  console.log("Key ends with:", pemKey.substring(pemKey.length - 50));
+  console.log("Key length:", pemKey.length);
+  console.log("Has BEGIN header:", pemKey.includes("-----BEGIN PRIVATE KEY-----"));
+  console.log("Has END header:", pemKey.includes("-----END PRIVATE KEY-----"));
+
   const signer = createSign("RSA-SHA256");
   signer.update(signingInput);
   const signature = signer.sign(pemKey, "base64")
