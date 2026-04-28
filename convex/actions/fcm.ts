@@ -2,6 +2,8 @@
 import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
+import { webcrypto } from "node:crypto";
+const subtle = websubtle;
 
 function toBase64Url(input: string): string {
   return Buffer.from(input).toString("base64")
@@ -31,7 +33,7 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
 
   const binaryKey = Buffer.from(keyData, "base64");
 
-  const cryptoKey = await crypto.subtle.importKey(
+  const cryptoKey = await subtle.importKey(
     "pkcs8",
     binaryKey,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
@@ -39,7 +41,7 @@ async function getAccessToken(clientEmail: string, privateKey: string): Promise<
     ["sign"]
   );
 
-  const signature = await crypto.subtle.sign(
+  const signature = await subtle.sign(
     "RSASSA-PKCS1-v1_5",
     cryptoKey,
     Buffer.from(signingInput)
