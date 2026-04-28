@@ -2,61 +2,46 @@
 import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { api } from "../_generated/api";
-import { webcrypto } from "node:crypto";
-const subtle = websubtle;
+import { createSign } from "node:crypto";
 
 function toBase64Url(input: string): string {
-  return Buffer.from(input).toString("base64")
-    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  return Buffer.from(input)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
 }
 
 async function getAccessToken(clientEmail: string, privateKey: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const claim = {
+
+  const headerB64 = toBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claimB64 = toBase64Url(JSON.stringify({
     iss: clientEmail,
     scope: "https://www.googleapis.com/auth/firebase.messaging",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
-  };
-
-  const headerB64 = toBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claimB64 = toBase64Url(JSON.stringify(claim));
+  }));
   const signingInput = `${headerB64}.${claimB64}`;
 
-  // Normalize private key — handle both literal \n and actual newlines
   const pemKey = privateKey.replace(/\\n/g, "\n").trim();
-  const keyData = pemKey
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\s/g, "");
 
-  const binaryKey = Buffer.from(keyData, "base64");
+  const signer = createSign("RSA-SHA256");
+  signer.update(signingInput);
+  const signature = signer.sign(pemKey, "base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
 
-  const cryptoKey = await subtle.importKey(
-    "pkcs8",
-    binaryKey,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-  const signature = await subtle.sign(
-    "RSASSA-PKCS1-v1_5",
-    cryptoKey,
-    Buffer.from(signingInput)
-  );
-
-  const signatureB64 = Buffer.from(signature).toString("base64")
-    .replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-
-  const jwt = `${signingInput}.${signatureB64}`;
+  const jwt = `${signingInput}.${signature}`;
 
   const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
+
   const tokenData: any = await tokenResp.json();
   if (!tokenData.access_token) {
     console.error("Token exchange failed:", JSON.stringify(tokenData));
@@ -110,7 +95,7 @@ export const sendBalanceCheckPush = action({
 
       const fcmData: any = await fcmResp.json();
       if (!fcmResp.ok) {
-        console.error("FCM send failed:", fcmData);
+        console.error("FCM send failed:", JSON.stringify(fcmData));
         await ctx.runMutation(api.features.balanceRequests.failBalanceRequest, {
           requestId,
           error: `FCM error: ${fcmData?.error?.message ?? "unknown"}`,
@@ -122,7 +107,6 @@ export const sendBalanceCheckPush = action({
     } catch (e: any) {
       console.error("FCM error name:", e?.name);
       console.error("FCM error message:", e?.message);
-      console.error("FCM error stack:", e?.stack);
       const errMsg = e?.message || e?.name || String(e) || "Unknown error";
       await ctx.runMutation(api.features.balanceRequests.failBalanceRequest, {
         requestId,
