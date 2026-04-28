@@ -482,6 +482,33 @@ export function TransactionsMain({ userId }: { userId: string }) {
         </div>
         <div className="border-b border-neutral-200 dark:border-neutral-700" />
 
+        {/* Today's counters */}
+        {(() => {
+          const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+          const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
+          const todayTxs = allTransactions.filter(tx => tx.timestampMs >= todayStart.getTime() && tx.timestampMs <= todayEnd.getTime());
+          const successful = todayTxs.filter(tx => tx.status === "successful").length;
+          const failed = todayTxs.filter(tx => tx.status === "failed").length;
+          const pending = todayTxs.filter(tx => tx.status === "pending").length;
+          return (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{successful} Successful</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40">
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs font-bold text-red-700 dark:text-red-400">{failed} Failed</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
+                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{pending} Pending</span>
+              </div>
+              <span className="text-[10px] text-neutral-400 ml-1">Today</span>
+            </div>
+          );
+        })()}
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
