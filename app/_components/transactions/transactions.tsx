@@ -35,12 +35,14 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  SlidersHorizontal,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TxType = "sms" | "dialer" | "scheduled";
-type TxStatus = "successful" | "failed" | "pending" | "unavailable" | "cancelled";
+type TxStatus = "successful" | "failed" | "pending" | "unavailable" | "cancelled" | "disabled";
+type PeriodFilter = "all" | "today" | "yesterday" | "last7" | "last30";
 
 interface UnifiedTransaction {
   id: string;
@@ -59,8 +61,8 @@ function parseSmsStatus(processed: string | undefined | null): TxStatus {
   switch (processed) {
     case "successful": return "successful";
     case "failed": return "failed";
-    case "not-viable":
-    case "disabled": return "unavailable";
+    case "not-viable": return "unavailable";
+    case "disabled": return "disabled";
     default: return "pending";
   }
 }
@@ -104,7 +106,7 @@ function formatTs(ms: number): string {
 
 const TYPE_CONFIG: Record<TxType, { label: string; icon: React.ReactNode; pill: string; circle: string }> = {
   sms: {
-    label: "SMS",
+    label: "M-Pesa",
     icon: <MessageSquare className="w-4 h-4 text-green-600" />,
     pill: "bg-green-50 text-green-700 border-green-200",
     circle: "bg-green-50",
@@ -129,6 +131,7 @@ const STATUS_CONFIG: Record<TxStatus, { label: string; className: string }> = {
   pending: { label: "Pending", className: "bg-amber-50 text-amber-700 border-amber-200" },
   unavailable: { label: "Unavailable", className: "bg-neutral-100 text-neutral-500 border-neutral-200" },
   cancelled: { label: "Cancelled", className: "bg-neutral-100 text-neutral-500 border-neutral-200" },
+  disabled: { label: "Disabled", className: "bg-orange-50 text-orange-600 border-orange-200" },
 };
 
 // ─── Detail Dialog ────────────────────────────────────────────────────────────
@@ -379,6 +382,10 @@ export function TransactionsMain({ userId }: { userId: string }) {
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
+  const [periodFilter, setPeriodFilter] = React.useState<PeriodFilter>("all");
+  const [verifiedFilter, setVerifiedFilter] = React.useState<"all" | "verified" | "unverified">("all");
+  const [offerFilter, setOfferFilter] = React.useState<string>("all");
+  const [showFilterPanel, setShowFilterPanel] = React.useState(false);
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [detailTx, setDetailTx] = React.useState<UnifiedTransaction | null>(null);
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false);
@@ -432,18 +439,53 @@ export function TransactionsMain({ userId }: { userId: string }) {
     return result.sort((a, b) => b.timestampMs - a.timestampMs);
   }, [smsData, dialerData, scheduledData]);
 
+  // Unique offer names for offer filter
+  const offerNames = React.useMemo(() => {
+    const names = new Set<string>();
+    allTransactions.forEach((tx) => {
+      const name = (tx.raw as Record<string, unknown>).offerName as string | undefined;
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort();
+  }, [allTransactions]);
+
   // Filtered list
   const filtered = React.useMemo(() => {
+    const now = Date.now();
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const yesterdayStart = new Date(); yesterdayStart.setDate(yesterdayStart.getDate() - 1); yesterdayStart.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date(); yesterdayEnd.setDate(yesterdayEnd.getDate() - 1); yesterdayEnd.setHours(23, 59, 59, 999);
+
     return allTransactions.filter((tx) => {
       if (typeFilter !== "all" && tx.type !== typeFilter) return false;
       if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+
+      // Period filter
+      if (periodFilter === "today" && tx.timestampMs < todayStart.getTime()) return false;
+      if (periodFilter === "yesterday" && (tx.timestampMs < yesterdayStart.getTime() || tx.timestampMs > yesterdayEnd.getTime())) return false;
+      if (periodFilter === "last7" && tx.timestampMs < now - 7 * 24 * 60 * 60 * 1000) return false;
+      if (periodFilter === "last30" && tx.timestampMs < now - 30 * 24 * 60 * 60 * 1000) return false;
+
+      // Offer filter
+      if (offerFilter !== "all") {
+        const txOffer = (tx.raw as Record<string, unknown>).offerName as string | undefined;
+        if (txOffer !== offerFilter) return false;
+      }
+
+      // Verified filter (SMS only, when status=successful)
+      if (verifiedFilter !== "all" && tx.type === "sms" && tx.status === "successful") {
+        const isVerified = !!(tx.raw as Record<string, unknown>).verified;
+        if (verifiedFilter === "verified" && !isVerified) return false;
+        if (verifiedFilter === "unverified" && isVerified) return false;
+      }
+
       if (search.trim()) {
         const q = search.toLowerCase();
         if (!tx.title.toLowerCase().includes(q) && !tx.subtitle.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [allTransactions, typeFilter, statusFilter, search]);
+  }, [allTransactions, typeFilter, statusFilter, periodFilter, offerFilter, verifiedFilter, search]);
 
   const selectionMode = selected.size > 0;
 
@@ -494,24 +536,24 @@ export function TransactionsMain({ userId }: { userId: string }) {
           const failed = todayTxs.filter(tx => tx.status === "failed").length;
           const pending = todayTxs.filter(tx => tx.status === "pending").length;
           return (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {/* Successful */}
-              <div className="flex flex-col items-center justify-center gap-1 px-8 py-4 rounded-2xl bg-emerald-700 dark:bg-emerald-800 min-w-[130px]">
-                <CheckCircle className="w-5 h-5 text-emerald-200" />
-                <span className="text-2xl font-bold text-white">{successful}</span>
-                <span className="text-xs font-semibold text-emerald-200">Successful</span>
+              <div className="flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl bg-emerald-700 dark:bg-emerald-800 min-w-[70px]">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="text-base font-bold text-white">{successful}</span>
+                <span className="text-[10px] font-semibold text-emerald-200">Successful</span>
               </div>
               {/* Failed */}
-              <div className="flex flex-col items-center justify-center gap-1 px-8 py-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 min-w-[130px]">
-                <XCircle className="w-5 h-5 text-red-500" />
-                <span className="text-2xl font-bold text-red-600 dark:text-red-400">{failed}</span>
-                <span className="text-xs font-semibold text-red-500 dark:text-red-400">Failed</span>
+              <div className="flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 min-w-[70px]">
+                <XCircle className="w-3.5 h-3.5 text-red-500" />
+                <span className="text-base font-bold text-red-600 dark:text-red-400">{failed}</span>
+                <span className="text-[10px] font-semibold text-red-500 dark:text-red-400">Failed</span>
               </div>
               {/* Pending */}
-              <div className="flex flex-col items-center justify-center gap-1 px-8 py-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 min-w-[130px]">
-                <Clock className="w-5 h-5 text-amber-500" />
-                <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{pending}</span>
-                <span className="text-xs font-semibold text-amber-500 dark:text-amber-400">Pending</span>
+              <div className="flex flex-col items-center justify-center gap-0.5 px-4 py-2 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 min-w-[70px]">
+                <Clock className="w-3.5 h-3.5 text-amber-500" />
+                <span className="text-base font-bold text-amber-600 dark:text-amber-400">{pending}</span>
+                <span className="text-[10px] font-semibold text-amber-500 dark:text-amber-400">Pending</span>
               </div>
               <span className="text-[10px] text-neutral-400 ml-1">Today</span>
             </div>
@@ -529,18 +571,113 @@ export function TransactionsMain({ userId }: { userId: string }) {
           />
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          <FilterChip label="All Types" active={typeFilter === "all"} onClick={() => setTypeFilter("all")} />
-          <FilterChip label="SMS" active={typeFilter === "sms"} onClick={() => setTypeFilter("sms")} />
-          <FilterChip label="Dialer" active={typeFilter === "dialer"} onClick={() => setTypeFilter("dialer")} />
-          <FilterChip label="Scheduled" active={typeFilter === "scheduled"} onClick={() => setTypeFilter("scheduled")} />
-          <div className="w-px bg-neutral-200 mx-1" />
-          <FilterChip label="All Status" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
-          <FilterChip label="Successful" active={statusFilter === "successful"} onClick={() => setStatusFilter("successful")} />
-          <FilterChip label="Failed" active={statusFilter === "failed"} onClick={() => setStatusFilter("failed")} />
-          <FilterChip label="Pending" active={statusFilter === "pending"} onClick={() => setStatusFilter("pending")} />
-        </div>
+        {/* Filter button */}
+        {(() => {
+          const activeCount = [
+            typeFilter !== "all",
+            statusFilter !== "all",
+            periodFilter !== "all",
+            offerFilter !== "all",
+            verifiedFilter !== "all",
+          ].filter(Boolean).length;
+          return (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowFilterPanel(true)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200 bg-white dark:bg-neutral-900 dark:border-neutral-700 text-sm text-neutral-600 dark:text-neutral-300 hover:border-neutral-300 transition-all"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                Filters
+                {activeCount > 0 && (
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-neutral-800 text-white dark:bg-neutral-100 dark:text-neutral-900 text-[10px] font-bold">{activeCount}</span>
+                )}
+              </button>
+              {activeCount > 0 && (
+                <button
+                  onClick={() => { setTypeFilter("all"); setStatusFilter("all"); setPeriodFilter("all"); setOfferFilter("all"); setVerifiedFilter("all"); }}
+                  className="text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+              {/* Active filter pills */}
+              {typeFilter !== "all" && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-100 text-neutral-700 border border-neutral-200">{TYPE_CONFIG[typeFilter as TxType].label}</span>}
+              {statusFilter !== "all" && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-100 text-neutral-700 border border-neutral-200">{STATUS_CONFIG[statusFilter as TxStatus].label}</span>}
+              {periodFilter !== "all" && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-100 text-neutral-700 border border-neutral-200">{{ today: "Today", yesterday: "Yesterday", last7: "Last 7 days", last30: "Last 30 days" }[periodFilter]}</span>}
+              {offerFilter !== "all" && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-100 text-neutral-700 border border-neutral-200">{offerFilter}</span>}
+              {verifiedFilter !== "all" && <span className="px-2 py-0.5 rounded-full text-xs bg-neutral-100 text-neutral-700 border border-neutral-200">{verifiedFilter === "verified" ? "Verified" : "Unverified"}</span>}
+            </div>
+          );
+        })()}
+
+        {/* Filter Panel */}
+        <Dialog open={showFilterPanel} onOpenChange={setShowFilterPanel}>
+          <DialogContent className="max-w-sm max-h-[85vh] flex flex-col gap-0 p-0">
+            <DialogHeader className="px-5 pt-5 pb-4 border-b border-neutral-100">
+              <DialogTitle className="text-base font-semibold">Filter Transactions</DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-5">
+              {/* Transaction Type */}
+              <div>
+                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Transaction Type</p>
+                <div className="flex flex-wrap gap-2">
+                  {([["all", "All"], ["sms", "M-Pesa"], ["dialer", "Dialer"], ["scheduled", "Scheduled"]] as const).map(([val, label]) => (
+                    <FilterChip key={val} label={label} active={typeFilter === val} onClick={() => setTypeFilter(val)} />
+                  ))}
+                </div>
+              </div>
+              {/* Status */}
+              <div>
+                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {([["all", "All"], ["successful", "Successful"], ["failed", "Failed"], ["pending", "Pending"], ["unavailable", "Unavailable"], ["disabled", "Disabled"]] as const).map(([val, label]) => (
+                    <FilterChip key={val} label={label} active={statusFilter === val} onClick={() => setStatusFilter(val)} />
+                  ))}
+                </div>
+              </div>
+              {/* Verified — only when status=successful and type≠dialer */}
+              {statusFilter === "successful" && typeFilter !== "dialer" && (
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Verified Status</p>
+                  <div className="flex flex-wrap gap-2">
+                    {([["all", "All"], ["verified", "Verified"], ["unverified", "Unverified"]] as const).map(([val, label]) => (
+                      <FilterChip key={val} label={label} active={verifiedFilter === val} onClick={() => setVerifiedFilter(val)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Time Period */}
+              <div>
+                <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Time Period</p>
+                <div className="flex flex-wrap gap-2">
+                  {([["all", "All Time"], ["today", "Today"], ["yesterday", "Yesterday"], ["last7", "Last 7 days"], ["last30", "Last 30 days"]] as const).map(([val, label]) => (
+                    <FilterChip key={val} label={label} active={periodFilter === val} onClick={() => setPeriodFilter(val)} />
+                  ))}
+                </div>
+              </div>
+              {/* Offer Name */}
+              {offerNames.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Offer Name</p>
+                  <div className="flex flex-wrap gap-2">
+                    <FilterChip label="All" active={offerFilter === "all"} onClick={() => setOfferFilter("all")} />
+                    {offerNames.map((name) => (
+                      <FilterChip key={name} label={name} active={offerFilter === name} onClick={() => setOfferFilter(name)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-neutral-100 flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => { setTypeFilter("all"); setStatusFilter("all"); setPeriodFilter("all"); setOfferFilter("all"); setVerifiedFilter("all"); }}>
+                Clear All
+              </Button>
+              <Button className="flex-1" onClick={() => setShowFilterPanel(false)}>
+                Apply
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Selection bar */}
         {selectionMode && (
