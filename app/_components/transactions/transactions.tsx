@@ -32,6 +32,9 @@ import {
   Trash2,
   X,
   History,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -491,18 +494,24 @@ export function TransactionsMain({ userId }: { userId: string }) {
           const failed = todayTxs.filter(tx => tx.status === "failed").length;
           const pending = todayTxs.filter(tx => tx.status === "pending").length;
           return (
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/40">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{successful} Successful</span>
+            <div className="flex items-center gap-3">
+              {/* Successful */}
+              <div className="flex flex-col items-center justify-center gap-1 px-8 py-4 rounded-2xl bg-emerald-700 dark:bg-emerald-800 min-w-[130px]">
+                <CheckCircle className="w-5 h-5 text-emerald-200" />
+                <span className="text-2xl font-bold text-white">{successful}</span>
+                <span className="text-xs font-semibold text-emerald-200">Successful</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40">
-                <span className="w-2 h-2 rounded-full bg-red-500" />
-                <span className="text-xs font-bold text-red-700 dark:text-red-400">{failed} Failed</span>
+              {/* Failed */}
+              <div className="flex flex-col items-center justify-center gap-1 px-8 py-4 rounded-2xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40 min-w-[130px]">
+                <XCircle className="w-5 h-5 text-red-500" />
+                <span className="text-2xl font-bold text-red-600 dark:text-red-400">{failed}</span>
+                <span className="text-xs font-semibold text-red-500 dark:text-red-400">Failed</span>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
-                <span className="w-2 h-2 rounded-full bg-amber-500" />
-                <span className="text-xs font-bold text-amber-700 dark:text-amber-400">{pending} Pending</span>
+              {/* Pending */}
+              <div className="flex flex-col items-center justify-center gap-1 px-8 py-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 min-w-[130px]">
+                <Clock className="w-5 h-5 text-amber-500" />
+                <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">{pending}</span>
+                <span className="text-xs font-semibold text-amber-500 dark:text-amber-400">Pending</span>
               </div>
               <span className="text-[10px] text-neutral-400 ml-1">Today</span>
             </div>

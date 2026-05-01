@@ -228,7 +228,7 @@ export default function Dashboard() {
       ),
     },
     {
-      label: "Website",
+      label: "Offers",
       href: "#",
       icon: (
         <IconWorldWww className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
@@ -409,7 +409,7 @@ export default function Dashboard() {
         {navItem === "Settings" && <SettingsMain user={dbUser} />}
         {navItem === "Store" && <StoreMain userId={userId} />}
         {navItem === "Transactions" && <TransactionsMain userId={userId} />}
-        {navItem === "Website" && <WebsiteMain userId={userId} />}
+        {navItem === "Offers" && <WebsiteMain userId={userId} />}
         {navItem === "Statistics" && <StatisticsMain userId={userId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
       </div>
