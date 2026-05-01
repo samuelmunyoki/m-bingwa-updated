@@ -900,15 +900,15 @@ export const validateDeviceSession = mutation({
     deviceId: v.string(),
   },
   handler: async (ctx, { phoneNumber, deviceId }) => {
-    // STEP 1: Get the active session for this phone number
+    // Get the current active session for this phone number
     const activeSession = await ctx.db
       .query("deviceSessions")
       .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => q.eq(q.field("isActive"), true))
       .first();
 
     if (!activeSession) {
-      // No session found - user needs to login
-      console.log(`❌ No session found for phone: ${phoneNumber}`);
+      console.log(`❌ No active session found for phone: ${phoneNumber}`);
       return {
         isValid: false,
         reason: "no_session_found",
@@ -916,12 +916,8 @@ export const validateDeviceSession = mutation({
       };
     }
 
-    // STEP 2: Check if the device ID matches
     if (activeSession.deviceId !== deviceId) {
-      // Device ID doesn't match - user logged in from another device
-      console.log(
-        `❌ Device mismatch: stored=${activeSession.deviceId}, received=${deviceId}`
-      );
+      console.log(`❌ Device mismatch: active=${activeSession.deviceId}, received=${deviceId}`);
       return {
         isValid: false,
         reason: "logged_in_from_another_device",
@@ -931,17 +927,7 @@ export const validateDeviceSession = mutation({
       };
     }
 
-    // STEP 3: Check if session is still active
-    if (!activeSession.isActive) {
-      console.log(`❌ Session is inactive for device: ${deviceId}`);
-      return {
-        isValid: false,
-        reason: "session_inactive",
-        message: "Your session has been deactivated. Please login again.",
-      };
-    }
-
-    // STEP 4: Session is valid - update last active timestamp
+    // This device is the active one — update timestamp
     await ctx.db.patch(activeSession._id, {
       lastActiveTimestamp: Date.now(),
     });
