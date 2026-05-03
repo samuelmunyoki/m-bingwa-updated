@@ -6299,3 +6299,45 @@ export const submitBalanceResultHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+// ── Blacklist HTTP handlers ───────────────────────────────────────────────────
+
+export const getBlacklistHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId parameter");
+  try {
+    const entries = await ctx.runQuery(api.features.blacklist.getPhoneNumbers, { userId });
+    return createResponse("success", { blacklist: entries });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const addToBlacklistHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, phoneNumber } = body ?? {};
+  if (!userId || !phoneNumber) return createResponse("error", null, "Missing userId or phoneNumber");
+  try {
+    const result = await ctx.runMutation(api.features.blacklist.addPhoneNumberFromAPI, { userId, phoneNumber });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const removeFromBlacklistHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { id, userId } = body ?? {};
+  if (!id || !userId) return createResponse("error", null, "Missing id or userId");
+  try {
+    await ctx.runMutation(api.features.blacklist.removePhoneNumberById, { id, userId });
+    return createResponse("success", null);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});

@@ -15,6 +15,7 @@ import {
   IconAdjustments,
   IconDeviceMobileMessage,
   IconChartBar,
+  IconForbid,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
@@ -241,13 +242,13 @@ export default function Dashboard() {
         <IconChartBar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
-    // {
-    //   label: "Blacklist",
-    //   href: "#",
-    //   icon: (
-    //     <IconForbid className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-    //   ),
-    // },
+    {
+      label: "Blacklist",
+      href: "#",
+      icon: (
+        <IconForbid className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
     {
       label: "Settings",
       href: "#",
