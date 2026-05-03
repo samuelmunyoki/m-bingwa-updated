@@ -118,6 +118,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   registerWebSessionHttp,
   registerFcmTokenHttp,
   submitBalanceResultHttp,
+  getBlacklistHttp,
+  addToBlacklistHttp,
+  removeFromBlacklistHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1155,6 +1158,24 @@ http.route({
   path: "/api/balance/result/",
   method: "POST",
   handler: submitBalanceResultHttp,
+});
+
+http.route({
+  pathPrefix: "/api/blacklist/",
+  method: "GET",
+  handler: getBlacklistHttp,
+});
+
+http.route({
+  pathPrefix: "/api/blacklist/create/",
+  method: "POST",
+  handler: addToBlacklistHttp,
+});
+
+http.route({
+  pathPrefix: "/api/blacklist/delete/",
+  method: "DELETE",
+  handler: removeFromBlacklistHttp,
 });
 
 export default http;

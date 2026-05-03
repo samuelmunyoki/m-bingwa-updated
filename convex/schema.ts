@@ -145,6 +145,7 @@ export default defineSchema({
   blacklist: defineTable({
     phoneNumber: v.string(),
     userId: v.string(),
+    createdAt: v.optional(v.number()),
   })
     .index("by_phoneNumber", ["phoneNumber"])
     .index("by_userId", ["userId"]),
