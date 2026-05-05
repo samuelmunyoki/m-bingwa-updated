@@ -10,7 +10,7 @@ export const sendEmailToken = action({
     userId: v.string(),
   },
   handler: async (ctx, { email, userId }) => {
-    const token = Math.floor(1000 + Math.random() * 9000);
+    const token = Math.floor(100000 + Math.random() * 900000);
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
     await ctx.runMutation(internal.features.emailTokens.storeEmailToken, {

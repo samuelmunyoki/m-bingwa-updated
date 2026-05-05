@@ -9,6 +9,7 @@
  */
 
 import type * as actions_email from "../actions/email.js";
+import type * as actions_fcm from "../actions/fcm.js";
 import type * as actions_notifications from "../actions/notifications.js";
 import type * as actions_phoneVerification from "../actions/phoneVerification.js";
 import type * as actions_scheduled_events from "../actions/scheduled_events.js";
@@ -20,6 +21,7 @@ import type * as crons from "../crons.js";
 import type * as features_airtime_transactions from "../features/airtime_transactions.js";
 import type * as features_analytics from "../features/analytics.js";
 import type * as features_appLogs from "../features/appLogs.js";
+import type * as features_balanceRequests from "../features/balanceRequests.js";
 import type * as features_blacklist from "../features/blacklist.js";
 import type * as features_bridge from "../features/bridge.js";
 import type * as features_bundles from "../features/bundles.js";
@@ -36,6 +38,7 @@ import type * as features_retryConfigs from "../features/retryConfigs.js";
 import type * as features_scheduled_events from "../features/scheduled_events.js";
 import type * as features_serviceStatus from "../features/serviceStatus.js";
 import type * as features_sms from "../features/sms.js";
+import type * as features_statistics from "../features/statistics.js";
 import type * as features_stores from "../features/stores.js";
 import type * as features_subscription_price from "../features/subscription_price.js";
 import type * as features_totalCommission from "../features/totalCommission.js";
@@ -71,6 +74,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   "actions/email": typeof actions_email;
+  "actions/fcm": typeof actions_fcm;
   "actions/notifications": typeof actions_notifications;
   "actions/phoneVerification": typeof actions_phoneVerification;
   "actions/scheduled_events": typeof actions_scheduled_events;
@@ -82,6 +86,7 @@ declare const fullApi: ApiFromModules<{
   "features/airtime_transactions": typeof features_airtime_transactions;
   "features/analytics": typeof features_analytics;
   "features/appLogs": typeof features_appLogs;
+  "features/balanceRequests": typeof features_balanceRequests;
   "features/blacklist": typeof features_blacklist;
   "features/bridge": typeof features_bridge;
   "features/bundles": typeof features_bundles;
@@ -98,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   "features/scheduled_events": typeof features_scheduled_events;
   "features/serviceStatus": typeof features_serviceStatus;
   "features/sms": typeof features_sms;
+  "features/statistics": typeof features_statistics;
   "features/stores": typeof features_stores;
   "features/subscription_price": typeof features_subscription_price;
   "features/totalCommission": typeof features_totalCommission;

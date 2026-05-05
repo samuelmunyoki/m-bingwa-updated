@@ -112,6 +112,15 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   sendEmailTokenHttp,
   verifyEmailTokenHttp,
   getUserByEmailHttp,
+  ensureClerkUser,
+  upsertCommissionByTypeHttp,
+  upsertAutoSaverStatsHttp,
+  registerWebSessionHttp,
+  registerFcmTokenHttp,
+  submitBalanceResultHttp,
+  getBlacklistHttp,
+  addToBlacklistHttp,
+  removeFromBlacklistHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1111,6 +1120,62 @@ http.route({
   path: "/api/email-token/verify/",
   method: "POST",
   handler: verifyEmailTokenHttp,
+});
+
+http.route({
+  path: "/api/users/ensure-clerk/",
+  method: "POST",
+  handler: ensureClerkUser,
+});
+
+// ============= STATS SYNC ROUTES =============
+
+http.route({
+  path: "/api/stats/commission-by-type/upsert/",
+  method: "POST",
+  handler: upsertCommissionByTypeHttp,
+});
+
+http.route({
+  path: "/api/stats/autosaver/upsert/",
+  method: "POST",
+  handler: upsertAutoSaverStatsHttp,
+});
+
+http.route({
+  path: "/api/web-session/register/",
+  method: "POST",
+  handler: registerWebSessionHttp,
+});
+
+http.route({
+  path: "/api/fcm-token/register/",
+  method: "POST",
+  handler: registerFcmTokenHttp,
+});
+
+http.route({
+  path: "/api/balance/result/",
+  method: "POST",
+  handler: submitBalanceResultHttp,
+});
+
+http.route({
+  pathPrefix: "/api/blacklist/",
+  method: "GET",
+  handler: getBlacklistHttp,
+});
+
+http.route({
+  pathPrefix: "/api/blacklist/create/",
+  method: "POST",
+  handler: addToBlacklistHttp,
+});
+
+http.route({
+  pathPrefix: "/api/blacklist/delete/",
+  method: "DELETE",
+  handler: removeFromBlacklistHttp,
 });
 
 export default http;

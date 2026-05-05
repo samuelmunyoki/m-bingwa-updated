@@ -14,6 +14,8 @@ import {
   IconCreditCard,
   IconAdjustments,
   IconDeviceMobileMessage,
+  IconChartBar,
+  IconForbid,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
@@ -33,6 +35,7 @@ import USSD_DialerMain from "@/app/_components/ussd_dialer";
 import SchedulerMain from "@/app/_components/scheduler";
 import BlacklistMain from "@/app/_components/blacklist";
 import SettingsMain from "@/app/_components/settings";
+import StatisticsMain from "@/app/_components/statistics";
 import ConvexMigration from "@/app/_components/migration";
 import {
   Accordion,
@@ -42,7 +45,7 @@ import {
 } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionsMain } from "@/app/_components/transactions/transactions";
-import FloatingNotification from "@/components/ui/floating-notification";
+import BalanceBar from "@/app/_components/balance/BalanceBar";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -74,6 +77,35 @@ export default function Dashboard() {
   }, [userId, router]);
 
   const dbUser = useQuery(api.users.getUserById, { userId });
+
+  // ── Web session guard ─────────────────────────────────────────────────────
+  const registerWebSession = useMutation(api.users.registerWebSession);
+  const liveWebToken = useQuery(
+    api.users.getWebSessionToken,
+    userId !== "skip" ? { userId } : "skip"
+  );
+
+  useEffect(() => {
+    if (userId === "skip") return;
+    const stored = localStorage.getItem("wsToken");
+    if (!stored) {
+      // First login on this browser — register a new session
+      registerWebSession({ userId }).then((res: any) => {
+        if (res?.token) localStorage.setItem("wsToken", res.token);
+      });
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    if (!liveWebToken) return;
+    const stored = localStorage.getItem("wsToken");
+    if (stored && stored !== liveWebToken) {
+      // Another browser logged in — kick this one out
+      localStorage.removeItem("wsToken");
+      signOut().then(() => router.push("/sign-in?reason=session_replaced"));
+    }
+  }, [liveWebToken]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (dbUser == undefined || dbUser == null) {
@@ -197,19 +229,26 @@ export default function Dashboard() {
       ),
     },
     {
-      label: "Website",
+      label: "Offers",
       href: "#",
       icon: (
         <IconWorldWww className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
-    // {
-    //   label: "Blacklist",
-    //   href: "#",
-    //   icon: (
-    //     <IconForbid className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-    //   ),
-    // },
+    {
+      label: "Statistics",
+      href: "#",
+      icon: (
+        <IconChartBar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
+      label: "Blacklist",
+      href: "#",
+      icon: (
+        <IconForbid className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
     {
       label: "Settings",
       href: "#",
@@ -361,7 +400,7 @@ export default function Dashboard() {
         </SidebarBody>
       </Sidebar>
       <div className="z-30 w-full !h-full flex flex-col lg:mr-1 lg:pb-1 overflow-hidden">
-        <FloatingNotification message="Some settings were changes. Kindly connect your agent smartphone to internet for syncing."/>
+        <BalanceBar userId={userId} />
         {navItem === "Dashboard" && isAdmin && <DashboardMain />}
         {navItem === "USSD Dialer" && <USSD_DialerMain user={dbUser} />}
         {navItem === "Blacklist" && <BlacklistMain user={dbUser} />}
@@ -371,7 +410,8 @@ export default function Dashboard() {
         {navItem === "Settings" && <SettingsMain user={dbUser} />}
         {navItem === "Store" && <StoreMain userId={userId} />}
         {navItem === "Transactions" && <TransactionsMain userId={userId} />}
-        {navItem === "Website" && <WebsiteMain userId={userId} />}
+        {navItem === "Offers" && <WebsiteMain userId={userId} />}
+        {navItem === "Statistics" && <StatisticsMain userId={userId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
       </div>
     </div>

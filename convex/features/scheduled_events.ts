@@ -91,6 +91,7 @@ export const createScheduledEvent = mutation({
     scheduledTimeStamp: v.number(),
     repeatDaily: v.boolean(),
     messageId: v.optional(v.string()),
+    localId: v.optional(v.string()),
     offerId: v.string(),
     offerName: v.string(),
     offerDuration: v.string(),
@@ -103,6 +104,23 @@ export const createScheduledEvent = mutation({
   },
   handler: async (ctx, args) => {
     try {
+      // Idempotency check — if localId provided and record already exists, return it
+      if (args.localId) {
+        const existing = await ctx.db
+          .query("scheduled_events")
+          .withIndex("by_localId", (q) =>
+            q.eq("localId", args.localId).eq("userId", args.userId)
+          )
+          .first();
+        if (existing) {
+          return {
+            status: "success",
+            message: "Scheduled event already exists.",
+            data: existing,
+          };
+        }
+      }
+
       const scheduleId = await ctx.db.insert("scheduled_events", {
         ussdCode: args.ussdCode,
         userId: args.userId,
@@ -112,12 +130,12 @@ export const createScheduledEvent = mutation({
         scheduledTimeStamp: args.scheduledTimeStamp,
         repeatDaily: args.repeatDaily,
         messageId: args.messageId,
+        localId: args.localId,
         offerId: args.offerId,
         offerName: args.offerName,
         offerDuration: args.offerDuration,
         offerPrice: args.offerPrice,
         offerNum: args.offerNum,
-        // USE DEFAULTS IF NOT PROVIDED
         dialingSim: args.dialingSim || "SIM1",
         isMultiSession: args.isMultiSession ?? false,
         isSimpleUSSD: args.isSimpleUSSD ?? false,
@@ -129,7 +147,7 @@ export const createScheduledEvent = mutation({
       return {
         status: "success",
         message: "Scheduled event created successfully.",
-        data: createdSchedule
+        data: createdSchedule,
       };
 
     } catch (error) {

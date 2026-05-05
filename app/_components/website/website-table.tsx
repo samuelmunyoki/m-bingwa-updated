@@ -349,7 +349,7 @@ export function BundlesTable({ userId }: { userId: string }) {
         <AddBundleModal userId={userId} />
       </div>
 
-      <div className="rounded-lg border overflow-hidden">
+      <div className="rounded-lg border overflow-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
