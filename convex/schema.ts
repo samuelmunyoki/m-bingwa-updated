@@ -1,7 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-// This file defines the schema for our Convex database, including tables and indexes.--
 export default defineSchema({
   users: defineTable({
     name: v.string(),
