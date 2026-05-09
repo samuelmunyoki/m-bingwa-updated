@@ -64,16 +64,16 @@ export const postStKPushCallback = httpAction(async (ctx, request) => {
 
         switch (ResultCode) {
           case 0:
-            paymentStatus = "CONFIRMED"; // Payment successful
+            paymentStatus = "CONFIRMED";
             break;
           case 1032:
-            paymentStatus = "CANCELLED"; // Payment cancelled by user
+            paymentStatus = "CANCELLED";
             break;
           case 1037:
-            paymentStatus = "TIMEDOUT"; // Payment request timed out
+            paymentStatus = "TIMEDOUT";
             break;
           default:
-            paymentStatus = "ERRORED"; // Any other case is considered an error
+            paymentStatus = "ERRORED";
             break;
         }
 
@@ -85,6 +85,28 @@ export const postStKPushCallback = httpAction(async (ctx, request) => {
             paymentStatus: paymentStatus,
           }
         );
+
+        // On confirmed payment — save to mpesaMessages so Android can pull and process USSD
+        if (ResultCode === 0) {
+          const bundleTransaction = await ctx.runQuery(
+            api.features.transactions.getTransactionByCheckoutRequestID,
+            { checkoutRequestID: CheckoutRequestID }
+          );
+
+          if (bundleTransaction) {
+            await ctx.runMutation(
+              api.features.mpesaMessages.createStoreMpesaMessage,
+              {
+                userId: bundleTransaction.storeOwnerId,
+                name: bundleTransaction.payingNumber,
+                amount: bundleTransaction.bundlesPrice,
+                phoneNumber: bundleTransaction.receivingNumber,
+                transactionId: updateData.mpesaReceiptNumber ?? CheckoutRequestID,
+                time: Date.now(),
+              }
+            );
+          }
+        }
       }
 
       // HANDLE SUBSCRIPTIONS LOGIC

@@ -36,6 +36,8 @@ import {
   XCircle,
   Clock,
   SlidersHorizontal,
+  MinusCircle,
+  AlertCircle,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -125,13 +127,13 @@ const TYPE_CONFIG: Record<TxType, { label: string; icon: React.ReactNode; pill: 
   },
 };
 
-const STATUS_CONFIG: Record<TxStatus, { label: string; className: string }> = {
-  successful: { label: "Successful", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  failed: { label: "Failed", className: "bg-red-50 text-red-700 border-red-200" },
-  pending: { label: "Pending", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  unavailable: { label: "Unavailable", className: "bg-neutral-100 text-neutral-500 border-neutral-200" },
-  cancelled: { label: "Cancelled", className: "bg-neutral-100 text-neutral-500 border-neutral-200" },
-  disabled: { label: "Disabled", className: "bg-orange-50 text-orange-600 border-orange-200" },
+const STATUS_CONFIG: Record<TxStatus, { label: string; className: string; icon: React.ReactNode }> = {
+  successful: { label: "Successful", className: "bg-emerald-50 text-emerald-700 border-emerald-200", icon: <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> },
+  failed:     { label: "Failed",     className: "bg-red-50 text-red-700 border-red-200",             icon: <XCircle className="w-3.5 h-3.5 text-red-500" /> },
+  pending:    { label: "Pending",    className: "bg-amber-50 text-amber-700 border-amber-200",        icon: <Clock className="w-3.5 h-3.5 text-amber-500" /> },
+  unavailable:{ label: "Unavailable",className: "bg-neutral-100 text-neutral-500 border-neutral-200",icon: <MinusCircle className="w-3.5 h-3.5 text-neutral-400" /> },
+  cancelled:  { label: "Cancelled",  className: "bg-neutral-100 text-neutral-500 border-neutral-200",icon: <MinusCircle className="w-3.5 h-3.5 text-neutral-400" /> },
+  disabled:   { label: "Disabled",   className: "bg-orange-50 text-orange-600 border-orange-200",    icon: <AlertCircle className="w-3.5 h-3.5 text-orange-500" /> },
 };
 
 // ─── Detail Dialog ────────────────────────────────────────────────────────────
@@ -327,7 +329,8 @@ function TransactionCard({
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${typeConf.pill}`}>
             {typeConf.label}
           </span>
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusConf.className}`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${statusConf.className}`}>
+            {statusConf.icon}
             {statusConf.label}
           </span>
         </div>
@@ -537,23 +540,44 @@ export function TransactionsMain({ userId }: { userId: string }) {
           return (
             <div className="flex items-center gap-2">
               {/* Successful */}
-              <div className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-emerald-700 dark:bg-emerald-800">
+              <button
+                onClick={() => setStatusFilter(statusFilter === "successful" ? "all" : "successful")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg transition-all ${
+                  statusFilter === "successful"
+                    ? "bg-emerald-700 ring-2 ring-emerald-400 ring-offset-1"
+                    : "bg-emerald-700 dark:bg-emerald-800 hover:bg-emerald-600"
+                }`}
+              >
                 <CheckCircle className="w-3.5 h-3.5 text-emerald-200" />
                 <span className="text-sm font-bold text-white">{successful}</span>
                 <span className="text-xs font-semibold text-emerald-200">Successful</span>
-              </div>
+              </button>
               {/* Failed */}
-              <div className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/40">
+              <button
+                onClick={() => setStatusFilter(statusFilter === "failed" ? "all" : "failed")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg border transition-all ${
+                  statusFilter === "failed"
+                    ? "bg-red-100 border-red-400 ring-2 ring-red-300 ring-offset-1 dark:bg-red-900/40"
+                    : "bg-red-50 border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800/40"
+                }`}
+              >
                 <XCircle className="w-3.5 h-3.5 text-red-500" />
                 <span className="text-sm font-bold text-red-600 dark:text-red-400">{failed}</span>
                 <span className="text-xs font-semibold text-red-500 dark:text-red-400">Failed</span>
-              </div>
+              </button>
               {/* Pending */}
-              <div className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40">
+              <button
+                onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-lg border transition-all ${
+                  statusFilter === "pending"
+                    ? "bg-amber-100 border-amber-400 ring-2 ring-amber-300 ring-offset-1 dark:bg-amber-900/40"
+                    : "bg-amber-50 border-amber-200 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800/40"
+                }`}
+              >
                 <Clock className="w-3.5 h-3.5 text-amber-500" />
                 <span className="text-sm font-bold text-amber-600 dark:text-amber-400">{pending}</span>
                 <span className="text-xs font-semibold text-amber-500 dark:text-amber-400">Pending</span>
-              </div>
+              </button>
               <span className="text-[10px] text-neutral-400 ml-1">Today</span>
             </div>
           );

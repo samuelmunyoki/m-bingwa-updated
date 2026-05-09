@@ -101,6 +101,7 @@ export const createScheduledEvent = mutation({
     isMultiSession: v.optional(v.boolean()),
     isSimpleUSSD: v.optional(v.boolean()),
     responseValidatorText: v.optional(v.string()),
+    source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     try {
@@ -140,6 +141,7 @@ export const createScheduledEvent = mutation({
         isMultiSession: args.isMultiSession ?? false,
         isSimpleUSSD: args.isSimpleUSSD ?? false,
         responseValidatorText: args.responseValidatorText,
+        source: args.source ?? "android",
       });
 
       const createdSchedule = await ctx.db.get(scheduleId);
@@ -176,13 +178,21 @@ export const getScheduledEvents = query({
   },
 });
 
-// Query to get all pending scheduled events
+// Query to get pending web-created scheduled events for a user (pulled by Android for execution)
 export const getPendingScheduledEvents = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
     return await ctx.db
       .query("scheduled_events")
-      .filter((q) => q.eq(q.field("status"), "PENDING"))
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "PENDING"),
+          q.eq(q.field("source"), "web")
+        )
+      )
       .collect();
   },
 });
@@ -313,9 +323,15 @@ export const checkScheduledEvents = mutation({
   args: {},
   handler: async (ctx) => {
     const nowEAT = Math.floor(Date.now() / 1000);
-    const events = await ctx.runQuery(
-      api.features.scheduled_events.getPendingScheduledEvents
-    );
+    const events = await ctx.db
+      .query("scheduled_events")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("status"), "PENDING"),
+          q.eq(q.field("source"), "web")
+        )
+      )
+      .collect();
 
     for (const event of events) {
       if (!event.scheduledTimeStamp) {

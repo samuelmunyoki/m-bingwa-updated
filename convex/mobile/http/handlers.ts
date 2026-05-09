@@ -1913,7 +1913,16 @@ export const getPendingScheduledEvents = httpAction(async (ctx, request) => {
   }
 
   try {
-    const events = await ctx.runQuery(api.features.scheduled_events.getPendingScheduledEvents, {});
+    const url = new URL(request.url);
+    const userId = url.searchParams.get("userId");
+    if (!userId) {
+      return new Response(JSON.stringify({ status: "error", message: "Missing userId" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+      });
+    }
+
+    const events = await ctx.runQuery(api.features.scheduled_events.getPendingScheduledEvents, { userId });
 
     return new Response(JSON.stringify({
       status: "success",
@@ -6336,6 +6345,35 @@ export const removeFromBlacklistHttp = httpAction(async (ctx, request) => {
   if (!id || !userId) return createResponse("error", null, "Missing id or userId");
   try {
     await ctx.runMutation(api.features.blacklist.removePhoneNumberById, { id, userId });
+    return createResponse("success", null);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Get pending store mpesa messages for Android to process
+export const getPendingStoreMpesaMessagesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") return createResponse("error", null, "Method not allowed");
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId");
+  try {
+    const messages = await ctx.runQuery(api.features.mpesaMessages.getPendingStoreMpesaMessages, { userId });
+    return createResponse("success", { messages });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Mark a store mpesa message as processed by Android
+export const markStoreMessageAndroidProcessedHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { messageId } = body ?? {};
+  if (!messageId) return createResponse("error", null, "Missing messageId");
+  try {
+    await ctx.runMutation(api.features.mpesaMessages.markStoreMessageAndroidProcessed, { messageId });
     return createResponse("success", null);
   } catch (e: any) {
     return createResponse("error", null, `Failed: ${e.message}`);

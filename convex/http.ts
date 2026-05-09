@@ -121,6 +121,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getBlacklistHttp,
   addToBlacklistHttp,
   removeFromBlacklistHttp,
+  getPendingStoreMpesaMessagesHttp,
+  markStoreMessageAndroidProcessedHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -330,6 +332,19 @@ http.route({
   pathPrefix: "/api/mpesa-messages/migrate/",
   method: "POST",
   handler: migrateMpesaMessages,
+});
+
+// Store transaction mpesa message endpoints
+http.route({
+  pathPrefix: "/api/mpesa-messages/store/pending/",
+  method: "GET",
+  handler: getPendingStoreMpesaMessagesHttp,
+});
+
+http.route({
+  pathPrefix: "/api/mpesa-messages/store/mark-processed/",
+  method: "PATCH",
+  handler: markStoreMessageAndroidProcessedHttp,
 });
 
 //API Route to get subscription price

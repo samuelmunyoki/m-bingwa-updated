@@ -31,51 +31,19 @@ export const payBundle = action({
         } as BackendResponse;
       }
 
-      // 2. Create an SMS record
-      const timestamp = Math.floor(new Date().getTime() / 1000);
-      const smsContent = `IT|${args.payingNumber}|${args.receivingNumber}|${timestamp}`;
-      const createdSMSId = await ctx.runMutation(api.features.sms.createSMS, {
-        service: "STORE",
-        userId: args.storeOwnerId,
-        smsContent,
-        smsReciepient: storeOwnerData?.phoneNumber,
-      });
+      // 2. Send SKIP| SMS to store owner's phone — warn Android to ignore incoming M-Pesa SMS
+      const smsContent = `SKIP|${args.payingNumber}`;
+      const skipSmsSent = await sendSkipSmsWithRetry(ctx, storeOwnerData.phoneNumber, smsContent, args.storeOwnerId);
 
-      // 3. Send OTP SMS
-      const otpSmsResponse = await ctx.runAction(api.actions.sms.sendOTPSMS, {
-        smsNumber: storeOwnerData.phoneNumber,
-        smsContent,
-        smsId: createdSMSId.data.id,
-        service: "STORE",
-      });
-
-      if (
-        otpSmsResponse.status !== "success" ||
-        !otpSmsResponse.data.responses
-      ) {
+      if (!skipSmsSent) {
         return {
           status: "error",
-          message: "Purchase failed or timed out. Please try again.",
+          message: "Could not reach device. Please try again.",
         } as BackendResponse;
       }
 
-      const smsDetails = otpSmsResponse.data.responses[0];
-      if (smsDetails["response-code"] !== 200 || !smsDetails.messageid) {
-        return {
-          status: "error",
-          message: "Purchase failed or timed out. Please try again.",
-        } as BackendResponse;
-      }
-
-      // Check OTP SMS delivery status
-      const deliveryStatus = await checkSMSDelivery(ctx, smsDetails.messageid);
-
-      if (deliveryStatus !== "DeliveredToTerminal") {
-        return {
-          status: "error",
-          message: "Purchase failed or timed out. Please try again.",
-        } as BackendResponse;
-      }
+      // 3. Wait 8 seconds to ensure SKIP| SMS lands on device before STK push
+      await new Promise((resolve) => setTimeout(resolve, 8000));
 
       // Initiate Mpesa STK Push
       const stkPushResponse = await ctx.runAction(
@@ -135,33 +103,37 @@ export const payBundle = action({
   },
 });
 
-// Helper function to check SMS delivery status
-async function checkSMSDelivery(ctx: any, messageId: string): Promise<string> {
-  const startTime = Date.now();
-  let deliveryStatus = "";
-  let retries = 0;
+// Send SKIP| SMS with up to 3 retries, 2 seconds apart
+async function sendSkipSmsWithRetry(ctx: any, phoneNumber: string, smsContent: string, userId: string): Promise<boolean> {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 2000;
 
-  while (Date.now() - startTime < 45000) {
-    // Check for 45 seconds
-    const deliveryReport = await ctx.runAction(
-      api.actions.sms.getDeliveryReport,
-      { messageId }
-    );
-    // Mmh the M-bingwa agent got the IT| OTP?
-    if (deliveryReport.status === "success" && deliveryReport.data) {
-      deliveryStatus = deliveryReport.data.deliveryDescription;
-      if (deliveryStatus === "DeliveredToTerminal") {
-        break;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const createdSMSId = await ctx.runMutation(api.features.sms.createSMS, {
+        service: "STORE",
+        userId,
+        smsContent,
+        smsReciepient: phoneNumber,
+      });
+
+      const response = await ctx.runAction(api.actions.sms.sendOTPSMS, {
+        smsNumber: phoneNumber,
+        smsContent,
+        smsId: createdSMSId.data.id,
+        service: "STORE",
+      });
+
+      if (response.status === "success" && response.data?.responses?.[0]?.["response-code"] === 200) {
+        return true;
       }
+    } catch (e) {
+      console.error(`SKIP SMS attempt ${attempt} failed:`, e);
     }
-    // Let's give up and timeout
-    retries++;
-    if (retries > 225) {
-      break; 
+
+    if (attempt < MAX_RETRIES) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
     }
-    // I am impatient, lets Wait for 200ms before checking again (API has no rate limit? spam!)
-    await new Promise((resolve) => setTimeout(resolve, 200));
   }
-  //  Return whatever we got.
-  return deliveryStatus;
+  return false;
 }

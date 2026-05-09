@@ -745,3 +745,54 @@ export const deleteOldMpesaMessages = mutation({
     }
   },
 });
+
+
+// Mutation to create a store mpesa message after payment confirmation
+export const createStoreMpesaMessage = mutation({
+  args: {
+    userId: v.string(),
+    name: v.string(),
+    amount: v.number(),
+    phoneNumber: v.string(),
+    transactionId: v.string(),
+    time: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const messageId = await ctx.db.insert("mpesaMessages", {
+      userId: args.userId,
+      name: args.name,
+      amount: args.amount,
+      phoneNumber: args.phoneNumber,
+      senderId: "STORE",
+      time: args.time,
+      transactionId: args.transactionId,
+      processed: "pending",
+      source: "store",
+      androidProcessed: false,
+    });
+    return await ctx.db.get(messageId);
+  },
+});
+
+// Query to get pending store messages not yet processed by Android
+export const getPendingStoreMpesaMessages = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const messages = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_source_androidProcessed", (q) =>
+        q.eq("source", "store").eq("androidProcessed", false)
+      )
+      .filter((q) => q.eq(q.field("userId"), args.userId))
+      .collect();
+    return messages;
+  },
+});
+
+// Mutation to mark a store message as processed by Android
+export const markStoreMessageAndroidProcessed = mutation({
+  args: { messageId: v.id("mpesaMessages") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, { androidProcessed: true });
+  },
+});
