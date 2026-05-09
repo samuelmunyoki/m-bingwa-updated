@@ -116,6 +116,7 @@ export default defineSchema({
     isMultiSession: v.optional(v.boolean()),
     isSimpleUSSD: v.optional(v.boolean()),
     responseValidatorText: v.optional(v.string()),
+    source: v.optional(v.string()),
   })
     .index("by_userId", ["userId"])
     .index("by_messageId", ["messageId"])
@@ -219,13 +220,16 @@ export default defineSchema({
   processedUSSD: v.optional(v.string()),
   verified: v.optional(v.boolean()),
   mpesaDate: v.optional(v.float64()),
+  source: v.optional(v.string()),
+  androidProcessed: v.optional(v.boolean()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
     .index("by_sender_id", ["senderId"])
     .index("by_time", ["time"])
     .index("by_processed", ["processed"])
-    .index("by_user_id_time", ["userId", "time"]),
+    .index("by_user_id_time", ["userId", "time"])
+    .index("by_source_androidProcessed", ["source", "androidProcessed"]),
 
   userSenderRelations: defineTable({
     userId: v.string(),

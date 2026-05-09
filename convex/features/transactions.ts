@@ -91,6 +91,18 @@ export const updateTransactionStatus = mutation({
   },
 });
 
+export const getTransactionByCheckoutRequestID = query({
+  args: { checkoutRequestID: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("transactions")
+      .withIndex("by_checkoutrequest_id", (q) =>
+        q.eq("checkoutRequestID", args.checkoutRequestID)
+      )
+      .first();
+  },
+});
+
 export const getReceivingNumberToday = query({
   args: {
     receivingNumber: v.string(),

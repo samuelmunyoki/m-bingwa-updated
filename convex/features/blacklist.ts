@@ -60,12 +60,15 @@ export const addPhoneNumberFromAPI = mutation({
 });
 
 export const removePhoneNumberById = mutation({
-  args: { id: v.id("blacklist"), userId: v.string() },
+  args: { id: v.string(), userId: v.string() },
   handler: async (ctx, args) => {
-    const entry = await ctx.db.get(args.id);
+    const entries = await ctx.db
+      .query("blacklist")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    const entry = entries.find((e) => e._id.toString() === args.id);
     if (!entry) throw new Error("Blacklist entry not found");
-    if (entry.userId !== args.userId) throw new Error("Permission denied");
-    await ctx.db.delete(args.id);
+    await ctx.db.delete(entry._id);
     return { success: true };
   },
 });
