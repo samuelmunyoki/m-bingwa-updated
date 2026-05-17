@@ -123,6 +123,10 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   removeFromBlacklistHttp,
   getPendingStoreMpesaMessagesHttp,
   markStoreMessageAndroidProcessedHttp,
+  upsertAutoTopupSettingsHttp,
+  upsertAutoTopupWatchHttp,
+  deleteAutoTopupWatchHttp,
+  insertAutoTopupHistoryHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1191,6 +1195,32 @@ http.route({
   pathPrefix: "/api/blacklist/delete/",
   method: "DELETE",
   handler: removeFromBlacklistHttp,
+});
+
+// ── AutoTopup routes ──────────────────────────────────────────────────────────
+
+http.route({
+  pathPrefix: "/api/autotopup/settings/",
+  method: "POST",
+  handler: upsertAutoTopupSettingsHttp,
+});
+
+http.route({
+  pathPrefix: "/api/autotopup/watch/create/",
+  method: "POST",
+  handler: upsertAutoTopupWatchHttp,
+});
+
+http.route({
+  pathPrefix: "/api/autotopup/watch/delete/",
+  method: "POST",
+  handler: deleteAutoTopupWatchHttp,
+});
+
+http.route({
+  pathPrefix: "/api/autotopup/history/create/",
+  method: "POST",
+  handler: insertAutoTopupHistoryHttp,
 });
 
 export default http;

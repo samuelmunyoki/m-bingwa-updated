@@ -6379,3 +6379,68 @@ export const markStoreMessageAndroidProcessedHttp = httpAction(async (ctx, reque
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+// ── AutoTopup HTTP handlers ───────────────────────────────────────────────────
+
+export const upsertAutoTopupSettingsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, isEnabled } = body ?? {};
+  if (!userId || isEnabled === undefined) return createResponse("error", null, "Missing userId or isEnabled");
+  try {
+    const result = await ctx.runMutation(api.features.autoTopup.upsertSettings, { userId, isEnabled });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const upsertAutoTopupWatchHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, originalMessageId, phoneNumber, originalAmount, originalBundleName, failedAt } = body ?? {};
+  if (!userId || !originalMessageId || !phoneNumber || originalAmount === undefined || !originalBundleName || !failedAt)
+    return createResponse("error", null, "Missing required fields");
+  try {
+    const result = await ctx.runMutation(api.features.autoTopup.upsertWatch, {
+      userId, originalMessageId, phoneNumber, originalAmount, originalBundleName, failedAt,
+    });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const deleteAutoTopupWatchHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { id, userId } = body ?? {};
+  if (!id || !userId) return createResponse("error", null, "Missing id or userId");
+  try {
+    await ctx.runMutation(api.features.autoTopup.deleteWatch, { id, userId });
+    return createResponse("success", null);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const insertAutoTopupHistoryHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, phoneNumber, originalAmount, topupAmount, combinedAmount, bundleDelivered, completedAt } = body ?? {};
+  if (!userId || !phoneNumber || originalAmount === undefined || topupAmount === undefined ||
+      combinedAmount === undefined || !bundleDelivered || !completedAt)
+    return createResponse("error", null, "Missing required fields");
+  try {
+    const result = await ctx.runMutation(api.features.autoTopup.insertHistory, {
+      userId, phoneNumber, originalAmount, topupAmount, combinedAmount, bundleDelivered, completedAt,
+    });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});

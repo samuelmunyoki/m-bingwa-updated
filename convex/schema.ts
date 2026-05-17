@@ -561,5 +561,34 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"]),
 
+  autoTopupSettings: defineTable({
+    userId: v.string(),
+    isEnabled: v.boolean(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  autoTopupWatch: defineTable({
+    userId: v.string(),
+    originalMessageId: v.string(),
+    phoneNumber: v.string(),
+    originalAmount: v.number(),
+    originalBundleName: v.string(),
+    failedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_user_phone", ["userId", "phoneNumber"]),
+
+  autoTopupHistory: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    originalAmount: v.number(),
+    topupAmount: v.number(),
+    combinedAmount: v.number(),
+    bundleDelivered: v.string(),
+    completedAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
 });
 
