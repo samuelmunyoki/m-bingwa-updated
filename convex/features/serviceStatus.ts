@@ -250,6 +250,43 @@ export const getOnlineServiceStatus = query({
   },
 });
 
+export const getServiceStatusByUserId = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const status = await ctx.db
+      .query("onlineServiceStatus")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+    return {
+      isServiceRunning: status?.isServiceRunning ?? false,
+      updatedAt: status?.updatedAt ?? null,
+    };
+  },
+});
+
+export const setServiceStatusByUserId = mutation({
+  args: {
+    userId: v.string(),
+    isServiceRunning: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const existing = await ctx.db
+      .query("onlineServiceStatus")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        isServiceRunning: args.isServiceRunning,
+        updatedAt: now,
+      });
+    }
+    return { isServiceRunning: args.isServiceRunning };
+  },
+});
+
 export const getOnlineBatchServiceStatus = query({
   args: {
     phoneNumbers: v.array(v.string()),

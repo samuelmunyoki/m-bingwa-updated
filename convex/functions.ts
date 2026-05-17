@@ -25,50 +25,8 @@ triggers.register("users", async (ctx, change) => {
   }
 });
 
-// Register trigger for sending SMS when a transaction is confirmed
-triggers.register("transactions", async (ctx, change) => {
-  if (
-    change.operation === "update" &&
-    change.newDoc?.paymentStatus === "CONFIRMED" &&
-    change.oldDoc?.paymentStatus !== "CONFIRMED"
-  ) {
-    // Fetch user details
-    const user = await ctx.runQuery(api.users.getUserById, {
-      userId: change.newDoc.storeOwnerId,
-    });
-
-    // Log if user or phone number is missing
-    if (!user || user.phoneNumber === undefined) {
-      console.log(
-        `User not found or phone number missing for userId: ${change.newDoc.storeOwnerId}`
-      );
-      return;
-    }
-
-    // Retrieve bundle data to prepare USSD SMS
-    const ussdData = await ctx.runQuery(
-      api.features.bundles.getBundleByBundleID,
-      {
-        bundleId: change.newDoc.bundlesID,
-      }
-    );
-
-    // Schedule SMS if bundle data exists
-    if (ussdData) {
-      const ussdSMS = ussdData.bundlesUSSD.replace(
-        "NUM",
-        change.newDoc.receivingNumber
-      );
-      const timestamp = Math.floor(new Date().getTime() / 1000);
-      await ctx.scheduler.runAfter(0, api.actions.sms.sendSMS, {
-        smsNumber: user.phoneNumber,
-        smsContent: `SP|${ussdSMS}|${timestamp}`,
-        smsId: change.newDoc._id,
-        service: "STORE",
-      });
-    }
-  }
-});
+// Store transaction trigger removed — USSD execution now handled via
+// Convex mpesaMessages poll on Android (new mechanism).
 
 // Register trigger for store notifications
 triggers.register("stores", async (ctx, change) => {
