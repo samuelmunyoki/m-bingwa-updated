@@ -45,3 +45,5 @@ next-env.d.ts
 
 # local scripts with secrets
 deploy-convex.ps1
+
+.env.local
