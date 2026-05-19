@@ -250,6 +250,7 @@ export const getOnlineServiceStatus = query({
   },
 });
 
+/**
 export const getServiceStatusByUserId = query({
   args: {
     userId: v.string(),
@@ -286,6 +287,7 @@ export const setServiceStatusByUserId = mutation({
     return { isServiceRunning: args.isServiceRunning };
   },
 });
+**/
 
 export const getOnlineBatchServiceStatus = query({
   args: {

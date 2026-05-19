@@ -19,17 +19,13 @@ export default function BalanceBar({ userId }: BalanceBarProps) {
 
   const createRequest = useMutation(api.features.balanceRequests.createBalanceRequest);
   const sendPush = useAction(api.actions.fcm.sendBalanceCheckPush);
-  const serviceStatus = useQuery(api.features.serviceStatus.getServiceStatusByUserId, { userId });
-  const setServiceStatus = useMutation(api.features.serviceStatus.setServiceStatusByUserId);
+  // const serviceStatus = useQuery(api.features.serviceStatus.getServiceStatusByUserId, { userId });
+  // const setServiceStatus = useMutation(api.features.serviceStatus.setServiceStatusByUserId);
+  const serviceStatus: { isServiceRunning: boolean } | undefined = undefined;
   const [isToggling, setIsToggling] = useState(false);
 
   const handleServiceToggle = async () => {
-    setIsToggling(true);
-    try {
-      await setServiceStatus({ userId, isServiceRunning: !serviceStatus?.isServiceRunning });
-    } finally {
-      setIsToggling(false);
-    }
+    // temporarily disabled
   };
 
   const fcmRecord = useQuery(api.features.balanceRequests.getFcmToken, { userId });
