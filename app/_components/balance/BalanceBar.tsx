@@ -75,7 +75,7 @@ export default function BalanceBar({ userId }: BalanceBarProps) {
   const isFailed = latestRequest?.status === "failed";
 
   return (
-    <div className="w-full px-1 mb-3 mt-4">
+    <div className="w-full px-1 mt-4">
       {/* Results bar */}
       {step === "done" && isCompleted && latestRequest ? (
         <div className="flex items-center justify-between bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-2 shadow-sm">
