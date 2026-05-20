@@ -8,11 +8,12 @@ import { cn } from "@/lib/utils";
 
 interface BalanceBarProps {
   userId: string;
+  phoneSelector?: React.ReactNode;
 }
 
 type Step = "idle" | "select_sim" | "loading" | "done";
 
-export default function BalanceBar({ userId }: BalanceBarProps) {
+export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
   const [step, setStep] = useState<Step>("idle");
   const [selectedSim, setSelectedSim] = useState<"SIM1" | "SIM2" | null>(null);
   const prevStatus = useRef<string | null>(null);
@@ -158,6 +159,7 @@ export default function BalanceBar({ userId }: BalanceBarProps) {
               <Eye className="h-4 w-4" />
               View Balance
             </button>
+            {phoneSelector && phoneSelector}
             {noDevice && (
               <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
                 <Smartphone className="h-3.5 w-3.5" />
