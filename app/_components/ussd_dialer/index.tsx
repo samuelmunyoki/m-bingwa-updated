@@ -137,7 +137,7 @@ const USSD_DialerMain = ({ user }: Props) => {
                   <SelectTrigger>
                     <SelectValue placeholder="Choose an offer…" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60 overflow-y-auto">
                     {availableBundles.length === 0 ? (
                       <SelectItem value="_none" disabled>No available offers</SelectItem>
                     ) : (
