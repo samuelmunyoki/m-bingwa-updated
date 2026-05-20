@@ -399,7 +399,7 @@ export default function Dashboard() {
           </div>
         </SidebarBody>
       </Sidebar>
-      <div className="z-30 w-full !h-full flex flex-col lg:mr-1 lg:pb-1 overflow-hidden">
+      <div className="z-30 w-full !h-full flex flex-col gap-2 lg:mr-1 lg:pb-1 overflow-hidden">
         <BalanceBar userId={userId} />
         {navItem === "Dashboard" && isAdmin && <DashboardMain />}
         {navItem === "USSD Dialer" && <USSD_DialerMain user={dbUser} />}
