@@ -435,24 +435,24 @@ export default function Dashboard() {
         </SidebarBody>
       </Sidebar>
       <div className="z-30 w-full !h-full flex flex-col gap-2 lg:mr-1 lg:pb-1 overflow-hidden">
-        <div className="flex items-center justify-between px-1">
-          <BalanceBar userId={activeProfileId} />
-          {phoneProfiles && phoneProfiles.length > 0 && (
-            <div className="ml-2 flex-shrink-0">
+        <BalanceBar
+          userId={activeProfileId}
+          phoneSelector={
+            phoneProfiles && phoneProfiles.length > 0 ? (
               <select
                 value={selectedProfileId ?? ""}
                 onChange={(e) => setSelectedProfileId(e.target.value)}
-                className="text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                className="ml-4 text-sm rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300 shadow-sm font-medium min-w-[180px]"
               >
                 {phoneProfiles.map((p) => (
                   <option key={p.profileId} value={p.profileId}>
-                    {p.displayName || p.phoneNumber}
+                    {p.displayName ? `${p.displayName} · ${p.phoneNumber}` : p.phoneNumber}
                   </option>
                 ))}
               </select>
-            </div>
-          )}
-        </div>
+            ) : undefined
+          }
+        />
         {navItem === "Dashboard" && isAdmin && <DashboardMain />}
         {navItem === "USSD Dialer" && <USSD_DialerMain user={effectiveUser} />}
         {navItem === "Blacklist" && <BlacklistMain user={effectiveUser} />}
