@@ -118,7 +118,7 @@ const USSD_DialerMain = ({ user }: Props) => {
 
   return (
     <div className="flex flex-1 w-full">
-      <div className="p-6 md:p-5 md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full">
+      <div className="page-container gap-2">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium mb-4">
           USSD Dialer
         </h2>

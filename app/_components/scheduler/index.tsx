@@ -490,7 +490,7 @@ const SchedularMain = ({ user }: SchedulerProps) => {
 
   return (
     <div className="flex flex-1 h-full overflow-hidden">
-      <div className="p-6 md:p-5 md:pl-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col gap-4 flex-1 w-full overflow-hidden">
+      <div className="page-container gap-4 overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-2 mb-1">
           <CalendarClock className="w-5 h-5 text-neutral-500" />
