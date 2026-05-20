@@ -485,9 +485,10 @@ export default defineSchema({
     targetNumber: v.optional(v.string()),
     offerName: v.optional(v.string()),
     status: v.string(), // "Success", "Failed", "Timeout", "Cancelled", "Validation Failed"
-    timeTaken: v.string(), 
-    timeStamp: v.string(), 
-    ussdResponse: v.optional(v.string()), 
+    timeTaken: v.string(),
+    timeStamp: v.string(),
+    ussdResponse: v.optional(v.string()),
+    source: v.optional(v.string()), // "android" or "web"
     createdAt: v.number(),
     updatedAt: v.number()
   })

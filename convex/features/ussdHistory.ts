@@ -13,7 +13,8 @@ export const createUSSDHistory = mutation({
     status: v.string(),
     timeTaken: v.string(),
     timeStamp: v.string(),
-    ussdResponse: v.optional(v.string())
+    ussdResponse: v.optional(v.string()),
+    source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Check for duplicate using composite key
@@ -40,6 +41,7 @@ export const createUSSDHistory = mutation({
       timeTaken: args.timeTaken,
       timeStamp: args.timeStamp,
       ussdResponse: args.ussdResponse,
+      source: args.source ?? "android",
       createdAt: Date.now(),
       updatedAt: Date.now()
     });
