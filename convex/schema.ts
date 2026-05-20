@@ -591,5 +591,16 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_userId", ["userId"]),
 
+  phoneProfiles: defineTable({
+    ownerId: v.string(),      // Clerk Gmail userId — who owns this profile
+    profileId: v.string(),    // unique data key used across all data tables
+    phoneNumber: v.string(),  // the registered phone number
+    displayName: v.optional(v.string()), // e.g. "Main", "Backup"
+    createdAt: v.number(),
+  })
+    .index("by_owner", ["ownerId"])
+    .index("by_phone", ["phoneNumber"])
+    .index("by_profileId", ["profileId"]),
+
 });
 

@@ -6444,3 +6444,23 @@ export const insertAutoTopupHistoryHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+// ============= PHONE PROFILES =============
+
+export const getOrCreatePhoneProfileHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { ownerId, phoneNumber, displayName } = body ?? {};
+  if (!ownerId || !phoneNumber) return createResponse("error", null, "Missing ownerId or phoneNumber");
+  try {
+    const result = await ctx.runMutation(api.features.phoneProfiles.getOrCreateProfile, {
+      ownerId,
+      phoneNumber,
+      displayName,
+    });
+    return createResponse("success", { profileId: result.profileId, isNew: result.isNew });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
