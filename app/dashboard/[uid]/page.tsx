@@ -78,6 +78,20 @@ export default function Dashboard() {
 
   const dbUser = useQuery(api.users.getUserById, { userId });
 
+  // ── Phone profiles (multi-phone support) ─────────────────────────────────
+  const phoneProfiles = useQuery(
+    api.features.phoneProfiles.getProfilesByOwner,
+    userId !== "skip" ? { ownerId: userId } : "skip"
+  );
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Auto-select first profile when profiles load
+  useEffect(() => {
+    if (phoneProfiles && phoneProfiles.length > 0 && !selectedProfileId) {
+      setSelectedProfileId(phoneProfiles[0].profileId);
+    }
+  }, [phoneProfiles]);
+
   // ── Web session guard ─────────────────────────────────────────────────────
   const registerWebSession = useMutation(api.users.registerWebSession);
   const liveWebToken = useQuery(
@@ -214,13 +228,13 @@ export default function Dashboard() {
         <IconPhoneCall className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
-    {
-      label: "Scheduler",
-      href: "#",
-      icon: (
-        <IconCalendarDue className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
-      ),
-    },
+    // {
+    //   label: "Scheduler",
+    //   href: "#",
+    //   icon: (
+    //     <IconCalendarDue className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+    //   ),
+    // },
     {
       label: "Store",
       href: "#",
@@ -295,6 +309,10 @@ export default function Dashboard() {
     dbUser.isSubscribed || userId === "user_2r7LUUlDnylYJnMMytKl7qzwY0c";
   const isAdmin =
     dbUser.isAdmin || userId === "user_2r7LUUlDnylYJnMMytKl7qzwY0c";
+
+  // effectiveUser — uses selectedProfileId as the data key for all components
+  const activeProfileId = selectedProfileId ?? userId;
+  const effectiveUser = { ...dbUser, userId: activeProfileId };
 
   return (
     <div
@@ -400,18 +418,35 @@ export default function Dashboard() {
         </SidebarBody>
       </Sidebar>
       <div className="z-30 w-full !h-full flex flex-col gap-2 lg:mr-1 lg:pb-1 overflow-hidden">
-        <BalanceBar userId={userId} />
+        <div className="flex items-center justify-between px-1">
+          <BalanceBar userId={activeProfileId} />
+          {phoneProfiles && phoneProfiles.length > 1 && (
+            <div className="ml-2 flex-shrink-0">
+              <select
+                value={selectedProfileId ?? ""}
+                onChange={(e) => setSelectedProfileId(e.target.value)}
+                className="text-sm rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-neutral-700 dark:text-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+              >
+                {phoneProfiles.map((p) => (
+                  <option key={p.profileId} value={p.profileId}>
+                    {p.displayName || p.phoneNumber}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
         {navItem === "Dashboard" && isAdmin && <DashboardMain />}
-        {navItem === "USSD Dialer" && <USSD_DialerMain user={dbUser} />}
-        {navItem === "Blacklist" && <BlacklistMain user={dbUser} />}
-        {navItem === "Scheduler" && <SchedulerMain user={dbUser} />}
-        {navItem === "Subscription" && <SubscriptionMain user={dbUser} />}
+        {navItem === "USSD Dialer" && <USSD_DialerMain user={effectiveUser} />}
+        {navItem === "Blacklist" && <BlacklistMain user={effectiveUser} />}
+        {navItem === "Scheduler" && <SchedulerMain user={effectiveUser} />}
+        {navItem === "Subscription" && <SubscriptionMain user={effectiveUser} />}
         {navItem === "Users" && isAdmin && <UsersMain />}
         {navItem === "Settings" && <SettingsMain user={dbUser} />}
-        {navItem === "Store" && <StoreMain userId={userId} />}
-        {navItem === "Transactions" && <TransactionsMain userId={userId} />}
-        {navItem === "Offers" && <WebsiteMain userId={userId} />}
-        {navItem === "Statistics" && <StatisticsMain userId={userId} />}
+        {navItem === "Store" && <StoreMain userId={activeProfileId} />}
+        {navItem === "Transactions" && <TransactionsMain userId={activeProfileId} />}
+        {navItem === "Offers" && <WebsiteMain userId={activeProfileId} />}
+        {navItem === "Statistics" && <StatisticsMain userId={activeProfileId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
       </div>
     </div>
