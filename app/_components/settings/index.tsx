@@ -7,7 +7,7 @@ import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Loader2, Plus, Trash2, Smartphone } from "lucide-react";
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 interface dbUser {
@@ -35,7 +35,16 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
 
   const profiles = useQuery(api.features.phoneProfiles.getProfilesByOwner, { ownerId });
   const createProfile = useMutation(api.features.phoneProfiles.createProfile);
+  const getOrCreate = useMutation(api.features.phoneProfiles.getOrCreateProfile);
   const deleteProfile = useMutation(api.features.phoneProfiles.deleteProfile);
+
+  // Auto-migrate: if user has a phone number but no profile yet, create it
+  useEffect(() => {
+    if (profiles !== undefined && profiles.length === 0 && user.phoneNumber) {
+      getOrCreate({ ownerId, phoneNumber: user.phoneNumber, displayName: "Main" }).catch(() => {});
+    }
+  }, [profiles, user.phoneNumber]);
+
 
   const handleAddPhone = async () => {
     if (!newPhone.match(/^0\d{9}$/)) {
