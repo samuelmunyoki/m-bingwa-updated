@@ -83,7 +83,24 @@ export default function Dashboard() {
     api.features.phoneProfiles.getProfilesByOwner,
     userId !== "skip" ? { ownerId: userId } : "skip"
   );
+  const getOrCreateProfile = useMutation(api.features.phoneProfiles.getOrCreateProfile);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
+  // Auto-migrate existing users: if no profiles exist but user has a phone number, create one
+  useEffect(() => {
+    if (
+      phoneProfiles !== undefined &&
+      phoneProfiles.length === 0 &&
+      dbUser?.phoneNumber &&
+      userId !== "skip"
+    ) {
+      getOrCreateProfile({
+        ownerId: userId,
+        phoneNumber: dbUser.phoneNumber,
+        displayName: "Main",
+      }).catch(() => {});
+    }
+  }, [phoneProfiles, dbUser?.phoneNumber]);
 
   // Auto-select first profile when profiles load
   useEffect(() => {
@@ -420,7 +437,7 @@ export default function Dashboard() {
       <div className="z-30 w-full !h-full flex flex-col gap-2 lg:mr-1 lg:pb-1 overflow-hidden">
         <div className="flex items-center justify-between px-1">
           <BalanceBar userId={activeProfileId} />
-          {phoneProfiles && phoneProfiles.length > 1 && (
+          {phoneProfiles && phoneProfiles.length > 0 && (
             <div className="ml-2 flex-shrink-0">
               <select
                 value={selectedProfileId ?? ""}
