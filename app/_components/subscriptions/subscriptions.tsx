@@ -300,7 +300,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
   return (
     <>
       <div className="flex flex-1 h-full overflow-hidden">
-        <div className="page-container gap-2 overflow-hidden">
+        <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-2 overflow-hidden">
 
           {/* Page Header */}
           <div className="flex items-center gap-2 mb-2">
