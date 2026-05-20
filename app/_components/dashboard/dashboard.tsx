@@ -6,7 +6,7 @@ import React from "react";
 const DashboardMain = () => {
   return (
     <div className="flex flex-1 h-full overflow-hidden">
-      <div className="flex flex-col w-full h-full overflow-hidden p-6 md:p-5  md:pl-10  rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900">
+      <div className="page-container h-full overflow-hidden">
         <h2 className="text-lg text-neutral-600 font-medium mb-4 flex-shrink-0">
           Admin Dashboard
         </h2>
