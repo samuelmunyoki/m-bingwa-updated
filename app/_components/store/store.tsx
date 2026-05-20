@@ -6,7 +6,7 @@ import { Store } from "lucide-react";
 const StoreMain = ({ userId }: { userId: string }) => {
   return (
     <div className="flex flex-1 h-full overflow-hidden">
-      <div className="page-container gap-2 overflow-hidden">
+      <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-2 overflow-hidden">
         <div className="flex items-center gap-2 mb-2">
           <Store className="w-5 h-5 text-neutral-500" />
           <h2 className="text-lg text-neutral-600 font-medium">Store Management</h2>
