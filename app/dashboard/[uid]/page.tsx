@@ -299,7 +299,7 @@ export default function Dashboard() {
   return (
     <div
       className={cn(
-        "md:rounded-lg shadow-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 flex-1 border border-neutral-200 dark:border-neutral-700 overflow-hidden m-1 md:m-8 h-[80%]"
+        "md:rounded-lg shadow-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 flex-1 border border-neutral-200 dark:border-neutral-700 overflow-hidden m-1 md:m-12 h-[80%]"
       )}
     >
       <Sidebar open={open} setOpen={setOpen} animate={false}>
