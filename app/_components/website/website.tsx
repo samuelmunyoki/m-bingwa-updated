@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const WebsiteMain = ({ userId }: { userId: string }) => {
   return (
     <div className="flex flex-1 h-full overflow-hidden">
-      <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-2 overflow-hidden">
+      <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-2 overflow-hidden">
         <h2 className="text-lg text-neutral-600 font-medium">
           Website Management
         </h2>

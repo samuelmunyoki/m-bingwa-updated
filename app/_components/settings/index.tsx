@@ -105,7 +105,7 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
 
   return (
     <div className="flex flex-1 h-full">
-      <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-6">
+      <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-6">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium">
           Settings
         </h2>
