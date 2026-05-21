@@ -120,9 +120,12 @@ export const createProfile = mutation({
       if (existing.additionalOwnerIds?.includes(args.ownerId)) {
         return { status: "error", message: "This phone number is already in your account" };
       }
-      // Add as additional owner
+      // Add as additional owner and update displayName if provided
       const updatedOwners = [...(existing.additionalOwnerIds ?? []), args.ownerId];
-      await ctx.db.patch(existing._id, { additionalOwnerIds: updatedOwners });
+      await ctx.db.patch(existing._id, {
+        additionalOwnerIds: updatedOwners,
+        ...(args.displayName ? { displayName: args.displayName } : {}),
+      });
       return { status: "success", profileId: existing.profileId };
     }
 

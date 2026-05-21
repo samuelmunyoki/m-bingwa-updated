@@ -329,7 +329,22 @@ export default function Dashboard() {
 
   // effectiveUser — uses selectedProfileId as the data key for all components
   const activeProfileId = selectedProfileId ?? userId;
-  const effectiveUser = { ...dbUser, userId: activeProfileId };
+
+  // Fetch the selected profile's user record for its own subscription data
+  const selectedProfileUser = useQuery(
+    api.users.getUserById,
+    activeProfileId !== userId && activeProfileId !== null
+      ? { userId: activeProfileId }
+      : "skip"
+  );
+
+  const effectiveUser = {
+    ...dbUser,
+    userId: activeProfileId,
+    isSubscribed: selectedProfileUser?.isSubscribed ?? dbUser?.isSubscribed,
+    subscriptionEnds: selectedProfileUser?.subscriptionEnds ?? dbUser?.subscriptionEnds,
+    subscriptionId: selectedProfileUser?.subscriptionId ?? dbUser?.subscriptionId,
+  };
 
   return (
     <div
