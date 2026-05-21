@@ -332,9 +332,8 @@ export default function Dashboard() {
   ];
 
   const isSubscribed =
-    dbUser.isSubscribed || userId === "user_2r7LUUlDnylYJnMMytKl7qzwY0c";
-  const isAdmin =
-    dbUser.isAdmin || userId === "user_2r7LUUlDnylYJnMMytKl7qzwY0c";
+    selectedProfileUser?.isSubscribed ?? dbUser?.isSubscribed ?? false;
+  const isAdmin = dbUser?.isAdmin ?? false;
 
   // effectiveUser — uses selectedProfileId as the data key for all components
   const activeProfileId = selectedProfileId ?? userId;
