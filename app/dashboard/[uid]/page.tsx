@@ -86,6 +86,15 @@ export default function Dashboard() {
   const getOrCreateProfile = useMutation(api.features.phoneProfiles.getOrCreateProfile);
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
+  // Fetch selected profile's user record for its own subscription data
+  const activeProfileIdEarly = selectedProfileId ?? userId;
+  const selectedProfileUser = useQuery(
+    api.users.getUserById,
+    activeProfileIdEarly !== userId && activeProfileIdEarly !== null
+      ? { userId: activeProfileIdEarly }
+      : "skip"
+  );
+
   // Auto-migrate existing users: if no profiles exist but user has a phone number, create one
   useEffect(() => {
     if (
@@ -330,21 +339,13 @@ export default function Dashboard() {
   // effectiveUser — uses selectedProfileId as the data key for all components
   const activeProfileId = selectedProfileId ?? userId;
 
-  // Fetch the selected profile's user record for its own subscription data
-  const selectedProfileUser = useQuery(
-    api.users.getUserById,
-    activeProfileId !== userId && activeProfileId !== null
-      ? { userId: activeProfileId }
-      : "skip"
-  );
-
   const effectiveUser = {
     ...dbUser,
     userId: activeProfileId,
     isSubscribed: selectedProfileUser?.isSubscribed ?? dbUser?.isSubscribed,
     subscriptionEnds: selectedProfileUser?.subscriptionEnds ?? dbUser?.subscriptionEnds,
     subscriptionId: selectedProfileUser?.subscriptionId ?? dbUser?.subscriptionId,
-  };
+  } as typeof dbUser;
 
   return (
     <div
