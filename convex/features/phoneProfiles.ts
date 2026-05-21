@@ -48,16 +48,35 @@ export const getOrCreateProfile = mutation({
 
 /**
  * Gets all phone profiles for a Gmail account.
- * Used by website to populate the phone switcher dropdown.
+ * Includes profiles where the user is primary owner OR additional owner.
  */
 export const getProfilesByOwner = query({
   args: { ownerId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    // Primary owner profiles
+    const primary = await ctx.db
       .query("phoneProfiles")
       .withIndex("by_owner", (q) => q.eq("ownerId", args.ownerId))
-      .order("asc")
       .collect();
+
+    // Additional owner profiles — collect all and filter
+    const all = await ctx.db.query("phoneProfiles").collect();
+    const additional = all.filter(
+      (p) =>
+        p.ownerId !== args.ownerId &&
+        p.additionalOwnerIds?.includes(args.ownerId)
+    );
+
+    // Merge and deduplicate by profileId
+    const seen = new Set(primary.map((p) => p.profileId));
+    const merged = [...primary];
+    for (const p of additional) {
+      if (!seen.has(p.profileId)) {
+        merged.push(p);
+        seen.add(p.profileId);
+      }
+    }
+    return merged;
   },
 });
 
@@ -76,8 +95,10 @@ export const getProfileByPhone = query({
 });
 
 /**
- * Creates a new phone profile from the website settings page.
- * Generates a unique profileId for the new phone number.
+ * Creates or links a phone profile after OTP verification.
+ * - Phone doesn't exist: creates new profile
+ * - Phone exists, same owner: error "already in your list"
+ * - Phone exists, different owner: adds current user as additional owner
  */
 export const createProfile = mutation({
   args: {
@@ -86,19 +107,27 @@ export const createProfile = mutation({
     displayName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check phone not already registered
     const existing = await ctx.db
       .query("phoneProfiles")
       .withIndex("by_phone", (q) => q.eq("phoneNumber", args.phoneNumber))
       .first();
 
     if (existing) {
-      return { status: "error", message: "This phone number is already registered" };
+      // Already in this user's account
+      if (existing.ownerId === args.ownerId) {
+        return { status: "error", message: "This phone number is already in your account" };
+      }
+      if (existing.additionalOwnerIds?.includes(args.ownerId)) {
+        return { status: "error", message: "This phone number is already in your account" };
+      }
+      // Add as additional owner
+      const updatedOwners = [...(existing.additionalOwnerIds ?? []), args.ownerId];
+      await ctx.db.patch(existing._id, { additionalOwnerIds: updatedOwners });
+      return { status: "success", profileId: existing.profileId };
     }
 
-    // Generate unique profileId for new profiles
+    // New phone — create profile
     const profileId = `profile_${args.phoneNumber}_${Date.now()}`;
-
     await ctx.db.insert("phoneProfiles", {
       ownerId: args.ownerId,
       profileId,
@@ -106,7 +135,6 @@ export const createProfile = mutation({
       displayName: args.displayName ?? args.phoneNumber,
       createdAt: Date.now(),
     });
-
     return { status: "success", profileId };
   },
 });

@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Loader2, Plus, Trash2, Smartphone } from "lucide-react";
-import { useMutation, useQuery } from "convex/react";
+import { Loader2, Plus, Trash2, Smartphone, ArrowLeft } from "lucide-react";
+import { useMutation, useQuery, useAction } from "convex/react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -25,34 +25,66 @@ interface SettingsMainProps {
   user: dbUser;
 }
 
+type Step = "form" | "otp";
+
 const SettingsMain = ({ user }: SettingsMainProps) => {
+  const [step, setStep] = useState<Step>("form");
   const [newPhone, setNewPhone] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [isAdding, setIsAdding] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Use the Clerk ownerId to manage profiles
   const ownerId = user.userId;
 
   const profiles = useQuery(api.features.phoneProfiles.getProfilesByOwner, { ownerId });
   const createProfile = useMutation(api.features.phoneProfiles.createProfile);
   const getOrCreate = useMutation(api.features.phoneProfiles.getOrCreateProfile);
   const deleteProfile = useMutation(api.features.phoneProfiles.deleteProfile);
+  const verifyOtp = useMutation(api.features.otps.verifyOtp);
+  const sendOtp = useAction(api.actions.phoneVerification.sendPhoneVerificationOtp);
 
-  // Auto-migrate: if user has a phone number but no profile yet, create it
+  // Auto-migrate existing users
   useEffect(() => {
     if (profiles !== undefined && profiles.length === 0 && user.phoneNumber) {
       getOrCreate({ ownerId, phoneNumber: user.phoneNumber, displayName: "Main" }).catch(() => {});
     }
   }, [profiles, user.phoneNumber]);
 
-
-  const handleAddPhone = async () => {
+  const handleSendOtp = async () => {
     if (!newPhone.match(/^0\d{9}$/)) {
       toast.warning("Phone number must be 10 digits and start with 0");
       return;
     }
-    setIsAdding(true);
+    setIsSending(true);
     try {
+      const res = await sendOtp({ phoneNumber: newPhone, userId: ownerId });
+      if (res.success) {
+        toast.success("OTP sent to " + newPhone);
+        setStep("otp");
+      } else {
+        toast.error(res.message ?? "Failed to send OTP");
+      }
+    } catch {
+      toast.error("Failed to send OTP");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleVerifyAndAdd = async () => {
+    if (otpCode.length !== 4) {
+      toast.warning("Enter the 4-digit OTP");
+      return;
+    }
+    setIsVerifying(true);
+    try {
+      const verified = await verifyOtp({ otpCode });
+      if (!verified.success) {
+        toast.error(verified.message ?? "Invalid OTP");
+        return;
+      }
+      // OTP verified — add the phone profile
       const res = await createProfile({
         ownerId,
         phoneNumber: newPhone,
@@ -62,14 +94,22 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
         toast.success("Phone number added successfully");
         setNewPhone("");
         setDisplayName("");
+        setOtpCode("");
+        setStep("form");
       } else {
         toast.error(res.message ?? "Failed to add phone number");
+        setStep("form");
       }
     } catch {
-      toast.error("Failed to add phone number");
+      toast.error("Verification failed. Please try again.");
     } finally {
-      setIsAdding(false);
+      setIsVerifying(false);
     }
+  };
+
+  const handleBack = () => {
+    setStep("form");
+    setOtpCode("");
   };
 
   const handleDelete = async (profileId: string) => {
@@ -94,40 +134,73 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
 
         <div className="flex flex-col lg:flex-row w-full gap-8">
 
-          {/* Add new phone number */}
+          {/* Add phone — step 1: form OR step 2: OTP */}
           <div className="w-full lg:w-[420px] flex flex-col gap-4">
             <h3 className="text-sm font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
               Add Phone Number
             </h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label>Phone Number</Label>
-                <Input
-                  type="text"
-                  placeholder="07xxxxxxxxx"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  className="dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
-                />
+
+            {step === "form" ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label>Phone Number</Label>
+                  <Input
+                    type="text"
+                    placeholder="07xxxxxxxxx"
+                    value={newPhone}
+                    onChange={(e) => setNewPhone(e.target.value)}
+                    className="dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Display Name <span className="text-neutral-400 font-normal">(optional)</span></Label>
+                  <Input
+                    type="text"
+                    placeholder='e.g. "Main", "Backup"'
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    className="dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
+                  />
+                </div>
+                <Button onClick={handleSendOtp} disabled={isSending} className="w-full">
+                  {isSending ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending OTP...</>
+                  ) : (
+                    <><Plus className="mr-2 h-4 w-4" />Send OTP</>
+                  )}
+                </Button>
               </div>
-              <div className="flex flex-col gap-1.5">
-                <Label>Display Name <span className="text-neutral-400 font-normal">(optional)</span></Label>
-                <Input
-                  type="text"
-                  placeholder='e.g. "Main", "Backup"'
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="dark:bg-neutral-800 dark:border-neutral-700 dark:text-white"
-                />
+            ) : (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                  Enter the 4-digit code sent to <span className="font-semibold text-neutral-700 dark:text-neutral-300">{newPhone}</span>
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  <Label>Verification Code</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    placeholder="e.g. 1234"
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                    className="dark:bg-neutral-800 dark:border-neutral-700 dark:text-white tracking-widest text-center text-lg"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleBack} disabled={isVerifying} className="flex-1 dark:border-neutral-700 dark:text-neutral-300">
+                    <ArrowLeft className="mr-2 h-4 w-4" />Back
+                  </Button>
+                  <Button onClick={handleVerifyAndAdd} disabled={isVerifying || otpCode.length !== 4} className="flex-1">
+                    {isVerifying ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Verifying...</>
+                    ) : (
+                      "Verify & Add"
+                    )}
+                  </Button>
+                </div>
               </div>
-              <Button onClick={handleAddPhone} disabled={isAdding} className="w-full">
-                {isAdding ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Adding...</>
-                ) : (
-                  <><Plus className="mr-2 h-4 w-4" />Add Phone Number</>
-                )}
-              </Button>
-            </div>
+            )}
           </div>
 
           {/* Registered phone numbers */}
