@@ -1,7 +1,7 @@
 export default {
   providers: [
     {
-      domain: "https://awaited-kingfish-69.clerk.accounts.dev",
+      domain: "https://clerk.m-bingwa.com",
       applicationID: "convex",
     },
   ],
