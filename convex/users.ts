@@ -17,28 +17,35 @@ export const updateOrcreateUser = mutation({
     profileImage: v.string(),
   },
   handler: async (ctx, { userId, name, email, profileImage }) => {
-    // Check if user exists
-    const existingUser = await ctx.db
+    // Check by userId first — canonical Clerk identifier, prevents duplicates
+    const byUserId = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (byUserId) {
+      await ctx.db.patch(byUserId._id, { name, email, profileImage });
+      return { userId: byUserId.userId };
+    }
+
+    // Fall back to email lookup (handles legacy records)
+    const byEmail = await ctx.db
       .query("users")
       .withIndex("by_email", (q) => q.eq("email", email))
       .first();
 
-    if (existingUser) {
-      await ctx.db.patch(existingUser._id, {
-        name,
-        email,
-        profileImage,
-      });
-      return { userId: existingUser.userId };
+    if (byEmail) {
+      await ctx.db.patch(byEmail._id, { name, email, profileImage, userId });
+      return { userId: byEmail.userId };
     }
 
-    // Create new user
+    // No record found — create new user
     await ctx.db.insert("users", {
-      userId: userId,
-      name: name,
-      email: email,
+      userId,
+      name,
+      email,
       isAdmin: false,
-      profileImage: profileImage,
+      profileImage,
       suspended: false,
       isSubscribed: false,
     });
