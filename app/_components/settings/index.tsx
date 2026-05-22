@@ -217,30 +217,42 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
               <p className="text-sm text-neutral-400">No phone numbers registered yet.</p>
             ) : (
               <div className="flex flex-col gap-3">
-                {profiles.map((profile) => (
-                  <div
-                    key={profile._id}
-                    className="flex items-center justify-between px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Smartphone className="h-4 w-4 text-neutral-400" />
-                      <div>
-                        <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                          {profile.displayName || profile.phoneNumber}
-                        </p>
-                        <p className="text-xs text-neutral-400">{profile.phoneNumber}</p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(profile.profileId)}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                {profiles.map((profile) => {
+                  const isPrimary = profile.ownerId === ownerId;
+                  return (
+                    <div
+                      key={profile._id}
+                      className="flex items-center justify-between px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-3">
+                        <Smartphone className="h-4 w-4 text-neutral-400" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                              {profile.displayName || profile.phoneNumber}
+                            </p>
+                            {isPrimary && (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400">
+                                Primary
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-neutral-400">{profile.phoneNumber}</p>
+                        </div>
+                      </div>
+                      {!isPrimary && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDelete(profile.profileId)}
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

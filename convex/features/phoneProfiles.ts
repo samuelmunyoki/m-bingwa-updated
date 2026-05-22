@@ -143,7 +143,9 @@ export const createProfile = mutation({
 });
 
 /**
- * Deletes a phone profile. Only the owner can delete.
+ * Removes a phone profile from the current user's account.
+ * - Primary owner: cannot delete their own primary number
+ * - Additional owner: removes themselves from additionalOwnerIds only
  */
 export const deleteProfile = mutation({
   args: {
@@ -159,12 +161,20 @@ export const deleteProfile = mutation({
     if (!profile) {
       return { status: "error", message: "Profile not found" };
     }
-    if (profile.ownerId !== args.ownerId) {
-      return { status: "error", message: "Unauthorized" };
+
+    // Block deletion of primary number
+    if (profile.ownerId === args.ownerId) {
+      return { status: "error", message: "Cannot remove your primary phone number" };
     }
 
-    await ctx.db.delete(profile._id);
-    return { status: "success" };
+    // Additional owner — remove from additionalOwnerIds
+    if (profile.additionalOwnerIds?.includes(args.ownerId)) {
+      const updated = profile.additionalOwnerIds.filter((id) => id !== args.ownerId);
+      await ctx.db.patch(profile._id, { additionalOwnerIds: updated });
+      return { status: "success" };
+    }
+
+    return { status: "error", message: "Unauthorized" };
   },
 });
 
