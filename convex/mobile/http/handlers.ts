@@ -5964,7 +5964,7 @@ export const countLogsHttp = httpAction(async (ctx, _request) => {
 // ============= ADMIN: CLEAR ALL DATA =============
 
 const ALL_TABLES = [
-  "users",/** "bundles", "subscription_price", "mpesa_transactions",
+  "users","bundles", "subscription_price", "mpesa_transactions",
   "sms", "scheduled_events", "stores", "notifications", "blacklist",
   "otps", "cooldownTimers", "system", "transactions", "mpesaMessages",
   "userSenderRelations", "promoCodes", "promoUsers", "airtimeTransactions",
@@ -5972,7 +5972,7 @@ const ALL_TABLES = [
   "bridgeTransactions", "totalCommission", "onlineBridgeOffers",
   "onlineBridgeDevices", "onlineBridgeWhitelist", "onlineBridgeTransactions",
   "serviceStatus", "deviceHeartbeats", "onlineServiceStatus", "ussdHistory",
-  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",**/
+  "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",
 ];
 
 export const clearAllDataHandler = httpAction(async (ctx, request) => {

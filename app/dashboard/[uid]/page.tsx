@@ -148,7 +148,8 @@ export default function Dashboard() {
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (dbUser == undefined || dbUser == null) {
+    // Only redirect if explicitly null (not found) — undefined means still loading
+    if (dbUser === null) {
       router.push("/sign-in");
     }
     if (dbUser !== null && dbUser !== undefined) {
@@ -224,12 +225,15 @@ export default function Dashboard() {
     );
   }
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setModalOpen(false);
-    router.push("/");
-    signOut().catch((error) => {
+    localStorage.removeItem("wsToken");
+    try {
+      await signOut();
+    } catch (error) {
       console.error("Logout failed:", error);
-    });
+    }
+    router.push("/sign-in");
   };
 
   const generalLinks = [
