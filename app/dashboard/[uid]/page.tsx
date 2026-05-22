@@ -111,9 +111,11 @@ export default function Dashboard() {
     }
   }, [phoneProfiles, dbUser?.phoneNumber]);
 
-  // Auto-select first profile when profiles load
+  // Auto-select first profile when profiles load, and reset if selected profile was removed
   useEffect(() => {
-    if (phoneProfiles && phoneProfiles.length > 0 && !selectedProfileId) {
+    if (!phoneProfiles || phoneProfiles.length === 0) return;
+    const exists = phoneProfiles.some((p) => p.profileId === selectedProfileId);
+    if (!selectedProfileId || !exists) {
       setSelectedProfileId(phoneProfiles[0].profileId);
     }
   }, [phoneProfiles]);
