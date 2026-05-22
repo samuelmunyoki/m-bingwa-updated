@@ -229,11 +229,11 @@ export default function Dashboard() {
     setModalOpen(false);
     localStorage.removeItem("wsToken");
     try {
-      await signOut();
+      await signOut({ redirectUrl: "/sign-in" });
     } catch (error) {
       console.error("Logout failed:", error);
+      router.push("/sign-in");
     }
-    router.push("/sign-in");
   };
 
   const generalLinks = [
