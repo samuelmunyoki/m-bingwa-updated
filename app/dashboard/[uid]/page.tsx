@@ -148,8 +148,7 @@ export default function Dashboard() {
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    // Only redirect if explicitly null (not found) — undefined means still loading
-    if (dbUser === null) {
+    if (dbUser == undefined || dbUser == null) {
       router.push("/sign-in");
     }
     if (dbUser !== null && dbUser !== undefined) {
@@ -229,11 +228,11 @@ export default function Dashboard() {
     setModalOpen(false);
     localStorage.removeItem("wsToken");
     try {
-      await signOut({ redirectUrl: "/sign-in" });
+      await signOut();
     } catch (error) {
       console.error("Logout failed:", error);
-      router.push("/sign-in");
     }
+    window.location.href = "/sign-in";
   };
 
   const generalLinks = [
