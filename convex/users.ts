@@ -514,74 +514,54 @@ export const createUserIfNotExists = mutation({
     userId: v.optional(v.string()),
   },
   handler: async (ctx, { phoneNumber, name, email, userId: providedUserId }) => {
-    console.log("createUserIfNotExists CALLED");
-    console.log("phoneNumber:", phoneNumber);
-    console.log("name:", name);
-    console.log("email:", email);
-    
-    // Check if user already exists using the same logic as getUserIdByPhone
-    const allUsers = await ctx.db.query("users").collect();
-    console.log("Checking against", allUsers.length, "users");
-    
-    // Try direct query first
-    const existingUser = await ctx.db
+    // 1. Check by userId first (fast index lookup)
+    if (providedUserId) {
+      const byUserId = await ctx.db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", providedUserId))
+        .first();
+
+      if (byUserId) {
+        // Update phone number if it changed
+        if (byUserId.phoneNumber !== phoneNumber) {
+          await ctx.db.patch(byUserId._id, { phoneNumber });
+        }
+        return { status: "success", message: "User already exists", userId: byUserId.userId, isNewUser: false };
+      }
+    }
+
+    // 2. Check by phone number (user may exist under an old Clerk userId)
+    const byPhone = await ctx.db
       .query("users")
       .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
       .first();
-    
-    // If direct query fails, try manual search
-    let finalExistingUser = existingUser || null;
-    if (!existingUser) {
-      console.log("Direct query failed, trying manual search...");
-      const manualMatch = allUsers.find(u => u.phoneNumber === phoneNumber);
-      finalExistingUser = manualMatch || null;
-      if (finalExistingUser) {
-        console.log("Manual search found existing user!");
+
+    if (byPhone) {
+      // Update userId to the new Clerk userId so future lookups work
+      if (providedUserId && byPhone.userId !== providedUserId) {
+        await ctx.db.patch(byPhone._id, { userId: providedUserId });
+        return { status: "success", message: "User already exists", userId: providedUserId, isNewUser: false };
       }
+      return { status: "success", message: "User already exists", userId: byPhone.userId, isNewUser: false };
     }
-    
-    if (finalExistingUser) {
-      console.log("User already exists with userId:", finalExistingUser.userId);
-      console.log("User phoneNumber:", finalExistingUser.phoneNumber);
-      return {
-        status: "success",
-        message: "User already exists",
-        userId: finalExistingUser.userId,
-        isNewUser: false
-      };
-    }
-    
-    // Use provided userId (e.g. from Clerk) or generate one
+
+    // 3. Create new user
     const userId = providedUserId || `user_${Math.random().toString(36).substr(2, 25)}`;
-    console.log("🆕 Creating new user with userId:", userId);
-    
     try {
       await ctx.db.insert("users", {
-        userId: userId,
-        phoneNumber: phoneNumber,
+        userId,
+        phoneNumber,
         name: name || "",
         email: email || "",
         isAdmin: false,
         isSubscribed: false,
         profileImage: "https://img.clerk.com/default_profile_img",
-        suspended: false
+        suspended: false,
       });
-      
-      console.log("New user created successfully");
-      return {
-        status: "success",
-        message: "User created successfully",
-        userId: userId,
-        isNewUser: true
-      };
+      return { status: "success", message: "User created successfully", userId, isNewUser: true };
     } catch (error) {
       console.error("Error creating user:", error);
-      return {
-        status: "error",
-        message: "Failed to create user",
-        userId: null,
-        isNewUser: false
-      };
+      return { status: "error", message: "Failed to create user", userId: null, isNewUser: false };
     }
   },
 });

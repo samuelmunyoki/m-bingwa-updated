@@ -204,10 +204,11 @@ export const updateOnlineServiceStatus = mutation({
       .first();
 
     if (existing) {
-      // Update existing
+      // Update existing — also sync userId so website queries stay consistent
       await ctx.db.patch(existing._id, {
         isServiceRunning: args.isServiceRunning,
         updatedAt: now,
+        userId: args.userId,
       });
       return existing._id;
     } else {
@@ -244,6 +245,7 @@ export const getOnlineServiceStatus = query({
     // Just return the actual value - no staleness check
     return {
       phoneNumber: status.phoneNumber,
+      userId: status.userId,
       isServiceRunning: status.isServiceRunning ?? false,
       lastSeenTimestamp: status.updatedAt,
     };
@@ -282,6 +284,19 @@ export const setServiceStatusByUserId = mutation({
         isServiceRunning: args.isServiceRunning,
         updatedAt: now,
       });
+    } else {
+      const profile = await ctx.db
+        .query("phoneProfiles")
+        .withIndex("by_profileId", (q) => q.eq("profileId", args.userId))
+        .first();
+      if (profile) {
+        await ctx.db.insert("onlineServiceStatus", {
+          phoneNumber: profile.phoneNumber,
+          userId: args.userId,
+          isServiceRunning: args.isServiceRunning,
+          updatedAt: now,
+        });
+      }
     }
     return { isServiceRunning: args.isServiceRunning };
   },

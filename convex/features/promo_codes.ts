@@ -388,10 +388,24 @@ export const applyPromoCodeStandalone = mutation({
       }
 
       // 3. Get user's current subscription
-      const user = await ctx.db
+      let user = await ctx.db
         .query("users")
         .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
         .first();
+
+      // Fallback: userId might be a profileId — resolve via phoneProfiles
+      if (!user) {
+        const profile = await ctx.db
+          .query("phoneProfiles")
+          .withIndex("by_profileId", (q) => q.eq("profileId", args.userId))
+          .first();
+        if (profile) {
+          user = await ctx.db
+            .query("users")
+            .withIndex("by_user_id", (q) => q.eq("userId", profile.ownerId))
+            .first();
+        }
+      }
 
       if (!user) {
         console.log("❌ User not found");

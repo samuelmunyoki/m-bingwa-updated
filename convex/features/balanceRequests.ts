@@ -68,10 +68,25 @@ export const getLatestBalanceRequest = query({
 export const getFcmToken = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
-    return await ctx.db
+    const token = await ctx.db
       .query("fcmTokens")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
       .first();
+    if (token) return token;
+
+    // Fallback: userId might be a profileId — resolve ownerId via phoneProfiles
+    const profile = await ctx.db
+      .query("phoneProfiles")
+      .withIndex("by_profileId", (q) => q.eq("profileId", userId))
+      .first();
+    if (profile) {
+      return await ctx.db
+        .query("fcmTokens")
+        .withIndex("by_userId", (q) => q.eq("userId", profile.ownerId))
+        .first();
+    }
+
+    return null;
   },
 });
 
