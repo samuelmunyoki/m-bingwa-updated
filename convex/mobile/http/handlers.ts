@@ -5973,6 +5973,9 @@ const ALL_TABLES = [
   "onlineBridgeDevices", "onlineBridgeWhitelist", "onlineBridgeTransactions",
   "serviceStatus", "deviceHeartbeats", "onlineServiceStatus", "ussdHistory",
   "retryConfigs", "ussdCodes", "userModeSettings", "appLogs",
+  "emailTokens", "commissionByType", "autoSaverStats", "fcmTokens",
+  "balanceRequests", "autoTopupSettings", "autoTopupWatch", "autoTopupHistory",
+  "phoneProfiles",
 ];
 
 export const clearAllDataHandler = httpAction(async (ctx, request) => {
@@ -6446,6 +6449,18 @@ export const insertAutoTopupHistoryHttp = httpAction(async (ctx, request) => {
 });
 
 // ============= PHONE PROFILES =============
+
+export const getPhoneProfileByPhone = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+  if (!phoneNumber) return createResponse("error", null, "Missing phoneNumber query parameter");
+  try {
+    const profile = await ctx.runQuery(api.features.phoneProfiles.getProfileByPhone, { phoneNumber });
+    return createResponse("success", profile);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
 
 export const getOrCreatePhoneProfileHttp = httpAction(async (ctx, request) => {
   if (request.method !== "POST") return createResponse("error", null, "Method not allowed");

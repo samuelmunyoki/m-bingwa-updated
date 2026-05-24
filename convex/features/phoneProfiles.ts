@@ -22,8 +22,8 @@ export const getOrCreateProfile = mutation({
       .first();
 
     if (existing) {
-      // Profile exists — update ownerId if not yet linked (e.g. Android created before website login)
-      if (!existing.ownerId && args.ownerId) {
+      // Profile exists — update ownerId if it has changed (e.g. Clerk userId migrated)
+      if (args.ownerId && existing.ownerId !== args.ownerId) {
         await ctx.db.patch(existing._id, { ownerId: args.ownerId });
       }
       return { profileId: existing.profileId, isNew: false };

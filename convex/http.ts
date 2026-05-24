@@ -128,6 +128,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   deleteAutoTopupWatchHttp,
   insertAutoTopupHistoryHttp,
   getOrCreatePhoneProfileHttp,
+  getPhoneProfileByPhone,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1228,6 +1229,12 @@ http.route({
   pathPrefix: "/api/phone-profiles/get-or-create/",
   method: "POST",
   handler: getOrCreatePhoneProfileHttp,
+});
+
+http.route({
+  pathPrefix: "/api/phone-profiles/get-by-phone/",
+  method: "GET",
+  handler: getPhoneProfileByPhone,
 });
 
 export default http;
