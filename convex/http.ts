@@ -117,6 +117,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   upsertAutoSaverStatsHttp,
   registerWebSessionHttp,
   registerFcmTokenHttp,
+  getFcmTokenHttp,
   submitBalanceResultHttp,
   getBlacklistHttp,
   addToBlacklistHttp,
@@ -1173,6 +1174,12 @@ http.route({
   path: "/api/fcm-token/register/",
   method: "POST",
   handler: registerFcmTokenHttp,
+});
+
+http.route({
+  path: "/api/fcm-token/get/",
+  method: "GET",
+  handler: getFcmTokenHttp,
 });
 
 http.route({

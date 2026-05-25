@@ -229,7 +229,8 @@ export default defineSchema({
     .index("by_time", ["time"])
     .index("by_processed", ["processed"])
     .index("by_user_id_time", ["userId", "time"])
-    .index("by_source_androidProcessed", ["source", "androidProcessed"]),
+    .index("by_source_androidProcessed", ["source", "androidProcessed"])
+    .index("by_user_transaction", ["userId", "transactionId"]),
 
   userSenderRelations: defineTable({
     userId: v.string(),
