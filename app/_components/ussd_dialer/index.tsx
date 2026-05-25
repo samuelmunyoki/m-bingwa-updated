@@ -104,7 +104,7 @@ const USSD_DialerMain = ({ user }: Props) => {
         isMultiSession: selectedBundle.isMultiSession,
         isSimpleUSSD: selectedBundle.isSimpleUSSD,
         responseValidatorText: selectedBundle.responseValidatorText,
-        source: "web",
+        source: "web_dial",
         localId: `web_dial_${user.userId}_${now}`,
       });
       toast.success("Dial request sent — Android will execute shortly");
