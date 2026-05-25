@@ -6296,6 +6296,18 @@ export const registerFcmTokenHttp = httpAction(async (ctx, request) => {
   }
 });
 
+export const getFcmTokenHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId query parameter");
+  try {
+    const token = await ctx.runQuery(api.features.balanceRequests.getFcmToken, { userId });
+    return createResponse("success", token ?? null);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 export const submitBalanceResultHttp = httpAction(async (ctx, request) => {
   if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
   let body;

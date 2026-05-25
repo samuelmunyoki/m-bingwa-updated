@@ -91,6 +91,7 @@ const USSD_DialerMain = ({ user }: Props) => {
       await createScheduledEvent({
         userId: user.userId,
         ussdCode: selectedBundle.bundlesUSSD,
+        status: "PENDING",
         scheduledTimeStamp: now,
         repeatDaily: false,
         repeatDays: 1,

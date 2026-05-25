@@ -19,6 +19,20 @@ export const createMpesaMessage = mutation({
     mpesaDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Dedup: if a record with the same userId + transactionId already exists, return it
+    if (args.transactionId) {
+      const existing = await ctx.db
+        .query("mpesaMessages")
+        .withIndex("by_user_transaction", (q) =>
+          q.eq("userId", args.userId).eq("transactionId", args.transactionId as string)
+        )
+        .first();
+      if (existing) {
+        console.log(`[DEDUP] Returning existing mpesaMessage for transactionId=${args.transactionId} _id=${existing._id}`);
+        return existing;
+      }
+    }
+
     const messageId = await ctx.db.insert("mpesaMessages", {
       userId: args.userId,
       name: args.name,
@@ -27,15 +41,14 @@ export const createMpesaMessage = mutation({
       senderId: args.senderId,
       time: args.time,
       transactionId: args.transactionId ?? undefined,
-      processed: args.processed ?? "pending", // Default to "pending" if not provided
+      processed: args.processed ?? "pending",
       fullMessage: args.fullMessage ?? undefined,
       processResponse: args.processResponse ?? undefined,
-      offerName: args.offerName ?? "", // Default to empty string if not provided
-      processedUSSD: args.processedUSSD ?? "", // Default to empty string if not provided
+      offerName: args.offerName ?? "",
+      processedUSSD: args.processedUSSD ?? "",
       mpesaDate: args.mpesaDate ?? undefined,
     });
 
-    // Return the full message object with ID
     const message = await ctx.db.get(messageId);
     return message;
   },
