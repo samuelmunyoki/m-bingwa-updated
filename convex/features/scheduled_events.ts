@@ -190,7 +190,7 @@ export const getPendingScheduledEvents = query({
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "PENDING"),
-          q.eq(q.field("source"), "web")
+          q.eq(q.field("source"), "web_dial")
         )
       )
       .collect();
