@@ -94,6 +94,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getAvailableStatuses,
   deleteUSSDHistory,
   clearUSSDHistory,
+  getPendingWebDials,
+  markWebDialExecuting,
+  updateWebDialStatus,
   getAllRetryConfigs,
   createRetryConfig,
   updateRetryConfig,
@@ -1030,6 +1033,24 @@ http.route({
   pathPrefix: "/api/ussd-history/clear/",
   method: "DELETE",
   handler: clearUSSDHistory,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/pending-web-dials/",
+  method: "GET",
+  handler: getPendingWebDials,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/mark-executing/",
+  method: "PATCH",
+  handler: markWebDialExecuting,
+});
+
+http.route({
+  pathPrefix: "/api/ussd-history/update-status/",
+  method: "PATCH",
+  handler: updateWebDialStatus,
 });
 
 // GET all retry configs for a user

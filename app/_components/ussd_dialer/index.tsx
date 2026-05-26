@@ -66,7 +66,7 @@ const USSD_DialerMain = ({ user }: Props) => {
 
   const bundles = useQuery(api.features.bundles.getAllBundles, { userId: user.userId });
   const ussdHistory = useQuery(api.features.ussdHistory.getUSSDHistory, { userId: user.userId });
-  const createScheduledEvent = useMutation(api.features.scheduled_events.createScheduledEvent);
+  const createUSSDHistory = useMutation(api.features.ussdHistory.createUSSDHistory);
 
   const availableBundles = (bundles ?? []).filter((b) => b.status === "available");
   const selectedBundle = availableBundles.find((b) => b._id.toString() === selectedBundleId);
@@ -87,25 +87,24 @@ const USSD_DialerMain = ({ user }: Props) => {
 
     setIsLoading(true);
     try {
-      const now = Math.floor(Date.now() / 1000);
-      await createScheduledEvent({
+      const now = Date.now();
+      const timeStamp = new Date(now)
+        .toISOString()
+        .replace("T", " ")
+        .substring(0, 19); // "yyyy-MM-dd HH:mm:ss"
+      await createUSSDHistory({
         userId: user.userId,
         ussdCode: selectedBundle.bundlesUSSD,
+        targetNumber: offerNum.trim(),
+        offerName: `${selectedBundle.offerName} - ${selectedBundle.duration} - KSh ${selectedBundle.price}`,
         status: "PENDING",
-        scheduledTimeStamp: now,
-        repeatDaily: false,
-        repeatDays: 1,
-        offerId: selectedBundle._id.toString(),
-        offerName: selectedBundle.offerName,
-        offerDuration: selectedBundle.duration,
-        offerPrice: selectedBundle.price,
-        offerNum: offerNum.trim(),
+        timeTaken: "0",
+        timeStamp,
+        source: "web-dial",
         dialingSim: selectedBundle.dialingSIM,
         isMultiSession: selectedBundle.isMultiSession,
-        isSimpleUSSD: selectedBundle.isSimpleUSSD,
+        isSimpleUSSD: selectedBundle.isSimpleUSSD ?? false,
         responseValidatorText: selectedBundle.responseValidatorText,
-        source: "web_dial",
-        localId: `web_dial_${user.userId}_${now}`,
       });
       toast.success("Dial request sent — Android will execute shortly");
       setOfferNum("");
@@ -224,13 +223,17 @@ const USSD_DialerMain = ({ user }: Props) => {
                                 {cfg.icon}{cfg.label}
                               </span>
                             </TableCell>
-                            <TableCell>{item.timeTaken}s</TableCell>
+                            <TableCell>
+                              {(item.status === "PENDING" || item.status === "EXECUTING")
+                                ? "—"
+                                : `${item.timeTaken}s`}
+                            </TableCell>
                             <TableCell className="hidden lg:table-cell text-xs text-neutral-400">
                               {item.timeStamp}
                             </TableCell>
                             <TableCell>
                               <span className="inline-flex items-center gap-1 text-xs text-neutral-500">
-                                {item.source === "web"
+                                {item.source === "web-dial"
                                   ? <><Globe className="w-3 h-3" />Web</>
                                   : <><Smartphone className="w-3 h-3" />Android</>
                                 }

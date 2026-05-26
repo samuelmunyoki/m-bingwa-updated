@@ -485,18 +485,24 @@ export default defineSchema({
     ussdCode: v.string(),
     targetNumber: v.optional(v.string()),
     offerName: v.optional(v.string()),
-    status: v.string(), // "Success", "Failed", "Timeout", "Cancelled", "Validation Failed"
+    status: v.string(), // "Success","Failed","Timeout","Cancelled","Validation Failed","PENDING","EXECUTING"
     timeTaken: v.string(),
     timeStamp: v.string(),
     ussdResponse: v.optional(v.string()),
-    source: v.optional(v.string()), // "android" or "web"
+    source: v.optional(v.string()), // "android" | "web-dial"
     createdAt: v.number(),
-    updatedAt: v.number()
+    updatedAt: v.number(),
+    // Execution params — set for web-dial records so Android knows how to run the USSD
+    dialingSim: v.optional(v.string()),
+    isMultiSession: v.optional(v.boolean()),
+    isSimpleUSSD: v.optional(v.boolean()),
+    responseValidatorText: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_and_timestamp", ["userId", "timeStamp"])
     .index("by_user_and_status", ["userId", "status"])
-    .index("by_composite_key", ["userId", "timeStamp", "ussdCode"]), 
+    .index("by_composite_key", ["userId", "timeStamp", "ussdCode"])
+    .index("by_user_source_status", ["userId", "source", "status"]),
 
   retryConfigs: defineTable({
     userId: v.string(),

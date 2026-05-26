@@ -5464,14 +5464,17 @@ export const createUSSDHistory = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, ussdCode, targetNumber, offerName, status, timeTaken, timeStamp, ussdResponse  } = body;
+  const {
+    userId, ussdCode, targetNumber, offerName, status, timeTaken, timeStamp, ussdResponse,
+    source, dialingSim, isMultiSession, isSimpleUSSD, responseValidatorText,
+  } = body;
 
   if (!userId || !ussdCode || !status || !timeTaken || !timeStamp) {
     return createResponse("error", null, "Missing required fields");
   }
 
-  // Validate status
-  const validStatuses = ["Success", "Failed", "Timeout", "Cancelled", "Validation Failed"];
+  // Valid statuses — includes PENDING/EXECUTING for web-dial records
+  const validStatuses = ["Success", "Failed", "Timeout", "Cancelled", "Validation Failed", "PENDING", "EXECUTING"];
   if (!validStatuses.includes(status)) {
     return createResponse("error", null, "Invalid status value");
   }
@@ -5485,10 +5488,88 @@ export const createUSSDHistory = httpAction(async (ctx, request) => {
       status,
       timeTaken,
       timeStamp,
-      ussdResponse
+      ussdResponse,
+      source,
+      dialingSim,
+      isMultiSession,
+      isSimpleUSSD,
+      responseValidatorText,
     });
 
     return createResponse("success", { historyId }, "USSD history created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getPendingWebDials = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const dials = await ctx.runQuery(api.features.ussdHistory.getPendingWebDials, { userId });
+    return createResponse("success", { dials }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const markWebDialExecuting = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { historyId } = body;
+  if (!historyId) {
+    return createResponse("error", null, "Missing historyId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.ussdHistory.markWebDialExecuting, {
+      historyId: historyId as Id<"ussdHistory">,
+    });
+    return createResponse("success", null, "Marked as executing");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateWebDialStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { historyId, status, ussdResponse, timeTaken } = body;
+  if (!historyId || !status) {
+    return createResponse("error", null, "Missing historyId or status");
+  }
+
+  try {
+    await ctx.runMutation(api.features.ussdHistory.updateWebDialStatus, {
+      historyId: historyId as Id<"ussdHistory">,
+      status,
+      ussdResponse,
+      timeTaken,
+    });
+    return createResponse("success", null, "Status updated");
   } catch (error: any) {
     return createResponse("error", null, error.message);
   }
