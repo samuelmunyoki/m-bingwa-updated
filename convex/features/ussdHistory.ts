@@ -15,12 +15,17 @@ export const createUSSDHistory = mutation({
     timeStamp: v.string(),
     ussdResponse: v.optional(v.string()),
     source: v.optional(v.string()),
+    // Execution params for web-dial records
+    dialingSim: v.optional(v.string()),
+    isMultiSession: v.optional(v.boolean()),
+    isSimpleUSSD: v.optional(v.boolean()),
+    responseValidatorText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Check for duplicate using composite key
     const existing = await ctx.db
       .query("ussdHistory")
-      .withIndex("by_composite_key", (q) => 
+      .withIndex("by_composite_key", (q) =>
         q.eq("userId", args.userId)
          .eq("timeStamp", args.timeStamp)
          .eq("ussdCode", args.ussdCode)
@@ -43,7 +48,11 @@ export const createUSSDHistory = mutation({
       ussdResponse: args.ussdResponse,
       source: args.source ?? "android",
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
+      dialingSim: args.dialingSim,
+      isMultiSession: args.isMultiSession,
+      isSimpleUSSD: args.isSimpleUSSD,
+      responseValidatorText: args.responseValidatorText,
     });
 
     return historyId;
@@ -130,4 +139,56 @@ export const getAvailableStatuses = query({
     const statuses = [...new Set(history.map(item => item.status))];
     return statuses.sort();
   }
+});
+
+// ============= WEB DIAL MUTATIONS/QUERIES =============
+
+/** Android polls this every 30s — returns PENDING web-dial records for a user */
+export const getPendingWebDials = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("ussdHistory")
+      .withIndex("by_user_source_status", (q) =>
+        q.eq("userId", args.userId)
+         .eq("source", "web-dial")
+         .eq("status", "PENDING")
+      )
+      .collect();
+  },
+});
+
+/** Android calls this immediately after picking up a PENDING dial — prevents double-execution */
+export const markWebDialExecuting = mutation({
+  args: { historyId: v.id("ussdHistory") },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.historyId);
+    if (!item) throw new Error("Record not found");
+    // Only mark if still PENDING — guard against race conditions
+    if (item.status !== "PENDING") return;
+    await ctx.db.patch(args.historyId, {
+      status: "EXECUTING",
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/** Android calls this after execution completes to write the result back */
+export const updateWebDialStatus = mutation({
+  args: {
+    historyId: v.id("ussdHistory"),
+    status: v.string(),
+    ussdResponse: v.optional(v.string()),
+    timeTaken: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.historyId);
+    if (!item) throw new Error("Record not found");
+    await ctx.db.patch(args.historyId, {
+      status: args.status,
+      ...(args.ussdResponse !== undefined && { ussdResponse: args.ussdResponse }),
+      ...(args.timeTaken !== undefined && { timeTaken: args.timeTaken }),
+      updatedAt: Date.now(),
+    });
+  },
 });
