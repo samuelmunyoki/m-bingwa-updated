@@ -8,6 +8,7 @@ import {
 } from "./_generated/server";
 import { BackendResponse } from "../lib/custom_types";
 import { api } from "./_generated/api";
+import { v4 as uuidv4 } from "uuid";
 
 export const updateOrcreateUser = mutation({
   args: {
@@ -1159,7 +1160,7 @@ export const registerWebSession = mutation({
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
     if (!user) return { status: "error", error: "User not found" };
-    const token = crypto.randomUUID();
+    const token = uuidv4();
     await ctx.db.patch(user._id, { webSessionToken: token });
     return { status: "success", token };
   },
