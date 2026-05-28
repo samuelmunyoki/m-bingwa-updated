@@ -18,16 +18,13 @@ export const getStore = query({
 // Define the Bundle type
 type Bundle = Doc<"bundles">;
 
-// Internal query to fetch bundles by userId
-const getBundlesByUserId = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args): Promise<Bundle[]> => {
-    return await ctx.db
-      .query("bundles")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
-  },
-});
+// Internal helper to fetch bundles by userId
+async function getBundlesByUserId(ctx: { db: any }, args: { userId: string }): Promise<Bundle[]> {
+  return await ctx.db
+    .query("bundles")
+    .withIndex("by_user", (q: any) => q.eq("userId", args.userId))
+    .collect();
+}
 
 //getStoreByStoreName query
 export const getStoreByStoreName = query({

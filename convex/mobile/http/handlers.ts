@@ -1769,7 +1769,8 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       dialingSim,
       isMultiSession,
       isSimpleUSSD,
-      responseValidatorText
+      responseValidatorText,
+      source
     } = await request.json();
 
     const result = await ctx.runMutation(api.features.scheduled_events.createScheduledEvent, {
@@ -1789,7 +1790,8 @@ export const createScheduledEvent = httpAction(async (ctx, request) => {
       dialingSim,
       isMultiSession,
       isSimpleUSSD,
-      responseValidatorText
+      responseValidatorText,
+      source
     });
 
     // Format response to match what Android expects
