@@ -1,0 +1,7 @@
+allowBuilds:
+  '@clerk/shared': false
+  core-js: false
+  esbuild: false
+  msw: false
+  sharp: false
+  unrs-resolver: false
