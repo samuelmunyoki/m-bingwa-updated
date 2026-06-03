@@ -6478,6 +6478,35 @@ export const markStoreMessageAndroidProcessedHttp = httpAction(async (ctx, reque
   }
 });
 
+// Get messages pending web retry for Android to process
+export const getPendingWebRetriesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") return createResponse("error", null, "Method not allowed");
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId");
+  try {
+    const messages = await ctx.runQuery(api.features.mpesaMessages.getPendingWebRetries, { userId });
+    return createResponse("success", { messages });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Clear webRetryRequested flag after Android picks up the retry
+export const clearWebRetryFlagHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { messageId } = body ?? {};
+  if (!messageId) return createResponse("error", null, "Missing messageId");
+  try {
+    await ctx.runMutation(api.features.mpesaMessages.clearWebRetryFlag, { messageId });
+    return createResponse("success", null);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 // ── AutoTopup HTTP handlers ───────────────────────────────────────────────────
 
 export const upsertAutoTopupSettingsHttp = httpAction(async (ctx, request) => {

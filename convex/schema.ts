@@ -222,6 +222,7 @@ export default defineSchema({
   mpesaDate: v.optional(v.float64()),
   source: v.optional(v.string()),
   androidProcessed: v.optional(v.boolean()),
+  webRetryRequested: v.optional(v.boolean()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])
@@ -230,7 +231,8 @@ export default defineSchema({
     .index("by_processed", ["processed"])
     .index("by_user_id_time", ["userId", "time"])
     .index("by_source_androidProcessed", ["source", "androidProcessed"])
-    .index("by_user_transaction", ["userId", "transactionId"]),
+    .index("by_user_transaction", ["userId", "transactionId"])
+    .index("by_user_webRetry", ["userId", "webRetryRequested"]),
 
   userSenderRelations: defineTable({
     userId: v.string(),

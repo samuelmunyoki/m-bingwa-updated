@@ -760,6 +760,56 @@ export const deleteOldMpesaMessages = mutation({
 });
 
 
+// Mutation to reset a single message for web-initiated retry
+export const resetMessageForWebRetry = mutation({
+  args: { messageId: v.id("mpesaMessages") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, {
+      processed: "pending",
+      webRetryRequested: true,
+      processResponse: undefined,
+    });
+  },
+});
+
+// Mutation to reset multiple messages for web-initiated bulk retry
+export const bulkResetMessagesForWebRetry = mutation({
+  args: { messageIds: v.array(v.id("mpesaMessages")) },
+  handler: async (ctx, args) => {
+    await Promise.all(
+      args.messageIds.map((id) =>
+        ctx.db.patch(id, {
+          processed: "pending",
+          webRetryRequested: true,
+          processResponse: undefined,
+        })
+      )
+    );
+    return { count: args.messageIds.length };
+  },
+});
+
+// Query for Android to poll — returns messages pending web retry for a user
+export const getPendingWebRetries = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_webRetry", (q) =>
+        q.eq("userId", args.userId).eq("webRetryRequested", true)
+      )
+      .collect();
+  },
+});
+
+// Mutation called by Android after picking up a web retry — clears the flag
+export const clearWebRetryFlag = mutation({
+  args: { messageId: v.id("mpesaMessages") },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.messageId, { webRetryRequested: false });
+  },
+});
+
 // Mutation to create a store mpesa message after payment confirmation
 export const createStoreMpesaMessage = mutation({
   args: {
