@@ -116,7 +116,7 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 w-full">
+    <div className="flex flex-col gap-4 p-4 w-full h-full overflow-y-auto">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">
           Pattern Offers
