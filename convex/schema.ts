@@ -612,5 +612,23 @@ export default defineSchema({
     .index("by_phone", ["phoneNumber"])
     .index("by_profileId", ["profileId"]),
 
+  serverPatternOffers: defineTable({
+    name: v.string(),
+    price: v.number(),
+    ussdBaseCode: v.string(),
+    offerType: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    createdBy: v.string(),
+    steps: v.array(v.object({
+      stepIndex: v.number(),
+      inputKey: v.string(),
+      inputValue: v.string(),
+      pattern: v.optional(v.string()),
+      type: v.string(),
+      inputMode: v.string(),
+    })),
+  }).index("by_isActive", ["isActive"]),
+
 });
 

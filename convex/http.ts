@@ -135,6 +135,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   insertAutoTopupHistoryHttp,
   getOrCreatePhoneProfileHttp,
   getPhoneProfileByPhone,
+  getServerPatternOffersHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1278,6 +1279,12 @@ http.route({
   pathPrefix: "/api/phone-profiles/get-by-phone/",
   method: "GET",
   handler: getPhoneProfileByPhone,
+});
+
+http.route({
+  pathPrefix: "/api/pattern-offers/",
+  method: "GET",
+  handler: getServerPatternOffersHttp,
 });
 
 export default http;

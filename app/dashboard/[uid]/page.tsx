@@ -46,6 +46,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionsMain } from "@/app/_components/transactions/transactions";
 import BalanceBar from "@/app/_components/balance/BalanceBar";
+import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -334,6 +335,13 @@ export default function Dashboard() {
         <IconDeviceDesktopAnalytics className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
+    {
+      label: "Pattern Offers",
+      href: "#",
+      icon: (
+        <IconAdjustments className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
   ];
 
   const isSubscribed =
@@ -485,6 +493,7 @@ export default function Dashboard() {
         {navItem === "Offers" && <WebsiteMain userId={activeProfileId} />}
         {navItem === "Statistics" && <StatisticsMain userId={activeProfileId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
+        {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
       </div>
     </div>
   );
