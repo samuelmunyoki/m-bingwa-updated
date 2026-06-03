@@ -6603,3 +6603,12 @@ export const getOrCreatePhoneProfileHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+export const getServerPatternOffersHttp = httpAction(async (ctx, _request) => {
+  try {
+    const offers = await ctx.runQuery(api.features.serverPatternOffers.getAllActive, {});
+    return createResponse("success", { offers });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
