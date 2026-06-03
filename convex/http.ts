@@ -127,6 +127,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   removeFromBlacklistHttp,
   getPendingStoreMpesaMessagesHttp,
   markStoreMessageAndroidProcessedHttp,
+  getPendingWebRetriesHttp,
+  clearWebRetryFlagHttp,
   upsertAutoTopupSettingsHttp,
   upsertAutoTopupWatchHttp,
   deleteAutoTopupWatchHttp,
@@ -355,6 +357,19 @@ http.route({
   pathPrefix: "/api/mpesa-messages/store/mark-processed/",
   method: "PATCH",
   handler: markStoreMessageAndroidProcessedHttp,
+});
+
+// Web retry endpoints
+http.route({
+  pathPrefix: "/api/mpesa-messages/web-retry/pending/",
+  method: "GET",
+  handler: getPendingWebRetriesHttp,
+});
+
+http.route({
+  pathPrefix: "/api/mpesa-messages/web-retry/clear-flag/",
+  method: "PATCH",
+  handler: clearWebRetryFlagHttp,
 });
 
 //API Route to get subscription price

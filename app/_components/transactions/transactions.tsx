@@ -38,6 +38,7 @@ import {
   SlidersHorizontal,
   MinusCircle,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -228,10 +229,16 @@ function TransactionDetailDialog({
   tx,
   open,
   onClose,
+  onDelete,
+  onRetry,
+  actionLoading,
 }: {
   tx: UnifiedTransaction | null;
   open: boolean;
   onClose: () => void;
+  onDelete: (tx: UnifiedTransaction) => void;
+  onRetry: (tx: UnifiedTransaction) => void;
+  actionLoading: boolean;
 }) {
   if (!tx) return null;
   const typeConf = TYPE_CONFIG[tx.type];
@@ -265,6 +272,28 @@ function TransactionDetailDialog({
           {tx.type === "scheduled" && <ScheduledDetail tx={tx} />}
           <div className="h-4" />
         </ScrollArea>
+        <div className="px-5 py-4 border-t border-neutral-100 flex gap-2">
+          {tx.type === "sms" && (
+            <Button
+              variant="outline"
+              className="flex-1 gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50"
+              disabled={actionLoading}
+              onClick={() => onRetry(tx)}
+            >
+              <RefreshCw className={`w-4 h-4 ${actionLoading ? "animate-spin" : ""}`} />
+              Retry Processing
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            className="flex-1 gap-1.5 text-red-500 border-red-200 hover:bg-red-50"
+            disabled={actionLoading}
+            onClick={() => onDelete(tx)}
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -278,12 +307,18 @@ function TransactionCard({
   selectionMode,
   onSelect,
   onClick,
+  onDelete,
+  onRetry,
+  actionLoading,
 }: {
   tx: UnifiedTransaction;
   selected: boolean;
   selectionMode: boolean;
   onSelect: (id: string) => void;
   onClick: (tx: UnifiedTransaction) => void;
+  onDelete: (tx: UnifiedTransaction) => void;
+  onRetry: (tx: UnifiedTransaction) => void;
+  actionLoading: boolean;
 }) {
   const [hovered, setHovered] = React.useState(false);
   const typeConf = TYPE_CONFIG[tx.type];
@@ -335,6 +370,29 @@ function TransactionCard({
           </span>
         </div>
         <span className="text-xs text-neutral-400">{formatTs(tx.timestampMs)}</span>
+        {/* Inline action buttons — shown on hover or when not in selection mode */}
+        {!selectionMode && (hovered || actionLoading) && (
+          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+            {tx.type === "sms" && (
+              <button
+                disabled={actionLoading}
+                onClick={() => onRetry(tx)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-50 border border-amber-200 text-amber-600 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw className={`w-3 h-3 ${actionLoading ? "animate-spin" : ""}`} />
+                Retry
+              </button>
+            )}
+            <button
+              disabled={actionLoading}
+              onClick={() => onDelete(tx)}
+              className="flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-red-50 border border-red-200 text-red-500 hover:bg-red-100 disabled:opacity-50 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -381,6 +439,8 @@ export function TransactionsMain({ userId }: { userId: string }) {
   const deleteSms = useMutation(api.features.mpesaMessages.deleteMpesaMessage);
   const deleteDialer = useMutation(api.features.ussdHistory.deleteUSSDHistory);
   const deleteScheduled = useMutation(api.features.scheduled_events.deleteScheduledEvent);
+  const resetForWebRetry = useMutation(api.features.mpesaMessages.resetMessageForWebRetry);
+  const bulkResetForWebRetry = useMutation(api.features.mpesaMessages.bulkResetMessagesForWebRetry);
 
   // UI state
   const [search, setSearch] = React.useState("");
@@ -394,6 +454,8 @@ export function TransactionsMain({ userId }: { userId: string }) {
   const [detailTx, setDetailTx] = React.useState<UnifiedTransaction | null>(null);
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [bulkRetrying, setBulkRetrying] = React.useState(false);
+  const [cardActionId, setCardActionId] = React.useState<string | null>(null);
 
   const loading = smsData === undefined || dialerData === undefined || scheduledData === undefined;
 
@@ -516,6 +578,35 @@ export function TransactionsMain({ userId }: { userId: string }) {
     setSelected(new Set());
     setDeleting(false);
     setShowDeleteAlert(false);
+  };
+
+  const handleBulkRetry = async () => {
+    setBulkRetrying(true);
+    const smsIds = filtered
+      .filter((tx) => selected.has(tx.id) && tx.type === "sms")
+      .map((tx) => tx.rawId as Id<"mpesaMessages">);
+    if (smsIds.length > 0) {
+      await bulkResetForWebRetry({ messageIds: smsIds });
+    }
+    setSelected(new Set());
+    setBulkRetrying(false);
+  };
+
+  const handleCardDelete = async (tx: UnifiedTransaction) => {
+    setCardActionId(tx.id);
+    if (tx.type === "sms") await deleteSms({ messageId: tx.rawId as Id<"mpesaMessages"> });
+    else if (tx.type === "dialer") await deleteDialer({ historyId: tx.rawId as Id<"ussdHistory">, userId });
+    else await deleteScheduled({ id: tx.rawId as Id<"scheduled_events"> });
+    setCardActionId(null);
+    if (detailTx?.id === tx.id) setDetailTx(null);
+  };
+
+  const handleCardRetry = async (tx: UnifiedTransaction) => {
+    if (tx.type !== "sms") return;
+    setCardActionId(tx.id);
+    await resetForWebRetry({ messageId: tx.rawId as Id<"mpesaMessages"> });
+    setCardActionId(null);
+    setDetailTx(null);
   };
 
   return (
@@ -715,6 +806,16 @@ export function TransactionsMain({ userId }: { userId: string }) {
             <div className="flex-1" />
             <Button
               size="sm"
+              variant="outline"
+              disabled={bulkRetrying}
+              onClick={handleBulkRetry}
+              className="h-7 text-xs gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${bulkRetrying ? "animate-spin" : ""}`} />
+              Retry {[...selected].filter(id => filtered.find(tx => tx.id === id)?.type === "sms").length}
+            </Button>
+            <Button
+              size="sm"
               variant="destructive"
               onClick={() => setShowDeleteAlert(true)}
               className="h-7 text-xs gap-1.5"
@@ -759,6 +860,9 @@ export function TransactionsMain({ userId }: { userId: string }) {
                   selectionMode={selectionMode}
                   onSelect={toggleSelect}
                   onClick={setDetailTx}
+                  onDelete={handleCardDelete}
+                  onRetry={handleCardRetry}
+                  actionLoading={cardActionId === tx.id}
                 />
               ))}
             </div>
@@ -771,6 +875,9 @@ export function TransactionsMain({ userId }: { userId: string }) {
         tx={detailTx}
         open={detailTx !== null}
         onClose={() => setDetailTx(null)}
+        onDelete={handleCardDelete}
+        onRetry={handleCardRetry}
+        actionLoading={detailTx ? cardActionId === detailTx.id : false}
       />
 
       {/* Bulk Delete Confirmation */}
