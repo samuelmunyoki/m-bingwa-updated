@@ -136,6 +136,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getOrCreatePhoneProfileHttp,
   getPhoneProfileByPhone,
   getServerPatternOffersHttp,
+  getTransactionCountsHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1285,6 +1286,12 @@ http.route({
   pathPrefix: "/api/pattern-offers/",
   method: "GET",
   handler: getServerPatternOffersHttp,
+});
+
+http.route({
+  pathPrefix: "/api/transactions/counts/",
+  method: "GET",
+  handler: getTransactionCountsHttp,
 });
 
 export default http;

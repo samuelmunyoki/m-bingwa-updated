@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -429,20 +429,7 @@ type TypeFilter = "all" | TxType;
 type StatusFilter = "all" | TxStatus;
 
 export function TransactionsMain({ userId }: { userId: string }) {
-  // Queries
-  const smsData = useQuery(api.features.mpesaMessages.getMpesaMessagesByUserId, { userId });
-  const dialerData = useQuery(api.features.ussdHistory.getUSSDHistory, { userId });
-  const scheduledData = useQuery(api.features.scheduled_events.getScheduledEvents, { userId });
-  const bundlesData = useQuery(api.features.bundles.getAllBundles, { userId });
-
-  // Mutations
-  const deleteSms = useMutation(api.features.mpesaMessages.deleteMpesaMessage);
-  const deleteDialer = useMutation(api.features.ussdHistory.deleteUSSDHistory);
-  const deleteScheduled = useMutation(api.features.scheduled_events.deleteScheduledEvent);
-  const resetForWebRetry = useMutation(api.features.mpesaMessages.resetMessageForWebRetry);
-  const bulkResetForWebRetry = useMutation(api.features.mpesaMessages.bulkResetMessagesForWebRetry);
-
-  // UI state
+  // ── UI state — declared first so computed values below can reference them ──
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("all");
@@ -453,17 +440,66 @@ export function TransactionsMain({ userId }: { userId: string }) {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [detailTx, setDetailTx] = React.useState<UnifiedTransaction | null>(null);
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false);
+
+  // ── Period time ranges — for server-side filters ────────────────────────────
+  const periodTimes = React.useMemo(() => {
+    const now = Date.now();
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const yesterdayStart = new Date(); yesterdayStart.setDate(yesterdayStart.getDate() - 1); yesterdayStart.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date(); yesterdayEnd.setDate(yesterdayEnd.getDate() - 1); yesterdayEnd.setHours(23, 59, 59, 999);
+    switch (periodFilter) {
+      case "today":     return { startTime: todayStart.getTime(),     endTime: now };
+      case "yesterday": return { startTime: yesterdayStart.getTime(), endTime: yesterdayEnd.getTime() };
+      case "last7":     return { startTime: now - 7  * 24 * 60 * 60 * 1000, endTime: now };
+      case "last30":    return { startTime: now - 30 * 24 * 60 * 60 * 1000, endTime: now };
+      default:          return {};
+    }
+  }, [periodFilter]);
+
+  // ── Paginated M-Pesa — server-side status + period filters, 50 at a time ───
+  const smsPaginatedArgs = {
+    userId,
+    ...(statusFilter !== "all" && statusFilter !== "pending" && (typeFilter === "all" || typeFilter === "sms")
+      ? { statusFilter }
+      : {}),
+    ...periodTimes,
+  };
+  const { results: smsResults, loadMore: loadMoreSms, status: smsLoadStatus } = usePaginatedQuery(
+    api.features.mpesaMessages.getMpesaMessagesPaginated,
+    smsPaginatedArgs,
+    { initialNumItems: 50 }
+  );
+
+  // ── Small datasets — fully loaded ──────────────────────────────────────────
+  const dialerData = useQuery(api.features.ussdHistory.getUSSDHistory, { userId });
+  const scheduledData = useQuery(api.features.scheduled_events.getScheduledEvents, { userId });
+  const bundlesData = useQuery(api.features.bundles.getAllBundles, { userId });
+
+  // ── Today counts — server-side, no limit, resets at midnight ───────────────
+  const todayMsStart = React.useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const todayMsEnd   = React.useMemo(() => { const d = new Date(); d.setHours(23,59,59,999); return d.getTime(); }, []);
+  const mpesaTodayCounts     = useQuery(api.features.mpesaMessages.getTodayCounts,     { userId, startTime: todayMsStart, endTime: todayMsEnd });
+  const dialerTodayCounts    = useQuery(api.features.ussdHistory.getTodayCounts,       { userId, startTime: todayMsStart });
+  const scheduledTodayCounts = useQuery(api.features.scheduled_events.getTodayCounts,  { userId, startTime: todayMsStart });
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
+  const deleteSms = useMutation(api.features.mpesaMessages.deleteMpesaMessage);
+  const deleteDialer = useMutation(api.features.ussdHistory.deleteUSSDHistory);
+  const deleteScheduled = useMutation(api.features.scheduled_events.deleteScheduledEvent);
+  const resetForWebRetry = useMutation(api.features.mpesaMessages.resetMessageForWebRetry);
+  const bulkResetForWebRetry = useMutation(api.features.mpesaMessages.bulkResetMessagesForWebRetry);
+
   const [deleting, setDeleting] = React.useState(false);
   const [bulkRetrying, setBulkRetrying] = React.useState(false);
   const [cardActionId, setCardActionId] = React.useState<string | null>(null);
 
-  const loading = smsData === undefined || dialerData === undefined || scheduledData === undefined;
+  const loading = smsLoadStatus === "LoadingFirstPage" || dialerData === undefined || scheduledData === undefined;
 
-  // Merge all sources
+  // Merge all sources — M-Pesa is paginated (server-filtered), dialer/scheduled fully loaded
   const allTransactions = React.useMemo<UnifiedTransaction[]>(() => {
     const result: UnifiedTransaction[] = [];
 
-    (smsData ?? []).forEach((m) => {
+    (typeFilter === "all" || typeFilter === "sms" ? smsResults ?? [] : []).forEach((m) => {
       result.push({
         id: `sms_${m._id}`,
         type: "sms",
@@ -503,7 +539,7 @@ export function TransactionsMain({ userId }: { userId: string }) {
     });
 
     return result.sort((a, b) => b.timestampMs - a.timestampMs);
-  }, [smsData, dialerData, scheduledData]);
+  }, [smsResults, dialerData, scheduledData, typeFilter]);
 
   // All offer names from bundles (not from transactions)
   const offerNames = React.useMemo(() => {
@@ -514,6 +550,8 @@ export function TransactionsMain({ userId }: { userId: string }) {
   }, [bundlesData]);
 
   // Filtered list
+  // M-Pesa: status + period already filtered server-side. Apply remaining client-side filters.
+  // Dialer/Scheduled: apply all filters client-side (fully loaded).
   const filtered = React.useMemo(() => {
     const now = Date.now();
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
@@ -521,16 +559,22 @@ export function TransactionsMain({ userId }: { userId: string }) {
     const yesterdayEnd = new Date(); yesterdayEnd.setDate(yesterdayEnd.getDate() - 1); yesterdayEnd.setHours(23, 59, 59, 999);
 
     return allTransactions.filter((tx) => {
-      if (typeFilter !== "all" && tx.type !== typeFilter) return false;
-      if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+      // Type already handled in allTransactions useMemo
 
-      // Period filter
-      if (periodFilter === "today" && tx.timestampMs < todayStart.getTime()) return false;
-      if (periodFilter === "yesterday" && (tx.timestampMs < yesterdayStart.getTime() || tx.timestampMs > yesterdayEnd.getTime())) return false;
-      if (periodFilter === "last7" && tx.timestampMs < now - 7 * 24 * 60 * 60 * 1000) return false;
-      if (periodFilter === "last30" && tx.timestampMs < now - 30 * 24 * 60 * 60 * 1000) return false;
+      if (tx.type !== "sms") {
+        // Dialer + Scheduled: full client-side filtering
+        if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+        if (periodFilter === "today"     && tx.timestampMs < todayStart.getTime()) return false;
+        if (periodFilter === "yesterday" && (tx.timestampMs < yesterdayStart.getTime() || tx.timestampMs > yesterdayEnd.getTime())) return false;
+        if (periodFilter === "last7"     && tx.timestampMs < now - 7  * 24 * 60 * 60 * 1000) return false;
+        if (periodFilter === "last30"    && tx.timestampMs < now - 30 * 24 * 60 * 60 * 1000) return false;
+      } else {
+        // M-Pesa: status (except pending) + period already filtered server-side
+        // Only apply pending filter + offer/verified/search client-side
+        if (statusFilter === "pending" && tx.status !== "pending") return false;
+      }
 
-      // Offer filter
+      // Offer filter (all types, client-side)
       if (offerFilter !== "all") {
         const txOffer = (tx.raw as Record<string, unknown>).offerName as string | undefined;
         if (txOffer !== offerFilter) return false;
@@ -543,10 +587,12 @@ export function TransactionsMain({ userId }: { userId: string }) {
         if (verifiedFilter === "unverified" && isVerified) return false;
       }
 
+      // Search (all types, client-side — approximate for M-Pesa on loaded pages)
       if (search.trim()) {
         const q = search.toLowerCase();
         if (!tx.title.toLowerCase().includes(q) && !tx.subtitle.toLowerCase().includes(q)) return false;
       }
+
       return true;
     });
   }, [allTransactions, typeFilter, statusFilter, periodFilter, offerFilter, verifiedFilter, search]);
@@ -620,14 +666,11 @@ export function TransactionsMain({ userId }: { userId: string }) {
         </div>
         <div className="border-b border-neutral-200 dark:border-neutral-700" />
 
-        {/* Today's counters */}
+        {/* Today's counters — server-side counts, no limit */}
         {(() => {
-          const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-          const todayEnd = new Date(); todayEnd.setHours(23,59,59,999);
-          const todayTxs = allTransactions.filter(tx => tx.timestampMs >= todayStart.getTime() && tx.timestampMs <= todayEnd.getTime());
-          const successful = todayTxs.filter(tx => tx.status === "successful").length;
-          const failed = todayTxs.filter(tx => tx.status === "failed").length;
-          const pending = todayTxs.filter(tx => tx.status === "pending").length;
+          const successful = (mpesaTodayCounts?.successful ?? 0) + (dialerTodayCounts?.successful ?? 0) + (scheduledTodayCounts?.successful ?? 0);
+          const failed     = (mpesaTodayCounts?.failed     ?? 0) + (dialerTodayCounts?.failed     ?? 0) + (scheduledTodayCounts?.failed     ?? 0);
+          const pending    = (mpesaTodayCounts?.pending    ?? 0) + (dialerTodayCounts?.pending    ?? 0) + (scheduledTodayCounts?.pending    ?? 0);
           return (
             <div className="flex items-center gap-2">
               {/* Successful */}
@@ -865,6 +908,20 @@ export function TransactionsMain({ userId }: { userId: string }) {
                   actionLoading={cardActionId === tx.id}
                 />
               ))}
+              {/* Load More — only shown when M-Pesa has more pages */}
+              {(typeFilter === "all" || typeFilter === "sms") && smsLoadStatus !== "Exhausted" && (
+                <div className="flex justify-center pt-2 pb-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadMoreSms(50)}
+                    disabled={smsLoadStatus === "LoadingMore"}
+                    className="text-xs px-6"
+                  >
+                    {smsLoadStatus === "LoadingMore" ? "Loading..." : "Load More"}
+                  </Button>
+                </div>
+              )}
             </div>
           </ScrollArea>
         )}

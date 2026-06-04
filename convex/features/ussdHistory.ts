@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { paginationOptsValidator } from "convex/server";
 
 // ============= USSD HISTORY MUTATIONS =============
 
@@ -190,5 +191,53 @@ export const updateWebDialStatus = mutation({
       ...(args.timeTaken !== undefined && { timeTaken: args.timeTaken }),
       updatedAt: Date.now(),
     });
+  },
+});
+export const getCountsByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("ussdHistory")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    return {
+      total: all.length,
+      successful: all.filter(d => d.status === "Success").length,
+      failed: all.filter(d => d.status === "Failed" || d.status === "Timeout" || d.status === "Cancelled").length,
+      pending: all.filter(d => d.status === "PENDING" || d.status === "EXECUTING").length,
+    };
+  },
+});
+
+export const getUSSDHistoryPaginated = query({
+  args: {
+    userId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("ussdHistory")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .paginate(args.paginationOpts);
+  },
+});
+
+export const getTodayCounts = query({
+  args: { userId: v.string(), startTime: v.number() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("ussdHistory")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
+    const today = all.filter((d) => {
+      const ts = new Date(d.timeStamp).getTime();
+      return !isNaN(ts) && ts >= args.startTime;
+    });
+    return {
+      successful: today.filter((d) => d.status === "Success").length,
+      failed: today.filter((d) => ["Failed", "Timeout", "Cancelled"].includes(d.status)).length,
+      pending: today.filter((d) => ["PENDING", "EXECUTING"].includes(d.status)).length,
+    };
   },
 });

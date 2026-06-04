@@ -6612,3 +6612,31 @@ export const getServerPatternOffersHttp = httpAction(async (ctx, _request) => {
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+export const getTransactionCountsHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId parameter");
+
+  try {
+    const [mpesa, scheduled, dialer] = await Promise.all([
+      ctx.runQuery(api.features.mpesaMessages.getCountsByUserId, { userId }),
+      ctx.runQuery(api.features.scheduled_events.getCountsByUserId, { userId }),
+      ctx.runQuery(api.features.ussdHistory.getCountsByUserId, { userId }),
+    ]);
+
+    return createResponse("success", {
+      mpesa,
+      scheduled,
+      dialer,
+      combined: {
+        total:      mpesa.total + scheduled.total + dialer.total,
+        successful: mpesa.successful + scheduled.successful + dialer.successful,
+        failed:     mpesa.failed + scheduled.failed + dialer.failed,
+        pending:    mpesa.pending + scheduled.pending + dialer.pending,
+      }
+    });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
