@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { BackendResponse } from "../../lib/custom_types";
+import { paginationOptsValidator } from "convex/server";
 import { api } from "../_generated/api";
 import { Id } from "../_generated/dataModel";
 
@@ -410,5 +411,50 @@ export const deleteScheduledEvent = mutation({
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
     return { success: true, message: "Deleted successfully" };
+  },
+});
+export const getCountsByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("scheduled_events")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    return {
+      total: all.length,
+      successful: all.filter(s => s.status === "SUCCESS" || s.status === "EXECUTED").length,
+      failed: all.filter(s => s.status === "FAILED" || s.status === "ERRORED").length,
+      pending: all.filter(s => s.status === "PENDING" || s.status === "QUEUED").length,
+    };
+  },
+});
+
+export const getScheduledEventsPaginated = query({
+  args: {
+    userId: v.string(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("scheduled_events")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .order("desc")
+      .paginate(args.paginationOpts);
+  },
+});
+
+export const getTodayCounts = query({
+  args: { userId: v.string(), startTime: v.number() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("scheduled_events")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    const today = all.filter((s) => s.scheduledTimeStamp * 1000 >= args.startTime);
+    return {
+      successful: today.filter((s) => s.status === "SUCCESS" || s.status === "EXECUTED").length,
+      failed: today.filter((s) => s.status === "FAILED" || s.status === "ERRORED").length,
+      pending: today.filter((s) => s.status === "PENDING" || s.status === "QUEUED").length,
+    };
   },
 });

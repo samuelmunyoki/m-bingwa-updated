@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
+import { paginationOptsValidator } from "convex/server";
 
 // Mutation to create a new mpesa message
 export const createMpesaMessage = mutation({
@@ -64,7 +65,7 @@ export const getMpesaMessagesByUserId = query({
       .query("mpesaMessages")
       .withIndex("by_user_id_time", (q) => q.eq("userId", userId))
       .order("desc")
-      .take(500);
+      .collect();
 
     // Ensure all messages include the new fields (even if undefined/null)
     const messagesWithAllFields = mpesaMessages.map(message => ({
@@ -857,5 +858,119 @@ export const markStoreMessageAndroidProcessed = mutation({
   args: { messageId: v.id("mpesaMessages") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.messageId, { androidProcessed: true });
+  },
+});
+
+export const getCountsByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const all = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .collect();
+    return {
+      total: all.length,
+      successful: all.filter(m => m.processed === "successful").length,
+      failed: all.filter(m => m.processed === "failed").length,
+      pending: all.filter(m => m.processed === "pending").length,
+    };
+  },
+});
+
+// ── Paginated M-Pesa messages with server-side filters ─────────────────────
+export const getMpesaMessagesPaginated = query({
+  args: {
+    userId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    statusFilter: v.optional(v.string()),
+    startTime: v.optional(v.number()),
+    endTime: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { userId, statusFilter, startTime, endTime } = args;
+
+    let q = ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id_time", (q) => {
+        const byUser = q.eq("userId", userId);
+        if (startTime !== undefined && endTime !== undefined) {
+          return byUser.gte("time", startTime).lte("time", endTime);
+        }
+        if (startTime !== undefined) return byUser.gte("time", startTime);
+        return byUser;
+      });
+
+    if (statusFilter && statusFilter !== "all" && statusFilter !== "pending") {
+      const stored =
+        statusFilter === "unavailable" ? "not-viable" : statusFilter;
+      q = q.filter((fq) => fq.eq(fq.field("processed"), stored)) as typeof q;
+    }
+
+    const result = await q.order("desc").paginate(args.paginationOpts);
+
+    return {
+      ...result,
+      page: result.page.map((m) => ({
+        ...m,
+        processed: m.processed ?? "pending",
+        fullMessage: m.fullMessage ?? null,
+        processResponse: m.processResponse ?? null,
+        offerName: m.offerName ?? "",
+        processedUSSD: m.processedUSSD ?? "",
+        verified: m.verified ?? false,
+        mpesaDate: m.mpesaDate ?? null,
+      })),
+    };
+  },
+});
+
+// ── Return all IDs matching filter — used for Select All ───────────────────
+export const getMpesaIdsForFilter = query({
+  args: {
+    userId: v.string(),
+    statusFilter: v.optional(v.string()),
+    startTime: v.optional(v.number()),
+    endTime: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { userId, statusFilter, startTime, endTime } = args;
+
+    let q = ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id_time", (q) => {
+        const byUser = q.eq("userId", userId);
+        if (startTime !== undefined && endTime !== undefined) {
+          return byUser.gte("time", startTime).lte("time", endTime);
+        }
+        if (startTime !== undefined) return byUser.gte("time", startTime);
+        return byUser;
+      });
+
+    if (statusFilter && statusFilter !== "all" && statusFilter !== "pending") {
+      const stored =
+        statusFilter === "unavailable" ? "not-viable" : statusFilter;
+      q = q.filter((fq) => fq.eq(fq.field("processed"), stored)) as typeof q;
+    }
+
+    const all = await q.collect();
+    return all.map((m) => `sms_${m._id}`);
+  },
+});
+
+// ── Today counts for M-Pesa ────────────────────────────────────────────────
+export const getTodayCounts = query({
+  args: { userId: v.string(), startTime: v.number(), endTime: v.number() },
+  handler: async (ctx, args) => {
+    const msgs = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id_time", (q) =>
+        q.eq("userId", args.userId).gte("time", args.startTime).lte("time", args.endTime)
+      )
+      .collect();
+    return {
+      successful: msgs.filter((m) => m.processed === "successful").length,
+      failed: msgs.filter((m) => m.processed === "failed").length,
+      pending: msgs.filter((m) => !m.processed || m.processed === "pending").length,
+    };
   },
 });
