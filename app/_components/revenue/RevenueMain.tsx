@@ -145,13 +145,13 @@ export default function RevenueMain({ userId }: { userId: string }) {
   ];
 
   return (
-    <div className="flex flex-1 !mb-2">
+    <div className="flex flex-1 h-full overflow-hidden">
       <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-4 overflow-hidden">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium flex items-center gap-2">
           <TrendingUp className="h-5 w-5" /> Revenue
         </h2>
 
-        <ScrollArea className="flex-1 pr-2">
+        <ScrollArea className="flex-1 -mx-1 px-1">
           <div className="flex flex-col gap-4 pb-6">
 
             {/* Summary Cards */}
