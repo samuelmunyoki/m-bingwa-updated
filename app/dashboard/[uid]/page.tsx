@@ -47,6 +47,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionsMain } from "@/app/_components/transactions/transactions";
 import BalanceBar from "@/app/_components/balance/BalanceBar";
 import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
+import RevenueMain from "@/app/_components/revenue/RevenueMain";
+import { IconCurrencyDollar } from "@tabler/icons-react";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -342,6 +344,13 @@ export default function Dashboard() {
         <IconAdjustments className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
+    {
+      label: "Revenue",
+      href: "#",
+      icon: (
+        <IconCurrencyDollar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+      ),
+    },
   ];
 
   const isSubscribed =
@@ -494,6 +503,7 @@ export default function Dashboard() {
         {navItem === "Statistics" && <StatisticsMain userId={activeProfileId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
+        {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
       </div>
     </div>
   );

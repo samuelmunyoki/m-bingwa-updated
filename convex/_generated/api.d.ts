@@ -37,6 +37,7 @@ import type * as features_otps from "../features/otps.js";
 import type * as features_phoneProfiles from "../features/phoneProfiles.js";
 import type * as features_promo_codes from "../features/promo_codes.js";
 import type * as features_retryConfigs from "../features/retryConfigs.js";
+import type * as features_revenue from "../features/revenue.js";
 import type * as features_scheduled_events from "../features/scheduled_events.js";
 import type * as features_serverPatternOffers from "../features/serverPatternOffers.js";
 import type * as features_serviceStatus from "../features/serviceStatus.js";
@@ -98,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   "features/phoneProfiles": typeof features_phoneProfiles;
   "features/promo_codes": typeof features_promo_codes;
   "features/retryConfigs": typeof features_retryConfigs;
+  "features/revenue": typeof features_revenue;
   "features/scheduled_events": typeof features_scheduled_events;
   "features/serverPatternOffers": typeof features_serverPatternOffers;
   "features/serviceStatus": typeof features_serviceStatus;
