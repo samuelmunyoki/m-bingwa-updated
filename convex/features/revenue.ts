@@ -23,9 +23,12 @@ export const getRevenueStats = query({
       .withIndex("by_status", (q) => q.eq("status", "SUCCESS"))
       .collect();
 
-    // Active subscribers count
+    // Active subscribers — subscribed flag AND expiry is in the future
+    const nowSeconds = Math.floor(Date.now() / 1000);
     const allUsers = await ctx.db.query("users").collect();
-    const activeSubscribers = allUsers.filter((u) => u.isSubscribed === true).length;
+    const activeSubscribers = allUsers.filter(
+      (u) => u.isSubscribed === true && (u.subscriptionEnds ?? 0) > nowSeconds
+    ).length;
 
     // Date boundaries (ms)
     const todayStart = (() => {
