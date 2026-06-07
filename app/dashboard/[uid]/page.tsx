@@ -48,7 +48,8 @@ import { TransactionsMain } from "@/app/_components/transactions/transactions";
 import BalanceBar from "@/app/_components/balance/BalanceBar";
 import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
 import RevenueMain from "@/app/_components/revenue/RevenueMain";
-import { IconCurrencyDollar, IconDeviceMobile } from "@tabler/icons-react";
+import AppConfigMain from "@/app/_components/app_config/AppConfigMain";
+import { IconCurrencyDollar, IconDeviceMobile, IconAppWindow } from "@tabler/icons-react";
 import DownloadMain from "@/app/_components/download/DownloadMain";
 
 export default function Dashboard() {
@@ -360,6 +361,13 @@ export default function Dashboard() {
         <IconCurrencyDollar className="text-green-500 h-5 w-5 flex-shrink-0" />
       ),
     },
+    {
+      label: "App Config",
+      href: "#",
+      icon: (
+        <IconAppWindow className="text-rose-500 h-5 w-5 flex-shrink-0" />
+      ),
+    },
   ];
 
   const isSubscribed =
@@ -531,6 +539,7 @@ export default function Dashboard() {
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
         {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
+        {navItem === "App Config" && isAdmin && <AppConfigMain />}
         {navItem === "Download App" && <DownloadMain />}
       </div>
     </div>
