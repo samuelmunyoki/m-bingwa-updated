@@ -3,8 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-const VERSION = "1.0.0";
+import { APP_VERSION as VERSION } from "@/lib/app-version";
 
 const FEATURES = [
   {

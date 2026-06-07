@@ -1,14 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { APP_VERSION as VERSION } from "@/lib/app-version";
 
 export const metadata: Metadata = {
   title: "Download M-Bingwa — Automation App for Bundle Merchants",
   description:
     "Download M-Bingwa for Android. Automate your Airtime, SMS & Data bundle business with smart USSD execution, M-Pesa detection, scheduling, and more.",
 };
-
-const VERSION = "1.0.0";
 
 const FEATURES = [
   {

@@ -1,8 +1,5 @@
 import type { NextConfig } from "next";
-
-// Update this URL each time you publish a new GitHub release
-const LATEST_APK_URL =
-  "https://github.com/TechEagle001/mbingwa-app/releases/download/v1.0.0/m-bingwa-v1.0.0.apk";
+import { APK_URL } from "./lib/app-version";
 
 const nextConfig: NextConfig = {
   images: {
@@ -15,7 +12,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/download/apk",
-        destination: LATEST_APK_URL,
+        destination: APK_URL,
         permanent: false,
       },
     ];
