@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { APK_URL } from "./lib/app-version";
 
 const nextConfig: NextConfig = {
   images: {
@@ -7,15 +6,6 @@ const nextConfig: NextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
-  },
-  async redirects() {
-    return [
-      {
-        source: "/download/apk",
-        destination: APK_URL,
-        permanent: false,
-      },
-    ];
   },
 };
 
