@@ -204,6 +204,19 @@ export const updateAgentNumber = mutation({
       
       if (existingUser) {
         console.log("existing phoneNumber:", existingUser.phoneNumber);
+        // Check if phone is already taken by a different user
+        if (existingUser.phoneNumber !== phoneNumber) {
+          const phoneConflict = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+            .first();
+          if (phoneConflict && phoneConflict._id !== existingUser._id) {
+            return {
+              status: "error",
+              message: "This phone number is already registered to another account.",
+            } as BackendResponse;
+          }
+        }
         // Update existing user
         await ctx.db.patch(existingUser._id, {
           phoneNumber,
@@ -525,6 +538,13 @@ export const createUserIfNotExists = mutation({
       if (byUserId) {
         // Update phone number if it changed
         if (byUserId.phoneNumber !== phoneNumber) {
+          const phoneConflict = await ctx.db
+            .query("users")
+            .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+            .first();
+          if (phoneConflict && phoneConflict._id !== byUserId._id) {
+            return { status: "phone_taken", message: "This phone number is already registered to another account.", userId: null, isNewUser: false };
+          }
           await ctx.db.patch(byUserId._id, { phoneNumber });
         }
         return { status: "success", message: "User already exists", userId: byUserId.userId, isNewUser: false };

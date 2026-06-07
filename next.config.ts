@@ -1,13 +1,24 @@
 import type { NextConfig } from "next";
 
+// Update this URL each time you publish a new GitHub release
+const LATEST_APK_URL =
+  "https://github.com/TechEagle001/mbingwa-app/releases/download/v1.0.0/m-bingwa-v1.0.0.apk";
+
 const nextConfig: NextConfig = {
   images: {
-    domains: ["assets.aceternity.com"], // Added hostname for next/image
+    domains: ["assets.aceternity.com"],
   },
-  /* other config options here */
   typescript: {
-    // This will ignore TypeScript errors during builds
     ignoreBuildErrors: true,
+  },
+  async redirects() {
+    return [
+      {
+        source: "/download/apk",
+        destination: LATEST_APK_URL,
+        permanent: false,
+      },
+    ];
   },
 };
 

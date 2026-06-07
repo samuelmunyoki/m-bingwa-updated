@@ -48,7 +48,8 @@ import { TransactionsMain } from "@/app/_components/transactions/transactions";
 import BalanceBar from "@/app/_components/balance/BalanceBar";
 import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
 import RevenueMain from "@/app/_components/revenue/RevenueMain";
-import { IconCurrencyDollar } from "@tabler/icons-react";
+import { IconCurrencyDollar, IconDeviceMobile } from "@tabler/icons-react";
+import DownloadMain from "@/app/_components/download/DownloadMain";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -240,26 +241,36 @@ export default function Dashboard() {
     window.location.href = "/sign-in";
   };
 
+  const appLinks = [
+    {
+      label: "Download App",
+      href: "#",
+      icon: (
+        <IconDeviceMobile className="text-sky-500 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+  ];
+
   const generalLinks = [
     {
       label: "Subscription",
       href: "#",
       icon: (
-        <IconDiabolo className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconDiabolo className="text-violet-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Transactions",
       href: "#",
       icon: (
-        <IconCreditCard className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconCreditCard className="text-emerald-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "USSD Dialer",
       href: "#",
       icon: (
-        <IconPhoneCall className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconPhoneCall className="text-blue-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     // {
@@ -273,35 +284,35 @@ export default function Dashboard() {
       label: "Store",
       href: "#",
       icon: (
-        <Store className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <Store className="text-orange-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Offers",
       href: "#",
       icon: (
-        <IconWorldWww className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconWorldWww className="text-cyan-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Statistics",
       href: "#",
       icon: (
-        <IconChartBar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconChartBar className="text-amber-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Blacklist",
       href: "#",
       icon: (
-        <IconForbid className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconForbid className="text-red-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Settings",
       href: "#",
       icon: (
-        <IconSettings className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconSettings className="text-slate-500 h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
@@ -311,44 +322,42 @@ export default function Dashboard() {
       label: "Dashboard",
       href: "#",
       icon: (
-        <IconBrandTabler className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconBrandTabler className="text-indigo-500 h-5 w-5 flex-shrink-0" />
       ),
     },
-
     {
       label: "Users",
       href: "#",
       icon: (
-        <IconUserBolt className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconUserBolt className="text-pink-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "SMS Broadcast",
       href: "#",
       icon: (
-        <IconDeviceMobileMessage className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconDeviceMobileMessage className="text-teal-500 h-5 w-5 flex-shrink-0" />
       ),
     },
-
     {
       label: "Data Migration",
       href: "#",
       icon: (
-        <IconDeviceDesktopAnalytics className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconDeviceDesktopAnalytics className="text-orange-400 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Pattern Offers",
       href: "#",
       icon: (
-        <IconAdjustments className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconAdjustments className="text-purple-500 h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Revenue",
       href: "#",
       icon: (
-        <IconCurrencyDollar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconCurrencyDollar className="text-green-500 h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
@@ -426,7 +435,7 @@ export default function Dashboard() {
                         className="border-none"
                       >
                         <AccordionTrigger className="flex items-center gap-2 pl-3 py-2 hover:bg-gray-200/70 rounded-md justify-start hover:no-underline">
-                          <IconAdjustments className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+                          <IconAdjustments className="text-purple-500 h-5 w-5 flex-shrink-0" />
                           <span className="hover:underline">Admin Actions</span>
                         </AccordionTrigger>
                         <AccordionContent>
@@ -449,6 +458,24 @@ export default function Dashboard() {
                     </Accordion>
                   </>
                 )}
+                <div className="hidden lg:block font-normal text-md text-neutral-700 mt-2">
+                  M-Bingwa App
+                </div>
+                {appLinks.map((link, idx) => (
+                  <SidebarLink
+                    onClick={() => {
+                      setnavItem(link.label);
+                      setOpen(false);
+                      setAccordionValue(undefined);
+                    }}
+                    key={idx}
+                    link={link}
+                    className={cn(
+                      "pl-3 hover:bg-gray-200/70 rounded-md",
+                      navItem === link.label && "bg-gray-300/50"
+                    )}
+                  />
+                ))}
               </ScrollArea>
             </div>
           </div>
@@ -504,6 +531,7 @@ export default function Dashboard() {
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
         {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
+        {navItem === "Download App" && <DownloadMain />}
       </div>
     </div>
   );
