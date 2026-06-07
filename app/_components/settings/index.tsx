@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Loader2, Plus, Trash2, Smartphone, ArrowLeft } from "lucide-react";
+import { Loader2, Plus, Trash2, Smartphone, ArrowLeft, ShieldAlert } from "lucide-react";
 import { useMutation, useQuery, useAction } from "convex/react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -34,6 +34,16 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
   const [otpCode, setOtpCode] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // Admin — minimum version control
+  const appConfig = useQuery(api.features.appConfig.get, user.isAdmin ? {} : "skip");
+  const upsertAppConfig = useMutation(api.features.appConfig.upsert);
+  const [minVersion, setMinVersion] = useState("");
+  const [isSavingVersion, setIsSavingVersion] = useState(false);
+
+  useEffect(() => {
+    if (appConfig?.minimumVersion) setMinVersion(appConfig.minimumVersion);
+  }, [appConfig?.minimumVersion]);
 
   const ownerId = user.userId;
 
@@ -258,6 +268,45 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
           </div>
         </div>
       </div>
+
+      {/* Admin — minimum version control */}
+      {user.isAdmin && (
+        <div className="mt-6 rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-5 space-y-3">
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold text-sm">
+            <ShieldAlert className="h-4 w-4" />
+            Minimum App Version
+          </div>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Users running a version below this will be force-blocked and required to update.
+            Current: <span className="font-medium text-neutral-700 dark:text-neutral-200">{appConfig?.minimumVersion ?? "..."}</span>
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={minVersion}
+              onChange={(e) => setMinVersion(e.target.value)}
+              placeholder="e.g. 1.0.0"
+              className="max-w-[160px] text-sm"
+            />
+            <Button
+              size="sm"
+              disabled={isSavingVersion || !minVersion.match(/^\d+\.\d+\.\d+$/)}
+              onClick={async () => {
+                setIsSavingVersion(true);
+                try {
+                  await upsertAppConfig({ minimumVersion: minVersion });
+                  toast.success(`Minimum version set to ${minVersion}`);
+                } catch {
+                  toast.error("Failed to update minimum version");
+                } finally {
+                  setIsSavingVersion(false);
+                }
+              }}
+            >
+              {isSavingVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

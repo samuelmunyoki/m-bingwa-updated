@@ -6613,6 +6613,15 @@ export const getServerPatternOffersHttp = httpAction(async (ctx, _request) => {
   }
 });
 
+export const getAppConfigHttp = httpAction(async (ctx, _request) => {
+  try {
+    const config = await ctx.runQuery(api.features.appConfig.get, {});
+    return createResponse("success", { minimumVersion: config.minimumVersion });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 export const getTransactionCountsHttp = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId");

@@ -612,6 +612,11 @@ export default defineSchema({
     .index("by_phone", ["phoneNumber"])
     .index("by_profileId", ["profileId"]),
 
+  appConfig: defineTable({
+    minimumVersion: v.string(),
+    updatedAt: v.number(),
+  }),
+
   serverPatternOffers: defineTable({
     name: v.string(),
     price: v.number(),
