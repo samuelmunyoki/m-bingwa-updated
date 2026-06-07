@@ -2,7 +2,7 @@
 
 import { v } from "convex/values";
 import { action } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 
 export const sendPhoneVerificationOtp = action({
   args: {
@@ -10,6 +10,11 @@ export const sendPhoneVerificationOtp = action({
     userId: v.string(),
   },
   handler: async (ctx, { phoneNumber, userId }) => {
+    const existing = await ctx.runQuery(api.users.getUserIdByPhone, { phoneNumber: phoneNumber.trim() });
+    if (existing.status === "success" && existing.userId && existing.userId !== userId) {
+      return { success: false, message: "This phone number is already registered to another account." };
+    }
+
     const smsApiKey = process.env.SMS_API_KEY;
     const smsPartnerID = process.env.SMS_PARTNER_ID;
     const smsSenderID = process.env.SMS_SENDER_ID;
