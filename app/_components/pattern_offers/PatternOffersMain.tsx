@@ -84,8 +84,14 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
     if (!name.trim() || !price || !ussdBaseCode.trim()) {
       setError("Name, price and USSD code are required."); return;
     }
-    if (steps.some(s => !s.inputKey.trim() || !s.inputValue.trim())) {
-      setError("Each step needs a label and fallback value."); return;
+    if (steps.some(s => !s.inputKey.trim())) {
+      setError("Each step needs a label."); return;
+    }
+    if (steps.some(s => s.type === "SELECT" && !s.pattern.trim())) {
+      setError("SELECT steps require a pattern."); return;
+    }
+    if (steps.some(s => s.type === "INPUT" && !s.inputValue.trim())) {
+      setError("INPUT steps require a value (e.g. {phone})."); return;
     }
     setSaving(true); setError("");
     try {
@@ -186,14 +192,18 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
                       className="border rounded px-2 py-1 text-sm dark:bg-neutral-900 dark:border-neutral-600"
                       placeholder="e.g. Gift SMS" />
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-neutral-500">Fallback value</label>
-                    <input value={step.inputValue} onChange={e => updateStep(i, "inputValue", e.target.value)}
-                      className="border rounded px-2 py-1 text-sm dark:bg-neutral-900 dark:border-neutral-600"
-                      placeholder='e.g. 1 or {phone}' />
-                  </div>
-                  <div className="flex flex-col gap-1 col-span-2">
-                    <label className="text-xs text-neutral-500">Pattern (regex) — optional</label>
+                  {step.type === "INPUT" && (
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs text-neutral-500">Phone Input</label>
+                      <input value={step.inputValue} onChange={e => updateStep(i, "inputValue", e.target.value)}
+                        className="border rounded px-2 py-1 text-sm dark:bg-neutral-900 dark:border-neutral-600"
+                        placeholder="{phone}" />
+                    </div>
+                  )}
+                  <div className={`flex flex-col gap-1 ${step.type === "SELECT" ? "col-span-2" : "col-span-2"}`}>
+                    <label className="text-xs text-neutral-500">
+                      Pattern (regex){step.type === "SELECT" ? " — required" : " — optional"}
+                    </label>
                     <input value={step.pattern} onChange={e => updateStep(i, "pattern", e.target.value)}
                       className="border rounded px-2 py-1 text-sm dark:bg-neutral-900 dark:border-neutral-600 font-mono"
                       placeholder='e.g. (\d+).*Gift.*sms' />
@@ -269,7 +279,7 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
                     <tr className="text-neutral-400 text-left">
                       <th className="pb-1 pr-3">#</th>
                       <th className="pb-1 pr-3">Label</th>
-                      <th className="pb-1 pr-3">Fallback</th>
+                      <th className="pb-1 pr-3">Input</th>
                       <th className="pb-1 pr-3">Pattern</th>
                       <th className="pb-1 pr-3">Type</th>
                       <th className="pb-1">Mode</th>
@@ -280,7 +290,7 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
                       <tr key={i} className="border-t border-neutral-100 dark:border-neutral-800">
                         <td className="py-1 pr-3 text-neutral-400">{i + 1}</td>
                         <td className="py-1 pr-3 text-neutral-700 dark:text-neutral-300">{s.inputKey}</td>
-                        <td className="py-1 pr-3 font-mono text-neutral-600 dark:text-neutral-400">{s.inputValue}</td>
+                        <td className="py-1 pr-3 font-mono text-neutral-600 dark:text-neutral-400">{s.type === "INPUT" ? s.inputValue : "—"}</td>
                         <td className="py-1 pr-3 font-mono text-neutral-500 max-w-[200px] truncate">{s.pattern ?? "—"}</td>
                         <td className="py-1 pr-3 text-neutral-500">{s.type}</td>
                         <td className="py-1 text-neutral-500">{s.inputMode}</td>
