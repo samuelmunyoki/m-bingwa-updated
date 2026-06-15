@@ -15,12 +15,46 @@ export const getMessagesForStats = query({
       )
       .filter((q) => q.lte(q.field("time"), endTime))
       .collect();
-    return messages.map((m) => ({
-      _id: m._id,
-      offerName: m.offerName ?? "",
-      processed: m.processed ?? "pending",
-      time: m.time,
-    }));
+
+    const dayMap = new Map<number, {
+      successful: number;
+      failed: number;
+      total: number;
+      offerCounts: Record<string, number>;
+    }>();
+    const byStatus: Record<string, number> = {};
+
+    for (const m of messages) {
+      const st = (m.processed as string | null | undefined) ?? "pending";
+      byStatus[st] = (byStatus[st] ?? 0) + 1;
+
+      const d = new Date(m.time);
+      d.setHours(0, 0, 0, 0);
+      const dayKey = d.getTime();
+
+      if (!dayMap.has(dayKey)) {
+        dayMap.set(dayKey, { successful: 0, failed: 0, total: 0, offerCounts: {} });
+      }
+      const day = dayMap.get(dayKey)!;
+      day.total++;
+
+      if (m.processed === "successful") {
+        day.successful++;
+        const offerName = ((m.offerName as string | null | undefined) ?? "Unknown").trim() || "Unknown";
+        day.offerCounts[offerName] = (day.offerCounts[offerName] ?? 0) + 1;
+      } else if (m.processed === "failed") {
+        day.failed++;
+      }
+    }
+
+    return {
+      dailyStats: Array.from(dayMap.entries()).map(([dayStart, stats]) => ({
+        dayStart,
+        ...stats,
+      })),
+      byStatus,
+      totalMessages: messages.length,
+    };
   },
 });
 
