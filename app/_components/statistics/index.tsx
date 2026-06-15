@@ -383,19 +383,22 @@ function LoadingState() {
 // ─── Stats Computation ────────────────────────────────────────────────────────
 
 type CommRec = { day: number; totalCommissionAmount: number; totalAirtimeUsed?: number | null };
-type MsgRec = { time: number; processed?: string | null; offerName?: string | null };
+type DayStat = { dayStart: number; successful: number; failed: number; total: number; offerCounts: Record<string, number> };
+type MsgData = { dailyStats: DayStat[]; byStatus: Record<string, number>; totalMessages: number };
 type ByTypeRec = { offerType: string; commissionAmount: number; salesCount: number };
 type AutoRec = { day: number; savedCount: number; skippedCount: number };
 
 function computeStats(
   commData: CommRec[] | undefined,
-  msgData: MsgRec[] | undefined,
+  msgData: MsgData | undefined,
   byTypeData: ByTypeRec[] | undefined,
   autoSaverData: AutoRec[] | undefined,
   period: Period
 ) {
   const comm = commData ?? [];
-  const msgs = msgData ?? [];
+  const daily = msgData?.dailyStats ?? [];
+  const byStatus = msgData?.byStatus ?? {};
+  const totalMessages = msgData?.totalMessages ?? 0;
   const byType = byTypeData ?? [];
   const auto = autoSaverData ?? [];
 
@@ -424,30 +427,26 @@ function computeStats(
   const airtimeBars = genBars(period, (s, e) => sumAirtime(commInRange(s, e)));
 
   // ── Messages / Sales ────────────────────────────────────────────────────────
-  const msgsInRange = (s: number, e: number) => msgs.filter(m => m.time >= s && m.time < e);
-  const successIn = (s: number, e: number) => msgsInRange(s, e).filter(m => m.processed === "successful");
+  const daysInRange = (s: number, e: number) => daily.filter(d => d.dayStart >= s && d.dayStart < e);
+  const successCountIn = (s: number, e: number) => daysInRange(s, e).reduce((t, d) => t + d.successful, 0);
 
-  const todaySales = successIn(todayStart, todayEnd).length;
-  const weekSales = successIn(weekStart, weekEnd).length;
-  const monthSales = successIn(monthStart, monthEnd).length;
+  const todaySales = successCountIn(todayStart, todayEnd);
+  const weekSales = successCountIn(weekStart, weekEnd);
+  const monthSales = successCountIn(monthStart, monthEnd);
 
-  const salesBars = genBars(period, (s, e) => successIn(s, e).length);
+  const salesBars = genBars(period, (s, e) => successCountIn(s, e));
 
-  // Status breakdown for the full dataset
-  const salesByStatus: Record<string, number> = {};
-  msgs.forEach(m => {
-    const st = m.processed ?? "pending";
-    salesByStatus[st] = (salesByStatus[st] ?? 0) + 1;
-  });
-  const totalMsgs = msgs.length;
+  // Status breakdown — pre-aggregated on server
+  const salesByStatus = byStatus;
+  const totalMsgs = totalMessages;
   const successRate = totalMsgs > 0 ? Math.round((salesByStatus["successful"] ?? 0) / totalMsgs * 100) : 0;
 
   // ── Bundles ─────────────────────────────────────────────────────────────────
-  const weekSuccessful = successIn(weekStart, weekEnd);
   const bundleMap: Record<string, number> = {};
-  weekSuccessful.forEach(m => {
-    const n = (m.offerName ?? "Unknown").trim() || "Unknown";
-    bundleMap[n] = (bundleMap[n] ?? 0) + 1;
+  daysInRange(weekStart, weekEnd).forEach(d => {
+    Object.entries(d.offerCounts).forEach(([name, count]) => {
+      bundleMap[name] = (bundleMap[name] ?? 0) + count;
+    });
   });
   const bundleEntries = Object.entries(bundleMap).sort((a, b) => b[1] - a[1]);
   const topBundle: [string, number] = bundleEntries[0] ?? ["—", 0];
@@ -457,9 +456,9 @@ function computeStats(
     fullName: name,
   }));
 
-  const bundleBarsChart = genBars(period, (s, e) => successIn(s, e).length);
+  const bundleBarsChart = genBars(period, (s, e) => successCountIn(s, e));
 
-  const todayBundles = successIn(todayStart, todayEnd).length;
+  const todayBundles = successCountIn(todayStart, todayEnd);
   const weekBundles = weekSales;
   const monthBundles = monthSales;
 
