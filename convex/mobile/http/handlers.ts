@@ -1446,7 +1446,7 @@ export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request)
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, processed, processResponse, offerName, processedUSSD } = body;
+  const { messageId, processed, processResponse, offerName, processedUSSD, scheduledRetryAt } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1457,26 +1457,12 @@ export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request)
   }
 
   try {
-    // Prepare mutation arguments
-    const mutationArgs: any = {
-      messageId,
-      processed
-    };
-    
-    // Add processResponse if provided
-    if (processResponse !== undefined) {
-      mutationArgs.processResponse = processResponse;
-    }
-    
-    // Add offerName if provided
-    if (offerName !== undefined) {
-      mutationArgs.offerName = offerName;
-    }
-    
-    // Add processedUSSD if provided
-    if (processedUSSD !== undefined) {
-      mutationArgs.processedUSSD = processedUSSD;
-    }
+    const mutationArgs: any = { messageId, processed };
+
+    if (processResponse !== undefined) mutationArgs.processResponse = processResponse;
+    if (offerName !== undefined) mutationArgs.offerName = offerName;
+    if (processedUSSD !== undefined) mutationArgs.processedUSSD = processedUSSD;
+    if (scheduledRetryAt !== undefined) mutationArgs.scheduledRetryAt = scheduledRetryAt;
     
     const updatedMessage = await ctx.runMutation(api.features.mpesaMessages.updateMpesaMessageProcessedStatus, mutationArgs);
     

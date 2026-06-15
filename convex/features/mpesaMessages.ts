@@ -321,26 +321,25 @@ export const updateMpesaMessageProcessedStatus = mutation({
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
+    scheduledRetryAt: v.optional(v.float64()),
   },
   handler: async (ctx, args) => {
-    const { messageId, processed, processResponse, offerName, processedUSSD } = args;
-    
+    const { messageId, processed, processResponse, offerName, processedUSSD, scheduledRetryAt } = args;
+
     // Prepare update object
     const updateData: any = { processed };
-    
-    // Add processResponse to update if provided
+
     if (processResponse !== undefined) {
       updateData.processResponse = processResponse;
     }
-    
-    // Add offerName to update if provided
     if (offerName !== undefined) {
       updateData.offerName = offerName;
     }
-    
-    // Add processedUSSD to update if provided
     if (processedUSSD !== undefined) {
       updateData.processedUSSD = processedUSSD;
+    }
+    if (scheduledRetryAt !== undefined) {
+      updateData.scheduledRetryAt = scheduledRetryAt;
     }
     
     // Update the processed status and optionally other fields
@@ -967,10 +966,14 @@ export const getTodayCounts = query({
         q.eq("userId", args.userId).gte("time", args.startTime).lte("time", args.endTime)
       )
       .collect();
+    const now = Date.now();
     return {
       successful: msgs.filter((m) => m.processed === "successful").length,
       failed: msgs.filter((m) => m.processed === "failed").length,
-      pending: msgs.filter((m) => !m.processed || m.processed === "pending").length,
+      pending: msgs.filter((m) =>
+        (!m.processed || m.processed === "pending") &&
+        (!m.scheduledRetryAt || m.scheduledRetryAt <= now)
+      ).length,
     };
   },
 });

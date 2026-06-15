@@ -223,6 +223,7 @@ export default defineSchema({
   source: v.optional(v.string()),
   androidProcessed: v.optional(v.boolean()),
   webRetryRequested: v.optional(v.boolean()),
+  scheduledRetryAt: v.optional(v.float64()),
   })
     .index("by_user_id", ["userId"])
     .index("by_phone_number", ["phoneNumber"])

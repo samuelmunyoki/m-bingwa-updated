@@ -299,6 +299,31 @@ function TransactionDetailDialog({
   );
 }
 
+// ─── Retry Countdown Hook ────────────────────────────────────────────────────
+
+function useRetryCountdown(scheduledRetryAt: number | null | undefined): string | null {
+  const [label, setLabel] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!scheduledRetryAt) { setLabel(null); return; }
+
+    const update = () => {
+      const diff = scheduledRetryAt - Date.now();
+      if (diff <= 0) { setLabel(null); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setLabel(h > 0 ? `Retrying in ${h}h ${m}m` : m > 0 ? `Retrying in ${m}m ${s}s` : `Retrying in ${s}s`);
+    };
+
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [scheduledRetryAt]);
+
+  return label;
+}
+
 // ─── Transaction Card ─────────────────────────────────────────────────────────
 
 function TransactionCard({
@@ -324,6 +349,16 @@ function TransactionCard({
   const typeConf = TYPE_CONFIG[tx.type];
   const statusConf = STATUS_CONFIG[tx.status];
   const showCheckbox = hovered || selected || selectionMode;
+  const scheduledRetryAt = (() => {
+    if (tx.type === "sms" && tx.status === "pending")
+      return (tx.raw.scheduledRetryAt as number | undefined) ?? null;
+    if (tx.type === "scheduled" && (tx.raw.status === "PENDING" || tx.raw.status === "RETRY_PENDING")) {
+      const ts = tx.raw.scheduledTimeStamp as number | undefined;
+      return ts ? ts * 1000 : null;
+    }
+    return null;
+  })();
+  const retryCountdown = useRetryCountdown(scheduledRetryAt);
 
   return (
     <div
@@ -370,6 +405,9 @@ function TransactionCard({
           </span>
         </div>
         <span className="text-xs text-neutral-400">{formatTs(tx.timestampMs)}</span>
+        {retryCountdown && (
+          <span className="text-xs text-amber-500 font-medium">{retryCountdown}</span>
+        )}
         {/* Inline action buttons — shown on hover or when not in selection mode */}
         {!selectionMode && (hovered || actionLoading) && (
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
