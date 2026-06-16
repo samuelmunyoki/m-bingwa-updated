@@ -1361,13 +1361,18 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
 });
 
 export const migrateUserMessageStatsHttp = httpAction(async (ctx, request) => {
-  const url = new URL(request.url);
-  const userId = url.searchParams.get("userId");
-  const cursor = url.searchParams.get("cursor") ?? undefined;
-  const clearFirst = cursor === undefined;
+  let body: { userId?: string; cursor?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, cursor } = body;
+  const clearFirst = !cursor;
 
   if (!userId) {
-    return createResponse("error", null, "Missing userId parameter");
+    return createResponse("error", null, "Missing userId in body");
   }
 
   try {
