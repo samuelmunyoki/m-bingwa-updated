@@ -609,7 +609,11 @@ export function TransactionsMain({ userId }: { userId: string }) {
       } else {
         // M-Pesa: status (except pending) + period already filtered server-side
         // Only apply pending filter + offer/verified/search client-side
-        if (statusFilter === "pending" && tx.status !== "pending") return false;
+        if (statusFilter === "pending") {
+          if (tx.status !== "pending") return false;
+          const scheduledRetryAt = (tx.raw as Record<string, unknown>).scheduledRetryAt as number | undefined | null;
+          if (scheduledRetryAt && scheduledRetryAt > now) return false;
+        }
       }
 
       // Offer filter (all types, client-side)

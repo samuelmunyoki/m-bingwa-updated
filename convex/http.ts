@@ -138,6 +138,9 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getServerPatternOffersHttp,
   getTransactionCountsHttp,
   getAppConfigHttp,
+  getAutoScheduledMessagesHttp,
+  getMpesaMessageByTransactionIdHttp,
+  getTodayPendingMessagesHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1299,6 +1302,24 @@ http.route({
   path: "/api/app-config/",
   method: "GET",
   handler: getAppConfigHttp,
+});
+
+http.route({
+  pathPrefix: "/api/mpesa-messages/auto-scheduled/",
+  method: "GET",
+  handler: getAutoScheduledMessagesHttp,
+});
+
+http.route({
+  pathPrefix: "/api/mpesa-messages/by-transaction-id/",
+  method: "GET",
+  handler: getMpesaMessageByTransactionIdHttp,
+});
+
+http.route({
+  pathPrefix: "/api/mpesa-messages/today-pending/",
+  method: "GET",
+  handler: getTodayPendingMessagesHttp,
 });
 
 export default http;

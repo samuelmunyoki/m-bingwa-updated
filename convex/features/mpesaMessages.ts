@@ -957,6 +957,77 @@ export const getMpesaIdsForFilter = query({
 });
 
 // ── Today counts for M-Pesa ────────────────────────────────────────────────
+export const getAutoScheduledMessages = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const messages = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("processed"), "pending"),
+          q.gt(q.field("scheduledRetryAt"), now)
+        )
+      )
+      .collect();
+    return messages
+      .sort((a, b) => (a.scheduledRetryAt ?? 0) - (b.scheduledRetryAt ?? 0))
+      .map((m) => ({
+        _id: m._id,
+        name: m.name,
+        amount: m.amount,
+        phoneNumber: m.phoneNumber,
+        transactionId: m.transactionId,
+        offerName: m.offerName ?? "",
+        processResponse: m.processResponse ?? "",
+        scheduledRetryAt: m.scheduledRetryAt,
+        time: m.time,
+      }));
+  },
+});
+
+export const getTodayPendingMessages = query({
+  args: { userId: v.string(), startTime: v.number(), endTime: v.number() },
+  handler: async (ctx, args) => {
+    const msgs = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id_time", (q) =>
+        q.eq("userId", args.userId).gte("time", args.startTime).lte("time", args.endTime)
+      )
+      .collect();
+    const now = Date.now();
+    return msgs
+      .filter((m) =>
+        (!m.processed || m.processed === "pending") &&
+        (!m.scheduledRetryAt || m.scheduledRetryAt <= now)
+      )
+      .map((m) => ({
+        _id: m._id,
+        name: m.name,
+        amount: m.amount,
+        phoneNumber: m.phoneNumber,
+        transactionId: m.transactionId,
+        offerName: m.offerName ?? "",
+        processed: m.processed,
+        scheduledRetryAt: m.scheduledRetryAt ?? null,
+        time: m.time,
+      }));
+  },
+});
+
+export const getMpesaMessageByTransactionId = query({
+  args: { userId: v.string(), transactionId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_transaction", (q) =>
+        q.eq("userId", args.userId).eq("transactionId", args.transactionId)
+      )
+      .first();
+  },
+});
+
 export const getTodayCounts = query({
   args: { userId: v.string(), startTime: v.number(), endTime: v.number() },
   handler: async (ctx, args) => {

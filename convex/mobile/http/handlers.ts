@@ -1360,6 +1360,60 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   }
 });
 
+export const getTodayPendingMessagesHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const startTime = Number(url.searchParams.get("startTime"));
+  const endTime = Number(url.searchParams.get("endTime"));
+
+  if (!userId || !startTime || !endTime) {
+    return createResponse("error", null, "Missing userId, startTime or endTime parameter");
+  }
+
+  try {
+    const messages = await ctx.runQuery(api.features.mpesaMessages.getTodayPendingMessages, { userId, startTime, endTime });
+    return createResponse("success", { messages, count: messages.length }, null);
+  } catch (error: any) {
+    console.error("getTodayPendingMessages error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Failed to fetch pending messages");
+  }
+});
+
+export const getMpesaMessageByTransactionIdHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const transactionId = url.searchParams.get("transactionId");
+
+  if (!userId || !transactionId) {
+    return createResponse("error", null, "Missing userId or transactionId parameter");
+  }
+
+  try {
+    const message = await ctx.runQuery(api.features.mpesaMessages.getMpesaMessageByTransactionId, { userId, transactionId });
+    return createResponse("success", { message }, null);
+  } catch (error: any) {
+    console.error("getMpesaMessageByTransactionId error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Failed to fetch message");
+  }
+});
+
+export const getAutoScheduledMessagesHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const messages = await ctx.runQuery(api.features.mpesaMessages.getAutoScheduledMessages, { userId });
+    return createResponse("success", { messages }, null);
+  } catch (error: any) {
+    console.error("getAutoScheduledMessages error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Failed to fetch auto-scheduled messages");
+  }
+});
+
 // HTTP action to update mpesa message
 export const updateMpesaMessage = httpAction(async (ctx, request) => {
   if (request.method !== "PATCH") {
