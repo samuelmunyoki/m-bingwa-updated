@@ -388,7 +388,7 @@ export const updateMpesaMessageProcessedStatus = mutation({
           totalDelta++;
           if (newStatus === "successful") {
             successfulDelta++;
-            const newOffer = ((offerName ?? currentMsg.offerName ?? "Unknown").trim() || "Unknown");
+            const newOffer = ((args.offerName ?? currentMsg.offerName ?? "Unknown").trim() || "Unknown");
             offerName = newOffer;
             offerDelta = (offerDelta ?? 0) + 1;
           } else if (newStatus === "failed") {
