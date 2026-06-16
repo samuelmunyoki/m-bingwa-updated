@@ -141,6 +141,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getAutoScheduledMessagesHttp,
   getMpesaMessageByTransactionIdHttp,
   getTodayPendingMessagesHttp,
+  migrateUserMessageStatsHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -1320,6 +1321,12 @@ http.route({
   pathPrefix: "/api/mpesa-messages/today-pending/",
   method: "GET",
   handler: getTodayPendingMessagesHttp,
+});
+
+http.route({
+  pathPrefix: "/api/stats/migrate-user/",
+  method: "GET",
+  handler: migrateUserMessageStatsHttp,
 });
 
 export default http;

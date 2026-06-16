@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 
 export const getMessagesForStats = query({
   args: {
@@ -8,52 +9,33 @@ export const getMessagesForStats = query({
     endTime: v.number(),
   },
   handler: async (ctx, { userId, startTime, endTime }) => {
-    const messages = await ctx.db
-      .query("mpesaMessages")
-      .withIndex("by_user_id_time", (q) =>
-        q.eq("userId", userId).gte("time", startTime)
+    const stats = await ctx.db
+      .query("messageDailyStats")
+      .withIndex("by_user_day", (q) =>
+        q.eq("userId", userId).gte("dayStart", startTime)
       )
-      .filter((q) => q.lte(q.field("time"), endTime))
+      .filter((q) => q.lte(q.field("dayStart"), endTime))
       .collect();
 
-    const dayMap = new Map<number, {
-      successful: number;
-      failed: number;
-      total: number;
-      offerCounts: Record<string, number>;
-    }>();
     const byStatus: Record<string, number> = {};
+    let totalMessages = 0;
 
-    for (const m of messages) {
-      const st = (m.processed as string | null | undefined) ?? "pending";
-      byStatus[st] = (byStatus[st] ?? 0) + 1;
-
-      const d = new Date(m.time);
-      d.setHours(0, 0, 0, 0);
-      const dayKey = d.getTime();
-
-      if (!dayMap.has(dayKey)) {
-        dayMap.set(dayKey, { successful: 0, failed: 0, total: 0, offerCounts: {} });
-      }
-      const day = dayMap.get(dayKey)!;
-      day.total++;
-
-      if (m.processed === "successful") {
-        day.successful++;
-        const offerName = ((m.offerName as string | null | undefined) ?? "Unknown").trim() || "Unknown";
-        day.offerCounts[offerName] = (day.offerCounts[offerName] ?? 0) + 1;
-      } else if (m.processed === "failed") {
-        day.failed++;
-      }
+    for (const d of stats) {
+      byStatus["successful"] = (byStatus["successful"] ?? 0) + d.successful;
+      byStatus["failed"] = (byStatus["failed"] ?? 0) + d.failed;
+      totalMessages += d.total;
     }
 
     return {
-      dailyStats: Array.from(dayMap.entries()).map(([dayStart, stats]) => ({
-        dayStart,
-        ...stats,
+      dailyStats: stats.map(d => ({
+        dayStart: d.dayStart,
+        successful: d.successful,
+        failed: d.failed,
+        total: d.total,
+        offerCounts: d.offerCounts as Record<string, number>,
       })),
       byStatus,
-      totalMessages: messages.length,
+      totalMessages,
     };
   },
 });

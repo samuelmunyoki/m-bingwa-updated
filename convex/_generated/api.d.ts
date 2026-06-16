@@ -29,6 +29,7 @@ import type * as features_bridge from "../features/bridge.js";
 import type * as features_bundles from "../features/bundles.js";
 import type * as features_cooldown from "../features/cooldown.js";
 import type * as features_emailTokens from "../features/emailTokens.js";
+import type * as features_messageDailyStats from "../features/messageDailyStats.js";
 import type * as features_migration from "../features/migration.js";
 import type * as features_mpesaMessages from "../features/mpesaMessages.js";
 import type * as features_mpesa_transactions from "../features/mpesa_transactions.js";
@@ -92,6 +93,7 @@ declare const fullApi: ApiFromModules<{
   "features/bundles": typeof features_bundles;
   "features/cooldown": typeof features_cooldown;
   "features/emailTokens": typeof features_emailTokens;
+  "features/messageDailyStats": typeof features_messageDailyStats;
   "features/migration": typeof features_migration;
   "features/mpesaMessages": typeof features_mpesaMessages;
   "features/mpesa_transactions": typeof features_mpesa_transactions;
