@@ -266,7 +266,7 @@ function TransactionDetailDialog({
             </div>
           </div>
         </DialogHeader>
-        <ScrollArea className="flex-1 px-5 py-1">
+        <ScrollArea className="flex-1 min-h-0 px-5 py-1">
           {tx.type === "sms" && <SmsDetail tx={tx} />}
           {tx.type === "dialer" && <DialerDetail tx={tx} />}
           {tx.type === "scheduled" && <ScheduledDetail tx={tx} />}

@@ -160,11 +160,7 @@ export default function Dashboard() {
     }
     if (dbUser !== null && dbUser !== undefined) {
       if (dbUser.isSubscribed) {
-        if (dbUser.isAdmin) {
-          setnavItem("Dashboard");
-        } else {
-          setnavItem("Transactions");
-        }
+        setnavItem("Transactions");
       } else {
         setnavItem("Subscription");
       }
