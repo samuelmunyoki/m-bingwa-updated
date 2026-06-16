@@ -1363,13 +1363,19 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
 export const migrateUserMessageStatsHttp = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId");
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const clearFirst = cursor === undefined;
 
   if (!userId) {
     return createResponse("error", null, "Missing userId parameter");
   }
 
   try {
-    const result = await ctx.runMutation(api.features.messageDailyStats.migrateUserMessageStats, { userId });
+    const result = await ctx.runMutation(api.features.messageDailyStats.migrateUserMessageStats, {
+      userId,
+      cursor,
+      clearFirst,
+    });
     return createResponse("success", result, null);
   } catch (error: any) {
     console.error("migrateUserMessageStats error:", error?.message ?? error);

@@ -57,34 +57,37 @@ export const applyDailyStatsDelta = internalMutation({
   },
 });
 
-// One-time migration — builds daily stats from all existing messages for a user
+// One-time migration — processes messages in batches of 1000
+// Call repeatedly until done === true
 export const migrateUserMessageStats = mutation({
-  args: { userId: v.string() },
-  handler: async (ctx, { userId }) => {
-    // Clear existing stats for this user
-    const existing = await ctx.db
-      .query("messageDailyStats")
-      .withIndex("by_user_day", (q) => q.eq("userId", userId))
-      .collect();
-    for (const e of existing) await ctx.db.delete(e._id);
+  args: {
+    userId: v.string(),
+    cursor: v.optional(v.string()),
+    clearFirst: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { userId, cursor, clearFirst }) => {
+    // On first call (no cursor), clear existing stats
+    if (!cursor && clearFirst !== false) {
+      const existing = await ctx.db
+        .query("messageDailyStats")
+        .withIndex("by_user_day", (q) => q.eq("userId", userId))
+        .collect();
+      for (const e of existing) await ctx.db.delete(e._id);
+    }
 
-    // Read all finalized messages for this user
-    const messages = await ctx.db
+    // Fetch a batch of 1000 messages
+    const page = await ctx.db
       .query("mpesaMessages")
-      .withIndex("by_user_id", (q) => q.eq("userId", userId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("processed"), "successful"),
-          q.eq(q.field("processed"), "failed")
-        )
-      )
-      .collect();
+      .withIndex("by_user_id_time", (q) => q.eq("userId", userId))
+      .paginate({ numItems: 1000, cursor: cursor ?? null });
 
+    // Aggregate this batch into daily stats
     const dayMap = new Map<number, {
       successful: number; failed: number; total: number; offerCounts: Record<string, number>;
     }>();
 
-    for (const m of messages) {
+    for (const m of page.page) {
+      if (m.processed !== "successful" && m.processed !== "failed") continue;
       const dayKey = getDayStart(m.time);
       if (!dayMap.has(dayKey)) {
         dayMap.set(dayKey, { successful: 0, failed: 0, total: 0, offerCounts: {} });
@@ -100,11 +103,33 @@ export const migrateUserMessageStats = mutation({
       }
     }
 
+    // Upsert aggregated days into messageDailyStats
     for (const [dayStart, stats] of dayMap.entries()) {
-      await ctx.db.insert("messageDailyStats", { userId, dayStart, ...stats });
+      const existing = await ctx.db
+        .query("messageDailyStats")
+        .withIndex("by_user_day", (q) => q.eq("userId", userId).eq("dayStart", dayStart))
+        .first();
+      if (existing) {
+        const offerCounts = { ...(existing.offerCounts as Record<string, number>) };
+        for (const [offer, count] of Object.entries(stats.offerCounts)) {
+          offerCounts[offer] = (offerCounts[offer] ?? 0) + count;
+        }
+        await ctx.db.patch(existing._id, {
+          successful: existing.successful + stats.successful,
+          failed: existing.failed + stats.failed,
+          total: existing.total + stats.total,
+          offerCounts,
+        });
+      } else {
+        await ctx.db.insert("messageDailyStats", { userId, dayStart, ...stats });
+      }
     }
 
-    return { daysCreated: dayMap.size, messagesProcessed: messages.length };
+    return {
+      done: page.isDone,
+      nextCursor: page.isDone ? null : page.continueCursor,
+      batchProcessed: page.page.length,
+    };
   },
 });
 
