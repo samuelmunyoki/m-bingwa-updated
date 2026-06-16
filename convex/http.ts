@@ -1325,7 +1325,7 @@ http.route({
 
 http.route({
   pathPrefix: "/api/stats/migrate-user/",
-  method: "GET",
+  method: "POST",
   handler: migrateUserMessageStatsHttp,
 });
 
