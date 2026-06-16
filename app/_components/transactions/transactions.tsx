@@ -537,7 +537,12 @@ export function TransactionsMain({ userId }: { userId: string }) {
   const allTransactions = React.useMemo<UnifiedTransaction[]>(() => {
     const result: UnifiedTransaction[] = [];
 
-    (typeFilter === "all" || typeFilter === "sms" ? smsResults ?? [] : []).forEach((m) => {
+    const now = Date.now();
+    (smsResults ?? []).forEach((m) => {
+      const isAutoScheduled = m.scheduledRetryAt != null && (m.scheduledRetryAt as number) > now;
+      if (typeFilter === "scheduled" && !isAutoScheduled) return;
+      if (typeFilter === "sms" && isAutoScheduled) return;
+      if (typeFilter === "dialer") return;
       result.push({
         id: `sms_${m._id}`,
         type: "sms",
@@ -550,7 +555,7 @@ export function TransactionsMain({ userId }: { userId: string }) {
       });
     });
 
-    (dialerData ?? []).forEach((d) => {
+    (typeFilter === "all" || typeFilter === "dialer" ? dialerData ?? [] : []).forEach((d) => {
       result.push({
         id: `dialer_${d._id}`,
         type: "dialer",
@@ -563,7 +568,7 @@ export function TransactionsMain({ userId }: { userId: string }) {
       });
     });
 
-    (scheduledData ?? []).forEach((s) => {
+    (typeFilter === "all" || typeFilter === "scheduled" ? scheduledData ?? [] : []).forEach((s) => {
       result.push({
         id: `scheduled_${s._id}`,
         type: "scheduled",
