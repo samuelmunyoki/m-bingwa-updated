@@ -246,8 +246,8 @@ function TransactionDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-md max-h-[85vh] flex flex-col gap-0 p-0">
-        <DialogHeader className="px-5 pt-5 pb-4 border-b border-neutral-100">
+      <DialogContent className="max-w-md max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogHeader className="px-5 pt-5 pb-4 border-b border-neutral-100 shrink-0">
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${typeConf.circle}`}>
               {typeConf.icon}
@@ -266,12 +266,12 @@ function TransactionDetailDialog({
             </div>
           </div>
         </DialogHeader>
-        <ScrollArea className="flex-1 min-h-0 px-5 py-1">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-1">
           {tx.type === "sms" && <SmsDetail tx={tx} />}
           {tx.type === "dialer" && <DialerDetail tx={tx} />}
           {tx.type === "scheduled" && <ScheduledDetail tx={tx} />}
           <div className="h-4" />
-        </ScrollArea>
+        </div>
         <div className="px-5 py-4 border-t border-neutral-100 flex gap-2">
           {tx.type === "sms" && (
             <Button
