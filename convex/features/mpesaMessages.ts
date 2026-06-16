@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { paginationOptsValidator } from "convex/server";
 
 // Mutation to create a new mpesa message
@@ -342,9 +343,71 @@ export const updateMpesaMessageProcessedStatus = mutation({
       updateData.scheduledRetryAt = scheduledRetryAt;
     }
     
+    // Read current message to compute daily stats delta
+    const currentMsg = await ctx.db.get(messageId);
+
     // Update the processed status and optionally other fields
     await ctx.db.patch(messageId, updateData);
-    
+
+    // Update daily stats if status is changing to/from a finalized state
+    if (currentMsg) {
+      const oldStatus = currentMsg.processed;
+      const newStatus = processed;
+      const finalStatuses = ["successful", "failed"];
+      const oldIsFinal = finalStatuses.includes(oldStatus ?? "");
+      const newIsFinal = finalStatuses.includes(newStatus);
+
+      if (oldIsFinal || newIsFinal) {
+        const dayStart = (() => {
+          const d = new Date(currentMsg.time);
+          d.setHours(0, 0, 0, 0);
+          return d.getTime();
+        })();
+
+        let successfulDelta = 0;
+        let failedDelta = 0;
+        let totalDelta = 0;
+        let offerName: string | undefined;
+        let offerDelta: number | undefined;
+
+        // Remove old contribution
+        if (oldIsFinal) {
+          totalDelta--;
+          if (oldStatus === "successful") {
+            successfulDelta--;
+            const oldOffer = ((currentMsg.offerName ?? "Unknown").trim() || "Unknown");
+            offerName = oldOffer;
+            offerDelta = -1;
+          } else if (oldStatus === "failed") {
+            failedDelta--;
+          }
+        }
+
+        // Add new contribution
+        if (newIsFinal) {
+          totalDelta++;
+          if (newStatus === "successful") {
+            successfulDelta++;
+            const newOffer = ((offerName ?? currentMsg.offerName ?? "Unknown").trim() || "Unknown");
+            offerName = newOffer;
+            offerDelta = (offerDelta ?? 0) + 1;
+          } else if (newStatus === "failed") {
+            failedDelta++;
+          }
+        }
+
+        await ctx.scheduler.runAfter(0, internal.features.messageDailyStats.applyDailyStatsDelta, {
+          userId: currentMsg.userId,
+          dayStart,
+          successfulDelta,
+          failedDelta,
+          totalDelta,
+          offerName,
+          offerDelta,
+        });
+      }
+    }
+
     return {
       success: true,
       message: `Successfully updated message processed status to ${processed}${processResponse ? ' with process response' : ''}${offerName ? ' with offer name' : ''}${processedUSSD ? ' with processed USSD' : ''}`,

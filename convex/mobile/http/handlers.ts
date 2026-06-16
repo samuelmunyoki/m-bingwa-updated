@@ -1360,6 +1360,23 @@ export const getMpesaMessagesByUserId = httpAction(async (ctx, request) => {
   }
 });
 
+export const migrateUserMessageStatsHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.messageDailyStats.migrateUserMessageStats, { userId });
+    return createResponse("success", result, null);
+  } catch (error: any) {
+    console.error("migrateUserMessageStats error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Migration failed");
+  }
+});
+
 export const getTodayPendingMessagesHttp = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId");

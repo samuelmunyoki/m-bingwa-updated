@@ -618,6 +618,16 @@ export default defineSchema({
     updatedAt: v.number(),
   }),
 
+  messageDailyStats: defineTable({
+    userId: v.string(),
+    dayStart: v.number(),
+    successful: v.number(),
+    failed: v.number(),
+    total: v.number(),
+    offerCounts: v.any(),
+  })
+    .index("by_user_day", ["userId", "dayStart"]),
+
   serverPatternOffers: defineTable({
     name: v.string(),
     price: v.number(),
