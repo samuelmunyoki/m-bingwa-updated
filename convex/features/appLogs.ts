@@ -107,11 +107,11 @@ export const clearAllLogs = mutation({
 export const clearAllLogsScheduled = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const logs = await ctx.db.query("appLogs").take(500);
+    const logs = await ctx.db.query("appLogs").take(1000);
     for (const log of logs) {
       await ctx.db.delete(log._id);
     }
-    if (logs.length === 500) {
+    if (logs.length === 1000) {
       await ctx.scheduler.runAfter(0, internal.features.appLogs.clearAllLogsScheduled, {});
     }
   },

@@ -1,5 +1,5 @@
 import { cronJobs } from "convex/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const crons = cronJobs();
 
@@ -18,5 +18,12 @@ crons.daily(
   api.features.mpesaMessages.deleteOldMpesaMessages
 );
 
+
+// Delete all app logs every 2 hours in batches of 1000
+crons.interval(
+  "Delete all app logs",
+  { hours: 2 },
+  internal.features.appLogs.clearAllLogsScheduled
+);
 
 export default crons;
