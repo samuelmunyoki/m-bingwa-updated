@@ -535,7 +535,7 @@ export default function Dashboard() {
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
         {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
-        {navItem === "App Config" && isAdmin && <AppConfigMain />}
+        {navItem === "App Config" && isAdmin && <AppConfigMain userId={userId} />}
         {navItem === "Download App" && <DownloadMain />}
       </div>
     </div>

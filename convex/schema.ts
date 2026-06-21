@@ -616,6 +616,9 @@ export default defineSchema({
   appConfig: defineTable({
     minimumVersion: v.string(),
     updatedAt: v.number(),
+    maintenanceMode: v.optional(v.boolean()),
+    allowedPhones: v.optional(v.array(v.string())),
+    allowedEmails: v.optional(v.array(v.string())),
   }),
 
   messageDailyStats: defineTable({
