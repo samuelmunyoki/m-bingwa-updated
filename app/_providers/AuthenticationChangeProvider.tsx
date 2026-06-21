@@ -19,18 +19,27 @@ export default function AuthenticationChangeProvider({
     api.users.getUserByEmail,
     isSignedIn ? { email: user?.emailAddresses[0]?.emailAddress ?? "" } : "skip"
   );
+  const appConfig = useQuery(api.features.appConfig.get, {});
 
   useEffect(() => {
     if (isLoaded) {
       if (fetchUser?.suspended) {
         router.push("/suspended");
+      } else if (
+        fetchUser &&
+        appConfig?.maintenanceMode &&
+        !fetchUser.isAdmin &&
+        !appConfig.allowedEmails?.includes(fetchUser.email.toLowerCase()) &&
+        !appConfig.allowedPhones?.includes(fetchUser.phoneNumber ?? "")
+      ) {
+        router.push("/maintenance");
       } else if (isSignedIn && fetchUser?.userId) {
         router.push(`/dashboard/${fetchUser.userId}`);
       }
     }
-  }, [isLoaded, isSignedIn, fetchUser, router, user]);
+  }, [isLoaded, isSignedIn, fetchUser, appConfig, router, user]);
 
-  if (!isLoaded || fetchUser === undefined) {
+  if (!isLoaded || fetchUser === undefined || appConfig === undefined) {
      return (
        <div className="flex flex-col justify-center items-center w-screen h-screen">
          <div className="flex flex-row gap-2 justify-center h-full items-center">

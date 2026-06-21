@@ -1,4 +1,5 @@
 import { addPhoneNumber } from "./features/blacklist";
+import { isAccessAllowed } from "./features/appConfig";
 import { v } from "convex/values";
 import {
   internalMutation,
@@ -939,6 +940,22 @@ export const validateDeviceSession = mutation({
     await ctx.db.patch(activeSession._id, {
       lastActiveTimestamp: Date.now(),
     });
+
+    // Temporary access limiting — checked on every heartbeat so an
+    // already-logged-in user gets blocked within a couple seconds of
+    // being removed from the allowlist, not just at next login.
+    const allowed = await isAccessAllowed(ctx, {
+      userId: activeSession.userId,
+      phoneNumber,
+    });
+    if (!allowed) {
+      console.log(`🚧 Access temporarily limited for phone: ${phoneNumber}`);
+      return {
+        isValid: false,
+        reason: "access_temporarily_limited",
+        message: "Access is temporarily limited while we resolve a few issues.",
+      };
+    }
 
     console.log(`✅ Session validated for device: ${deviceId}`);
     return {

@@ -138,6 +138,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getServerPatternOffersHttp,
   getTransactionCountsHttp,
   getAppConfigHttp,
+  checkAccessHttp,
   getAutoScheduledMessagesHttp,
   getMpesaMessageByTransactionIdHttp,
   getTodayPendingMessagesHttp,
@@ -1303,6 +1304,12 @@ http.route({
   path: "/api/app-config/",
   method: "GET",
   handler: getAppConfigHttp,
+});
+
+http.route({
+  path: "/api/check-access/",
+  method: "GET",
+  handler: checkAccessHttp,
 });
 
 http.route({

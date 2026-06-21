@@ -6690,6 +6690,19 @@ export const getAppConfigHttp = httpAction(async (ctx, _request) => {
   }
 });
 
+export const checkAccessHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const email = url.searchParams.get("email") ?? undefined;
+  const phoneNumber = url.searchParams.get("phoneNumber") ?? undefined;
+
+  try {
+    const result = await ctx.runQuery(api.features.appConfig.checkAccess, { email, phoneNumber });
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 export const getTransactionCountsHttp = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId");
