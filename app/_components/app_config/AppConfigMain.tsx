@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/convex/_generated/api";
 import { Loader2, ShieldAlert, Clock, X } from "lucide-react";
 import { useMutation, useQuery } from "convex/react";
@@ -99,13 +100,18 @@ export default function AppConfigMain({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-1 h-full">
-      <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-6">
+    <div className="flex flex-1 h-full overflow-hidden">
+      <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-6 overflow-hidden">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium">
           App Config
         </h2>
 
-        <div className="max-w-md space-y-6">
+        <ScrollArea className="flex-1 -mx-1 px-1">
+        <div className="max-w-4xl pb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+
+          {/* Left column: Minimum version card + info box */}
+          <div className="space-y-6">
 
           {/* Minimum version card */}
           <div className="rounded-xl border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-5 space-y-4">
@@ -161,7 +167,9 @@ export default function AppConfigMain({ userId }: { userId: string }) {
             </ul>
           </div>
 
-          {/* Temporarily Limit Access card */}
+          </div>
+
+          {/* Right column: Temporarily Limit Access card */}
           <div className="rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/20 p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-semibold">
@@ -248,6 +256,8 @@ export default function AppConfigMain({ userId }: { userId: string }) {
           </div>
 
         </div>
+        </div>
+        </ScrollArea>
       </div>
     </div>
   );
