@@ -105,6 +105,7 @@ const USSD_DialerMain = ({ user }: Props) => {
         isMultiSession: selectedBundle.isMultiSession,
         isSimpleUSSD: selectedBundle.isSimpleUSSD ?? false,
         responseValidatorText: selectedBundle.responseValidatorText,
+        bundleId: selectedBundle._id,
       });
       toast.success("Dial request sent — Android will execute shortly");
       setOfferNum("");

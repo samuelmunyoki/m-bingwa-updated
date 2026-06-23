@@ -500,6 +500,8 @@ export default defineSchema({
     isMultiSession: v.optional(v.boolean()),
     isSimpleUSSD: v.optional(v.boolean()),
     responseValidatorText: v.optional(v.string()),
+    // Bundle this web-dial came from — lets Android look up local pattern-offer steps
+    bundleId: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_and_timestamp", ["userId", "timeStamp"])
