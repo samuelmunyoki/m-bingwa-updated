@@ -21,6 +21,7 @@ export const createUSSDHistory = mutation({
     isMultiSession: v.optional(v.boolean()),
     isSimpleUSSD: v.optional(v.boolean()),
     responseValidatorText: v.optional(v.string()),
+    bundleId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Check for duplicate using composite key
@@ -54,6 +55,7 @@ export const createUSSDHistory = mutation({
       isMultiSession: args.isMultiSession,
       isSimpleUSSD: args.isSimpleUSSD,
       responseValidatorText: args.responseValidatorText,
+      bundleId: args.bundleId,
     });
 
     return historyId;
