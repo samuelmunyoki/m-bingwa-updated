@@ -83,31 +83,15 @@ export const internalgetUserById = internalQuery({
 export const getUserById = query({
   args: { userId: v.string() },
   handler: async (ctx, { userId }) => {
-    console.log("👤 getUserById CALLED");
-    console.log("searching for userId:", userId);
-    console.log("userId length:", userId.length);
-    console.log("userId type:", typeof userId);
-
     const user = await ctx.db
       .query("users")
       .withIndex("by_user_id", (q) => q.eq("userId", userId))
       .first();
 
     if (!user) {
-      console.log("NO USER FOUND with userId:", userId);
-      return null; // Return null if user is not found
+      return null;
     }
 
-    console.log("user._id:", user._id);
-    console.log("user.name:", user.name);
-    console.log("user.email:", user.email);
-    console.log("user.phoneNumber:", user.phoneNumber);
-    console.log("phoneNumber type:", typeof user.phoneNumber);
-
-    const allUsers = await ctx.db.query("users").collect();
-    console.log("Total users in database:", allUsers.length);
-    console.log("Existing userIds:", allUsers.map(u => u.userId));
-    // Return only the necessary fields
     return user;
   },
 });
