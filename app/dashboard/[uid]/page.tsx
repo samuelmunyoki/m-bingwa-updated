@@ -74,6 +74,7 @@ export default function Dashboard() {
   const verifyPhoneOtp = useMutation(api.features.otps.verifyOtp);
   const [isModalOpen, setModalOpen] = useState(false);
   const [open, setOpen] = useState(false);
+  const navInitialized = React.useRef(false);
 
   useEffect(() => {
     if (!userId) {
@@ -159,10 +160,13 @@ export default function Dashboard() {
       router.push("/sign-in");
     }
     if (dbUser !== null && dbUser !== undefined) {
-      if (dbUser.isSubscribed) {
-        setnavItem("Transactions");
-      } else {
-        setnavItem("Subscription");
+      if (!navInitialized.current) {
+        navInitialized.current = true;
+        if (dbUser.isSubscribed) {
+          setnavItem("Transactions");
+        } else {
+          setnavItem("Subscription");
+        }
       }
 
       // Show phone number prompt if missing

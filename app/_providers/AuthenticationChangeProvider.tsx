@@ -4,7 +4,7 @@ import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { ReactNode, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 export default function AuthenticationChangeProvider({
@@ -14,6 +14,7 @@ export default function AuthenticationChangeProvider({
 }) {
   const { user, isLoaded, isSignedIn } = useUser();
   const router = useRouter();
+  const pathname = usePathname();
 
   const fetchUser = useQuery(
     api.users.getUserByEmail,
@@ -33,11 +34,11 @@ export default function AuthenticationChangeProvider({
         !appConfig.allowedPhones?.includes(fetchUser.phoneNumber ?? "")
       ) {
         router.push("/maintenance");
-      } else if (isSignedIn && fetchUser?.userId) {
+      } else if (isSignedIn && fetchUser?.userId && !pathname.startsWith("/dashboard")) {
         router.push(`/dashboard/${fetchUser.userId}`);
       }
     }
-  }, [isLoaded, isSignedIn, fetchUser, appConfig, router, user]);
+  }, [isLoaded, isSignedIn, fetchUser, appConfig, router, user, pathname]);
 
   if (!isLoaded || fetchUser === undefined || appConfig === undefined) {
      return (
