@@ -156,7 +156,7 @@ export default function Dashboard() {
   // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (dbUser == undefined || dbUser == null) {
+    if (dbUser === null) {
       router.push("/sign-in");
     }
     if (dbUser !== null && dbUser !== undefined) {
