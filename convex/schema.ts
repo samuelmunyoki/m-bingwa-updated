@@ -547,6 +547,7 @@ export default defineSchema({
     timestamp: v.number(),
     sessionId: v.string(), // to group logs from same execution
   }).index("by_device", ["deviceManufacturer", "deviceModel"])
+    .index("by_manufacturer_tag", ["deviceManufacturer", "tag", "timestamp"])
     .index("by_user", ["userId"])
     .index("by_session", ["sessionId"])
     .index("by_timestamp", ["timestamp"]),
