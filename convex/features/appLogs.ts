@@ -32,20 +32,25 @@ export const getLogsByManufacturer = query({
   },
   handler: async (ctx, args) => {
     const limit = args.limit ?? 200;
-    const q = ctx.db
-      .query("appLogs")
-      .withIndex("by_device", (q) =>
-        q.eq("deviceManufacturer", args.manufacturer.toLowerCase())
-      );
+    const manufacturer = args.manufacturer.toLowerCase();
 
     if (args.tag) {
-      return await q
-        .filter((q) => q.eq(q.field("tag"), args.tag))
+      return await ctx.db
+        .query("appLogs")
+        .withIndex("by_manufacturer_tag", (q) =>
+          q.eq("deviceManufacturer", manufacturer).eq("tag", args.tag!)
+        )
         .order("desc")
         .take(limit);
     }
 
-    return await q.order("desc").take(limit);
+    return await ctx.db
+      .query("appLogs")
+      .withIndex("by_device", (q) =>
+        q.eq("deviceManufacturer", manufacturer)
+      )
+      .order("desc")
+      .take(limit);
   },
 });
  
