@@ -128,6 +128,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getPendingStoreMpesaMessagesHttp,
   markStoreMessageAndroidProcessedHttp,
   getPendingWebRetriesHttp,
+  getPendingMpesaForReconcileHttp,
   clearWebRetryFlagHttp,
   upsertAutoTopupSettingsHttp,
   upsertAutoTopupWatchHttp,
@@ -372,6 +373,13 @@ http.route({
   pathPrefix: "/api/mpesa-messages/web-retry/pending/",
   method: "GET",
   handler: getPendingWebRetriesHttp,
+});
+
+// Fix 2: one-time reconciliation — cloud-side pending list for Android to compare against local
+http.route({
+  pathPrefix: "/api/mpesa-messages/reconcile-pending/",
+  method: "GET",
+  handler: getPendingMpesaForReconcileHttp,
 });
 
 http.route({
