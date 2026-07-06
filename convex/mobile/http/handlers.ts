@@ -6560,6 +6560,25 @@ export const getPendingWebRetriesHttp = httpAction(async (ctx, request) => {
   }
 });
 
+// Fix 2: cloud-side pending list for Android's one-time reconciliation (see getPendingForReconcile).
+export const getPendingMpesaForReconcileHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") return createResponse("error", null, "Method not allowed");
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  const since = url.searchParams.get("since");
+  if (!userId) return createResponse("error", null, "Missing userId");
+  try {
+    const sinceTime = since ? Number(since) : 0;
+    const messages = await ctx.runQuery(api.features.mpesaMessages.getPendingForReconcile, {
+      userId,
+      sinceTime,
+    });
+    return createResponse("success", { messages });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 // Clear webRetryRequested flag after Android picks up the retry
 export const clearWebRetryFlagHttp = httpAction(async (ctx, request) => {
   if (request.method !== "PATCH") return createResponse("error", null, "Method not allowed");

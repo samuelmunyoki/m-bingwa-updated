@@ -91,6 +91,14 @@ function parseScheduledStatus(status: string | undefined): TxStatus {
   }
 }
 
+// Start-of-day in Africa/Nairobi (UTC+3, no DST) as a UTC-ms timestamp. Used so the web "today"
+// window matches the Android device's day boundary regardless of the web client's own timezone.
+const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+function nairobiStartOfDay(atMs: number = Date.now()): number {
+  const shifted = new Date(atMs + NAIROBI_OFFSET_MS);
+  return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate()) - NAIROBI_OFFSET_MS;
+}
+
 function parseDialerTimestamp(ts: string | undefined): number {
   if (!ts) return 0;
   // "yyyy-MM-dd HH:mm:ss"
@@ -482,14 +490,13 @@ export function TransactionsMain({ userId }: { userId: string }) {
   // ── Period time ranges — for server-side filters ────────────────────────────
   const periodTimes = React.useMemo(() => {
     const now = Date.now();
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const yesterdayStart = new Date(); yesterdayStart.setDate(yesterdayStart.getDate() - 1); yesterdayStart.setHours(0, 0, 0, 0);
-    const yesterdayEnd = new Date(); yesterdayEnd.setDate(yesterdayEnd.getDate() - 1); yesterdayEnd.setHours(23, 59, 59, 999);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const todayStart = nairobiStartOfDay(now); // Nairobi day boundary, matches Android
     switch (periodFilter) {
-      case "today":     return { startTime: todayStart.getTime(),     endTime: now };
-      case "yesterday": return { startTime: yesterdayStart.getTime(), endTime: yesterdayEnd.getTime() };
-      case "last7":     return { startTime: now - 7  * 24 * 60 * 60 * 1000, endTime: now };
-      case "last30":    return { startTime: now - 30 * 24 * 60 * 60 * 1000, endTime: now };
+      case "today":     return { startTime: todayStart,         endTime: now };
+      case "yesterday": return { startTime: todayStart - dayMs, endTime: todayStart - 1 };
+      case "last7":     return { startTime: now - 7  * dayMs, endTime: now };
+      case "last30":    return { startTime: now - 30 * dayMs, endTime: now };
       default:          return {};
     }
   }, [periodFilter]);
@@ -514,8 +521,8 @@ export function TransactionsMain({ userId }: { userId: string }) {
   const bundlesData = useQuery(api.features.bundles.getAllBundles, { userId });
 
   // ── Today counts — server-side, no limit, resets at midnight ───────────────
-  const todayMsStart = React.useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
-  const todayMsEnd   = React.useMemo(() => { const d = new Date(); d.setHours(23,59,59,999); return d.getTime(); }, []);
+  const todayMsStart = React.useMemo(() => nairobiStartOfDay(), []);
+  const todayMsEnd   = React.useMemo(() => nairobiStartOfDay() + 24 * 60 * 60 * 1000 - 1, []);
   const mpesaTodayCounts     = useQuery(api.features.mpesaMessages.getTodayCounts,     { userId, startTime: todayMsStart, endTime: todayMsEnd });
   const dialerTodayCounts    = useQuery(api.features.ussdHistory.getTodayCounts,       { userId, startTime: todayMsStart });
   const scheduledTodayCounts = useQuery(api.features.scheduled_events.getTodayCounts,  { userId, startTime: todayMsStart });
@@ -539,7 +546,13 @@ export function TransactionsMain({ userId }: { userId: string }) {
 
     const now = Date.now();
     (smsResults ?? []).forEach((m) => {
-      const isAutoScheduled = m.scheduledRetryAt != null && (m.scheduledRetryAt as number) > now;
+      // Failed-retries only: "Scheduled" means a pending message waiting on a future retry. A
+      // 'successful' message awaiting verification can also carry scheduledRetryAt but must stay under
+      // Successful, so require pending here.
+      const isAutoScheduled =
+        (!m.processed || m.processed === "pending") &&
+        m.scheduledRetryAt != null &&
+        (m.scheduledRetryAt as number) > now;
       if (typeFilter === "scheduled" && !isAutoScheduled) return;
       if (typeFilter === "sms" && isAutoScheduled) return;
       if (typeFilter === "dialer") return;
@@ -722,7 +735,13 @@ export function TransactionsMain({ userId }: { userId: string }) {
             <div className="flex items-center gap-2">
               {/* Successful */}
               <button
-                onClick={() => setStatusFilter(statusFilter === "successful" ? "all" : "successful")}
+                onClick={() => {
+                  const next = statusFilter === "successful" ? "all" : "successful";
+                  setStatusFilter(next);
+                  // Scope the list to today when selecting (matches the counter, which is today-only);
+                  // reset to all-time when deselecting. Mirrors the Android behaviour.
+                  setPeriodFilter(next === "all" ? "all" : "today");
+                }}
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg transition-all ${
                   statusFilter === "successful"
                     ? "bg-emerald-700 ring-2 ring-emerald-400 ring-offset-1"
@@ -735,7 +754,11 @@ export function TransactionsMain({ userId }: { userId: string }) {
               </button>
               {/* Failed */}
               <button
-                onClick={() => setStatusFilter(statusFilter === "failed" ? "all" : "failed")}
+                onClick={() => {
+                  const next = statusFilter === "failed" ? "all" : "failed";
+                  setStatusFilter(next);
+                  setPeriodFilter(next === "all" ? "all" : "today");
+                }}
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg border transition-all ${
                   statusFilter === "failed"
                     ? "bg-red-100 border-red-400 ring-2 ring-red-300 ring-offset-1 dark:bg-red-900/40"

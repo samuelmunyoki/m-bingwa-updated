@@ -33,6 +33,23 @@ export const createMpesaMessage = mutation({
         console.log(`[DEDUP] Returning existing mpesaMessage for transactionId=${args.transactionId} _id=${existing._id}`);
         return existing;
       }
+    } else {
+      // No transactionId to dedup on. Fall back to the message's natural identity
+      // (userId + time + phoneNumber + amount) so a retried POST for a message that couldn't
+      // parse a transaction code doesn't create a duplicate cloud record.
+      const sameTime = await ctx.db
+        .query("mpesaMessages")
+        .withIndex("by_user_id_time", (q) =>
+          q.eq("userId", args.userId).eq("time", args.time)
+        )
+        .collect();
+      const dup = sameTime.find(
+        (m) => m.phoneNumber === args.phoneNumber && m.amount === args.amount
+      );
+      if (dup) {
+        console.log(`[DEDUP-NATURAL] Returning existing mpesaMessage (no txId) for userId+time+phone+amount _id=${dup._id}`);
+        return dup;
+      }
     }
 
     const messageId = await ctx.db.insert("mpesaMessages", {
@@ -1101,13 +1118,40 @@ export const getTodayCounts = query({
       )
       .collect();
     const now = Date.now();
+    // Match Android exactly: exclude soft-deleted; count 'processing' as pending; exclude messages
+    // waiting on a future scheduled retry.
+    const live = msgs.filter((m) => !m.isDeleted);
     return {
-      successful: msgs.filter((m) => m.processed === "successful").length,
-      failed: msgs.filter((m) => m.processed === "failed").length,
-      pending: msgs.filter((m) =>
-        (!m.processed || m.processed === "pending") &&
+      successful: live.filter((m) => m.processed === "successful").length,
+      failed: live.filter((m) => m.processed === "failed").length,
+      pending: live.filter((m) =>
+        (!m.processed || m.processed === "pending" || m.processed === "processing") &&
         (!m.scheduledRetryAt || m.scheduledRetryAt <= now)
       ).length,
     };
+  },
+});
+
+// Fix 2 (one-time reconciliation): returns the records the cloud currently thinks are actively
+// pending (not future-scheduled retries), since a given time. Android compares each to its local
+// copy and, where it has since finalized the status, re-flags it for sync to correct the cloud.
+export const getPendingForReconcile = query({
+  args: { userId: v.string(), sinceTime: v.number() },
+  handler: async (ctx, args) => {
+    const msgs = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_id_time", (q) =>
+        q.eq("userId", args.userId).gte("time", args.sinceTime)
+      )
+      .collect();
+    const now = Date.now();
+    return msgs
+      .filter(
+        (m) =>
+          !m.isDeleted &&
+          (!m.processed || m.processed === "pending") &&
+          (!m.scheduledRetryAt || m.scheduledRetryAt <= now)
+      )
+      .map((m) => ({ id: m._id, processed: m.processed ?? "pending", time: m.time }));
   },
 });
