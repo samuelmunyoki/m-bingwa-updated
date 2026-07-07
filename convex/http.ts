@@ -129,6 +129,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   markStoreMessageAndroidProcessedHttp,
   getPendingWebRetriesHttp,
   getPendingMpesaForReconcileHttp,
+  deleteOldPendingMessagesHttp,
   clearWebRetryFlagHttp,
   upsertAutoTopupSettingsHttp,
   upsertAutoTopupWatchHttp,
@@ -380,6 +381,13 @@ http.route({
   pathPrefix: "/api/mpesa-messages/reconcile-pending/",
   method: "GET",
   handler: getPendingMpesaForReconcileHttp,
+});
+
+// Manual cleanup — delete old "pending" mpesa messages (dryRun-guarded, per-user)
+http.route({
+  pathPrefix: "/api/mpesa-messages/delete-old-pending/",
+  method: "POST",
+  handler: deleteOldPendingMessagesHttp,
 });
 
 http.route({

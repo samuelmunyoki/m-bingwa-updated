@@ -231,6 +231,7 @@ export default defineSchema({
     .index("by_time", ["time"])
     .index("by_processed", ["processed"])
     .index("by_user_id_time", ["userId", "time"])
+    .index("by_user_processed_time", ["userId", "processed", "time"])
     .index("by_source_androidProcessed", ["source", "androidProcessed"])
     .index("by_user_transaction", ["userId", "transactionId"])
     .index("by_user_webRetry", ["userId", "webRetryRequested"]),
