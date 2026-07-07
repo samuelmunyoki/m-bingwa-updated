@@ -1275,7 +1275,7 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD, mpesaDate } = body;
+  const { userId, name, amount, phoneNumber, senderId, time, transactionId, processed, fullMessage, processResponse, offerName, processedUSSD, mpesaDate, scheduledRetryAt } = body;
 
   if (!userId || !name || amount === undefined || !phoneNumber || !senderId || time === undefined) {
     return createResponse("error", null, "Missing required fields: userId, name, amount, phoneNumber, senderId, time");
@@ -1329,7 +1329,8 @@ export const createMpesaMessage = httpAction(async (ctx, request) => {
       processResponse,
       offerName,
       processedUSSD,
-      mpesaDate
+      mpesaDate,
+      scheduledRetryAt
     });
 
     return createResponse("success", {
@@ -6574,6 +6575,29 @@ export const getPendingMpesaForReconcileHttp = httpAction(async (ctx, request) =
       sinceTime,
     });
     return createResponse("success", { messages });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Manual cleanup — delete old "pending" mpesa messages for a user.
+// POST body: { userId, before (epoch ms), dryRun (default true), limit? }
+// dryRun:true previews (count + sample, no delete); dryRun:false deletes. Run until moreLikely=false.
+export const deleteOldPendingMessagesHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, before, dryRun, limit } = body ?? {};
+  if (!userId) return createResponse("error", null, "Missing userId");
+  if (typeof before !== "number") return createResponse("error", null, "Missing/invalid 'before' (epoch ms number)");
+  try {
+    const result = await ctx.runMutation(api.features.mpesaMessages.deleteOldPendingMessages, {
+      userId,
+      before,
+      dryRun: dryRun ?? true,
+      limit,
+    });
+    return createResponse("success", result);
   } catch (e: any) {
     return createResponse("error", null, `Failed: ${e.message}`);
   }

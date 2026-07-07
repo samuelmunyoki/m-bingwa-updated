@@ -19,8 +19,38 @@ export const createMpesaMessage = mutation({
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
     mpesaDate: v.optional(v.number()),
+    scheduledRetryAt: v.optional(v.float64()),
   },
   handler: async (ctx, args) => {
+    // On a dedup hit, if the stored row is still "pending" but this POST carries a final
+    // status, patch it up before returning. Closes the arrival race where the drain POSTs
+    // the final status (e.g. not-viable) before the on-arrival "pending" POST's convexId is
+    // written locally — otherwise the dedup would silently drop the final status, leaving the
+    // cloud row stuck at "pending" while the phone shows the final status. Never downgrades a
+    // final status back to "pending".
+    const isFinalStatus = (p?: string) =>
+      p === "successful" || p === "failed" || p === "not-viable";
+    const resolveDup = async (row: any) => {
+      // Only refine a not-yet-final row (never downgrade a final status back to pending).
+      // Upgrade to a final status when the POST carries one, AND fill in scheduledRetryAt /
+      // offerName / processResponse from the incoming POST — that's what the POST path used to
+      // drop (e.g. an auto-rescheduled "pending" row losing its scheduledRetryAt). Uses `?? row.x`
+      // so a bare on-arrival "pending" POST never wipes values already stored.
+      if (row.processed === "pending" || row.processed === undefined) {
+        const nextProcessed = isFinalStatus(args.processed) ? args.processed : (row.processed ?? "pending");
+        await ctx.db.patch(row._id, {
+          processed: nextProcessed,
+          processResponse: args.processResponse ?? row.processResponse,
+          offerName: args.offerName ?? row.offerName,
+          processedUSSD: args.processedUSSD ?? row.processedUSSD,
+          scheduledRetryAt: args.scheduledRetryAt ?? row.scheduledRetryAt,
+        });
+        console.log(`[DEDUP-MERGE] _id=${row._id} processed=${nextProcessed} scheduledRetryAt=${args.scheduledRetryAt ?? row.scheduledRetryAt}`);
+        return await ctx.db.get(row._id);
+      }
+      return row;
+    };
+
     // Dedup: if a record with the same userId + transactionId already exists, return it
     if (args.transactionId) {
       const existing = await ctx.db
@@ -31,7 +61,7 @@ export const createMpesaMessage = mutation({
         .first();
       if (existing) {
         console.log(`[DEDUP] Returning existing mpesaMessage for transactionId=${args.transactionId} _id=${existing._id}`);
-        return existing;
+        return await resolveDup(existing);
       }
     } else {
       // No transactionId to dedup on. Fall back to the message's natural identity
@@ -48,7 +78,7 @@ export const createMpesaMessage = mutation({
       );
       if (dup) {
         console.log(`[DEDUP-NATURAL] Returning existing mpesaMessage (no txId) for userId+time+phone+amount _id=${dup._id}`);
-        return dup;
+        return await resolveDup(dup);
       }
     }
 
@@ -66,6 +96,7 @@ export const createMpesaMessage = mutation({
       offerName: args.offerName ?? "",
       processedUSSD: args.processedUSSD ?? "",
       mpesaDate: args.mpesaDate ?? undefined,
+      scheduledRetryAt: args.scheduledRetryAt ?? undefined,
     });
 
     const message = await ctx.db.get(messageId);
@@ -869,6 +900,67 @@ export const bulkResetMessagesForWebRetry = mutation({
   },
 });
 
+// Manual cleanup: delete "pending" mpesa messages older than a cutoff for one user.
+// Destructive — guarded by dryRun (default true), scoped to userId, only touches
+// processed=="pending", and skips still-active scheduled retries (future scheduledRetryAt).
+// Batch-per-call: run repeatedly with dryRun:false until deleted=0 / moreLikely=false.
+export const deleteOldPendingMessages = mutation({
+  args: {
+    userId: v.string(),
+    before: v.number(),               // epoch ms — delete pending rows with time < before
+    dryRun: v.optional(v.boolean()),  // default true = preview only, no delete
+    limit: v.optional(v.number()),    // batch size (default 200, max 500)
+  },
+  handler: async (ctx, args) => {
+    const dryRun = args.dryRun ?? true;
+    const limit = Math.min(Math.max(args.limit ?? 200, 1), 500);
+    const now = Date.now();
+
+    // Uses by_user_processed_time so it reads ONLY this user's pending rows (oldest first),
+    // never scanning successful/failed — avoids the timeout from filtering a huge range.
+    const candidates = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_user_processed_time", (q) =>
+        q.eq("userId", args.userId).eq("processed", "pending").lt("time", args.before)
+      )
+      .take(limit);
+
+    // Never delete a still-active scheduled retry (pending + future scheduledRetryAt)
+    const targets = candidates.filter(
+      (m) => !m.scheduledRetryAt || m.scheduledRetryAt <= now
+    );
+
+    const sample = targets.slice(0, 10).map((m) => ({
+      _id: m._id,
+      time: m.time,
+      timeReadable: new Date(m.time).toISOString(),
+      phoneNumber: m.phoneNumber,
+      amount: m.amount,
+      transactionId: m.transactionId ?? null,
+      offerName: m.offerName ?? null,
+    }));
+
+    let deleted = 0;
+    if (!dryRun) {
+      for (const m of targets) {
+        await ctx.db.delete(m._id);
+        deleted++;
+      }
+    }
+
+    return {
+      dryRun,
+      before: args.before,
+      beforeReadable: new Date(args.before).toISOString(),
+      matched: targets.length,                 // deletable pending rows in this batch
+      deleted,
+      skippedScheduled: candidates.length - targets.length,
+      moreLikely: candidates.length === limit, // hit batch cap → run again
+      sample,
+    };
+  },
+});
+
 // Query for Android to poll — returns messages pending web retry for a user
 export const getPendingWebRetries = query({
   args: { userId: v.string() },
@@ -1118,14 +1210,14 @@ export const getTodayCounts = query({
       )
       .collect();
     const now = Date.now();
-    // Match Android exactly: exclude soft-deleted; count 'processing' as pending; exclude messages
-    // waiting on a future scheduled retry.
-    const live = msgs.filter((m) => !m.isDeleted);
+    // NOTE: web mpesaMessages has no isDeleted field (deletes are hard deletes) and no 'processing'
+    // status in its schema (the app never syncs that transient state), so there's nothing here to
+    // mirror the phone's isDeleted/processing handling — the web can only ever hold final/pending rows.
     return {
-      successful: live.filter((m) => m.processed === "successful").length,
-      failed: live.filter((m) => m.processed === "failed").length,
-      pending: live.filter((m) =>
-        (!m.processed || m.processed === "pending" || m.processed === "processing") &&
+      successful: msgs.filter((m) => m.processed === "successful").length,
+      failed: msgs.filter((m) => m.processed === "failed").length,
+      pending: msgs.filter((m) =>
+        (!m.processed || m.processed === "pending") &&
         (!m.scheduledRetryAt || m.scheduledRetryAt <= now)
       ).length,
     };
@@ -1148,7 +1240,6 @@ export const getPendingForReconcile = query({
     return msgs
       .filter(
         (m) =>
-          !m.isDeleted &&
           (!m.processed || m.processed === "pending") &&
           (!m.scheduledRetryAt || m.scheduledRetryAt <= now)
       )
