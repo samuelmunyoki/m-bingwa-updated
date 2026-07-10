@@ -108,16 +108,47 @@ export const clearAllLogs = mutation({
   },
 });
 
-// Self-scheduling: deletes 500 logs then reschedules itself until table is empty
-export const clearAllLogsScheduled = internalMutation({
+// ── App-log cleanup ───────────────────────────────────────────────────────────
+// Retention window: keep only the last 4h of logs (short on purpose — logs are only needed when
+// actively tracking something). Batches are throttled so draining a large backlog never overwhelms
+// Convex the way the old runAfter(0) chain did.
+const LOG_RETENTION_MS = 4 * 60 * 60 * 1000; // 4 hours
+const LOG_DELETE_BATCH = 1000;
+const LOG_PRUNE_DELAY_MS = 1000; // gap between retention batches
+const LOG_WIPE_DELAY_MS = 500;   // gap between manual full-wipe batches
+
+// CRON target: delete ONLY logs older than the retention window (uses the by_timestamp index), in
+// throttled batches, rescheduling ONLY while old logs remain — so it TERMINATES (the backlog is
+// finite) instead of chasing the whole still-growing table forever, which is what overwhelmed the
+// scheduler before.
+export const pruneOldLogsScheduled = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const logs = await ctx.db.query("appLogs").take(1000);
+    const cutoff = Date.now() - LOG_RETENTION_MS;
+    const logs = await ctx.db
+      .query("appLogs")
+      .withIndex("by_timestamp", (q) => q.lt("timestamp", cutoff))
+      .take(LOG_DELETE_BATCH);
     for (const log of logs) {
       await ctx.db.delete(log._id);
     }
-    if (logs.length === 1000) {
-      await ctx.scheduler.runAfter(0, internal.features.appLogs.clearAllLogsScheduled, {});
+    if (logs.length === LOG_DELETE_BATCH) {
+      await ctx.scheduler.runAfter(LOG_PRUNE_DELAY_MS, internal.features.appLogs.pruneOldLogsScheduled, {});
+    }
+  },
+});
+
+// Manual full wipe (triggered by the deleteLogsHandler HTTP endpoint): deletes ALL logs in throttled
+// batches. Kept for on-demand clears; now paced (was runAfter(0)) so it won't hammer Convex.
+export const clearAllLogsScheduled = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const logs = await ctx.db.query("appLogs").take(LOG_DELETE_BATCH);
+    for (const log of logs) {
+      await ctx.db.delete(log._id);
+    }
+    if (logs.length === LOG_DELETE_BATCH) {
+      await ctx.scheduler.runAfter(LOG_WIPE_DELAY_MS, internal.features.appLogs.clearAllLogsScheduled, {});
     }
   },
 });

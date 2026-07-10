@@ -19,11 +19,11 @@ crons.daily(
 );
 
 
-// Delete all app logs every 2 hours in batches of 1000
+// Prune app logs older than the 4h retention window — hourly, throttled, self-terminating.
 crons.interval(
-  "Delete all app logs",
-  { hours: 2 },
-  internal.features.appLogs.clearAllLogsScheduled
+  "Prune old app logs",
+  { hours: 1 },
+  internal.features.appLogs.pruneOldLogsScheduled
 );
 
 export default crons;
