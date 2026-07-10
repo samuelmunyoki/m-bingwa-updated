@@ -73,8 +73,11 @@ function parseSmsStatus(processed: string | undefined | null): TxStatus {
 function parseDialerStatus(status: string | undefined): TxStatus {
   switch ((status ?? "").toLowerCase()) {
     case "success": return "successful";
-    case "failed": return "failed";
+    // Timeout & Cancelled count as failed — matches the Failed counter (getTodayCounts) and the
+    // app's failed list. "Validation Failed" stays under Unavailable (not counted as failed).
+    case "failed":
     case "timeout":
+    case "cancelled": return "failed";
     case "validation failed": return "unavailable";
     default: return "pending";
   }
@@ -474,7 +477,63 @@ function FilterChip({
 type TypeFilter = "all" | TxType;
 type StatusFilter = "all" | TxStatus;
 
-export function TransactionsMain({ userId }: { userId: string }) {
+// Auto-retry error boundary. A Convex useQuery THROWS on error (e.g. the 1s server-side timeout
+// when the backend is overloaded). With no boundary, that throw unmounts the whole React tree →
+// Next.js shows "Application error: a client-side exception has occurred" (the white screen).
+// This catches it, shows a light fallback, and auto-retries every few seconds — so the dashboard
+// self-heals the instant the backend answers again, no manual reload. (Whole-dashboard scope:
+// under load every query times out together, so widgets fail/recover together anyway.)
+class AutoRetryBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  state = { hasError: false };
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    // Re-mount children after a short delay — a fresh Convex subscription retries the query.
+    this.retryTimer = setTimeout(() => this.setState({ hasError: false }), 4000);
+  }
+  componentWillUnmount() {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+  }
+  private retryNow = () => {
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.setState({ hasError: false });
+  };
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-sm text-neutral-500 dark:text-neutral-400">
+          <span>Couldn&apos;t load transactions — the server is busy. Retrying&hellip;</span>
+          <button
+            onClick={this.retryNow}
+            className="px-4 py-1.5 rounded-lg border border-neutral-300 dark:border-neutral-600 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            Retry now
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// Wrapped export: the dashboard body runs INSIDE the boundary, so a slow/failed query degrades
+// gracefully instead of white-screening the whole page. The queries live in the inner component,
+// so their throws are caught here (a boundary only catches errors from its children).
+export function TransactionsMain(props: { userId: string }) {
+  return (
+    <AutoRetryBoundary>
+      <TransactionsMainInner {...props} />
+    </AutoRetryBoundary>
+  );
+}
+
+function TransactionsMainInner({ userId }: { userId: string }) {
   // ── UI state — declared first so computed values below can reference them ──
   const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
@@ -504,7 +563,10 @@ export function TransactionsMain({ userId }: { userId: string }) {
   // ── Paginated M-Pesa — server-side status + period filters, 50 at a time ───
   const smsPaginatedArgs = {
     userId,
-    ...(statusFilter !== "all" && statusFilter !== "pending" && (typeFilter === "all" || typeFilter === "sms")
+    // "unavailable" & "disabled" are NOT sent to the server — the server only knows `processed`,
+    // but the app defines these by offerName / processResponse. So (like "pending") we fetch rows and
+    // sort them client-side below to mirror the app exactly. Period stays server-side either way.
+    ...(statusFilter !== "all" && statusFilter !== "pending" && statusFilter !== "unavailable" && statusFilter !== "disabled" && (typeFilter === "all" || typeFilter === "sms")
       ? { statusFilter }
       : {}),
     ...periodTimes,
@@ -554,7 +616,8 @@ export function TransactionsMain({ userId }: { userId: string }) {
         m.scheduledRetryAt != null &&
         (m.scheduledRetryAt as number) > now;
       if (typeFilter === "scheduled" && !isAutoScheduled) return;
-      if (typeFilter === "sms" && isAutoScheduled) return;
+      // SMS shows ALL M-Pesa messages, including auto-rescheduled (failed-retry) ones — matches the
+      // app, where such a message appears under both M-Pesa and Scheduled (not only Scheduled).
       if (typeFilter === "dialer") return;
       result.push({
         id: `sms_${m._id}`,
@@ -617,21 +680,37 @@ export function TransactionsMain({ userId }: { userId: string }) {
     return allTransactions.filter((tx) => {
       // Type already handled in allTransactions useMemo
 
-      if (tx.type !== "sms") {
-        // Dialer + Scheduled: full client-side filtering
+      const raw = tx.raw as Record<string, unknown>;
+
+      // ── Status ──────────────────────────────────────────────────────────────
+      // Unavailable & Disabled mirror the APP exactly (the server can't express these):
+      //   Unavailable = offerName === "unavailable"  (M-Pesa or dialer; never scheduled)
+      //   Disabled    = M-Pesa `not-viable` + processResponse === "Offer Disabled" (never dialer/scheduled)
+      if (statusFilter === "unavailable") {
+        if (tx.type === "scheduled") return false;
+        if (raw.offerName !== "unavailable") return false;
+      } else if (statusFilter === "disabled") {
+        if (tx.type !== "sms") return false;
+        if (raw.processed !== "not-viable" || raw.processResponse !== "Offer Disabled") return false;
+      } else if (tx.type !== "sms") {
+        // Dialer + Scheduled, other statuses. Pending is M-Pesa only, so exclude them there.
+        if (statusFilter === "pending") return false;
         if (statusFilter !== "all" && tx.status !== statusFilter) return false;
+      } else if (statusFilter === "pending") {
+        // M-Pesa pending — client-side (exclude future scheduled-retries). Other sms statuses are
+        // filtered server-side in the paginated query.
+        if (tx.status !== "pending") return false;
+        const scheduledRetryAt = raw.scheduledRetryAt as number | undefined | null;
+        if (scheduledRetryAt && scheduledRetryAt > now) return false;
+      }
+
+      // ── Period ──────────────────────────────────────────────────────────────
+      // M-Pesa period is applied server-side (periodTimes); dialer/scheduled client-side here.
+      if (tx.type !== "sms") {
         if (periodFilter === "today"     && tx.timestampMs < todayStart.getTime()) return false;
         if (periodFilter === "yesterday" && (tx.timestampMs < yesterdayStart.getTime() || tx.timestampMs > yesterdayEnd.getTime())) return false;
         if (periodFilter === "last7"     && tx.timestampMs < now - 7  * 24 * 60 * 60 * 1000) return false;
         if (periodFilter === "last30"    && tx.timestampMs < now - 30 * 24 * 60 * 60 * 1000) return false;
-      } else {
-        // M-Pesa: status (except pending) + period already filtered server-side
-        // Only apply pending filter + offer/verified/search client-side
-        if (statusFilter === "pending") {
-          if (tx.status !== "pending") return false;
-          const scheduledRetryAt = (tx.raw as Record<string, unknown>).scheduledRetryAt as number | undefined | null;
-          if (scheduledRetryAt && scheduledRetryAt > now) return false;
-        }
       }
 
       // Offer filter (all types, client-side)
@@ -640,17 +719,29 @@ export function TransactionsMain({ userId }: { userId: string }) {
         if (txOffer !== offerFilter) return false;
       }
 
-      // Verified filter (SMS only, when status=successful)
-      if (verifiedFilter !== "all" && tx.type === "sms" && tx.status === "successful") {
-        const isVerified = !!(tx.raw as Record<string, unknown>).verified;
-        if (verifiedFilter === "verified" && !isVerified) return false;
-        if (verifiedFilter === "unverified" && isVerified) return false;
+      // Verified filter — only meaningful for M-Pesa, and only among Successful. Mirror the app:
+      // "Verified" keeps dialer/scheduled; "Unverified" hides them (they have no verified state).
+      if (verifiedFilter !== "all" && tx.status === "successful") {
+        if (tx.type === "sms") {
+          const isVerified = !!raw.verified;
+          if (verifiedFilter === "verified" && !isVerified) return false;
+          if (verifiedFilter === "unverified" && isVerified) return false;
+        } else if (verifiedFilter === "unverified") {
+          return false;
+        }
       }
 
-      // Search (all types, client-side — approximate for M-Pesa on loaded pages)
+      // Search — mirror the APP's per-type fields (not just the display title/subtitle), so the
+      // M-Pesa transaction ID and dialer USSD code are searchable too. (M-Pesa only scans loaded
+      // pages, since it's paginated — same Load-More limitation as elsewhere.)
       if (search.trim()) {
         const q = search.toLowerCase();
-        if (!tx.title.toLowerCase().includes(q) && !tx.subtitle.toLowerCase().includes(q)) return false;
+        const has = (v: unknown) => typeof v === "string" && v.toLowerCase().includes(q);
+        const match =
+          tx.type === "sms"    ? has(raw.name) || has(raw.phoneNumber) || has(raw.transactionId) :
+          tx.type === "dialer" ? has(raw.ussdCode) || has(raw.targetNumber) || has(raw.offerName) :
+          /* scheduled */        has(raw.offerName) || has(raw.offerNum);
+        if (!match) return false;
       }
 
       return true;
@@ -730,7 +821,10 @@ export function TransactionsMain({ userId }: { userId: string }) {
         {(() => {
           const successful = (mpesaTodayCounts?.successful ?? 0) + (dialerTodayCounts?.successful ?? 0) + (scheduledTodayCounts?.successful ?? 0);
           const failed     = (mpesaTodayCounts?.failed     ?? 0) + (dialerTodayCounts?.failed     ?? 0) + (scheduledTodayCounts?.failed     ?? 0);
-          const pending    = (mpesaTodayCounts?.pending    ?? 0) + (dialerTodayCounts?.pending    ?? 0) + (scheduledTodayCounts?.pending    ?? 0);
+          // Pending mirrors the app: M-Pesa only. Dialer PENDING/EXECUTING and scheduled PENDING/QUEUED
+          // (which includes future-dated schedules) are not pending transactions, so they're excluded —
+          // this is why the web read e.g. 22 while the app correctly showed 0.
+          const pending    = mpesaTodayCounts?.pending    ?? 0;
           return (
             <div className="flex items-center gap-2">
               {/* Successful */}
@@ -771,7 +865,13 @@ export function TransactionsMain({ userId }: { userId: string }) {
               </button>
               {/* Pending */}
               <button
-                onClick={() => setStatusFilter(statusFilter === "pending" ? "all" : "pending")}
+                onClick={() => {
+                  const next = statusFilter === "pending" ? "all" : "pending";
+                  setStatusFilter(next);
+                  // Scope the list to today when selecting (matches the counter, which is today-only);
+                  // reset to all-time when deselecting. Mirrors Success/Failed and the app.
+                  setPeriodFilter(next === "all" ? "all" : "today");
+                }}
                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg border transition-all ${
                   statusFilter === "pending"
                     ? "bg-amber-100 border-amber-400 ring-2 ring-amber-300 ring-offset-1 dark:bg-amber-900/40"

@@ -38,14 +38,16 @@ export const createMpesaMessage = mutation({
       // so a bare on-arrival "pending" POST never wipes values already stored.
       if (row.processed === "pending" || row.processed === undefined) {
         const nextProcessed = isFinalStatus(args.processed) ? args.processed : (row.processed ?? "pending");
+        // Only a 'pending' row keeps a retry time; a finalized row must not carry one.
+        const nextRetry = nextProcessed === "pending" ? (args.scheduledRetryAt ?? row.scheduledRetryAt) : undefined;
         await ctx.db.patch(row._id, {
           processed: nextProcessed,
           processResponse: args.processResponse ?? row.processResponse,
           offerName: args.offerName ?? row.offerName,
           processedUSSD: args.processedUSSD ?? row.processedUSSD,
-          scheduledRetryAt: args.scheduledRetryAt ?? row.scheduledRetryAt,
+          scheduledRetryAt: nextRetry,
         });
-        console.log(`[DEDUP-MERGE] _id=${row._id} processed=${nextProcessed} scheduledRetryAt=${args.scheduledRetryAt ?? row.scheduledRetryAt}`);
+        console.log(`[DEDUP-MERGE] _id=${row._id} processed=${nextProcessed} scheduledRetryAt=${nextRetry}`);
         return await ctx.db.get(row._id);
       }
       return row;
@@ -96,7 +98,8 @@ export const createMpesaMessage = mutation({
       offerName: args.offerName ?? "",
       processedUSSD: args.processedUSSD ?? "",
       mpesaDate: args.mpesaDate ?? undefined,
-      scheduledRetryAt: args.scheduledRetryAt ?? undefined,
+      // Only a 'pending' row keeps a retry time (a fresh insert is normally pending).
+      scheduledRetryAt: (args.processed ?? "pending") === "pending" ? (args.scheduledRetryAt ?? undefined) : undefined,
     });
 
     const message = await ctx.db.get(messageId);
@@ -387,8 +390,17 @@ export const updateMpesaMessageProcessedStatus = mutation({
     if (processedUSSD !== undefined) {
       updateData.processedUSSD = processedUSSD;
     }
-    if (scheduledRetryAt !== undefined) {
-      updateData.scheduledRetryAt = scheduledRetryAt;
+    // Guard: only a 'pending' row may carry a retry time. For any final status
+    // (successful/failed/not-viable/disabled) clear scheduledRetryAt — otherwise the phone's local
+    // verification-retry time (set on successful rows for commission-check amounts) rides along on
+    // the status sync and shows a stray "retry" on a finished transaction. Setting undefined in a
+    // patch removes the field.
+    if (processed === "pending") {
+      if (scheduledRetryAt !== undefined) {
+        updateData.scheduledRetryAt = scheduledRetryAt;
+      }
+    } else {
+      updateData.scheduledRetryAt = undefined;
     }
     
     // Read current message to compute daily stats delta
