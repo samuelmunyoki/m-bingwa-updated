@@ -1,11 +1,14 @@
 import { v } from "convex/values";
 import { mutation, internalMutation, query } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 
+// Day boundary in Africa/Nairobi (EAT, UTC+3, no DST) — matches transactions.tsx
+// nairobiStartOfDay() and the Android counters. NOT the server's UTC midnight, or sales
+// made between midnight and 3 AM Kenya time get filed under the previous day and today reads short.
+const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
 function getDayStart(timestamp: number): number {
-  const d = new Date(timestamp);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+  const shifted = timestamp + EAT_OFFSET_MS;
+  return shifted - (shifted % 86_400_000) - EAT_OFFSET_MS;
 }
 
 // Internal helper — apply a delta to a user's daily stats record
@@ -75,10 +78,15 @@ export const migrateUserMessageStats = mutation({
       for (const e of existing) await ctx.db.delete(e._id);
     }
 
-    // Fetch a batch of 1000 messages
+    // Fetch a batch of 1000 messages — NEWEST first (order desc). Today is the busiest
+    // day and the one people look at, so processing it in the very first batch means it's
+    // fully counted even if the self-scheduling chain later dies on the slow backend
+    // (older days just fill in as the chain continues). Order doesn't change the final
+    // per-day totals — it only decides which days are rebuilt first.
     const page = await ctx.db
       .query("mpesaMessages")
       .withIndex("by_user_id_time", (q) => q.eq("userId", userId))
+      .order("desc")
       .paginate({ numItems: 1000, cursor: cursor ?? null });
 
     // Aggregate this batch into daily stats
@@ -123,6 +131,19 @@ export const migrateUserMessageStats = mutation({
       } else {
         await ctx.db.insert("messageDailyStats", { userId, dayStart, ...stats });
       }
+    }
+
+    // Continue the backfill SERVER-SIDE: if there are more messages, schedule the next
+    // batch (carrying the cursor internally, with clearFirst:false so it never re-wipes).
+    // The cursor never has to survive a round-trip through the terminal, so it can't be
+    // misread and restart from the top — you call this once with clearFirst:true and it
+    // pages through everything on its own until done.
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(250, api.features.messageDailyStats.migrateUserMessageStats, {
+        userId,
+        cursor: page.continueCursor,
+        clearFirst: false,
+      });
     }
 
     return {

@@ -117,6 +117,12 @@ function fmtKsh(v: number): string {
   return `KSh ${v.toFixed(0)}`;
 }
 
+// Full value with thousands separators and up to 1 decimal (e.g. "KSh 1,195.3"). Used where the
+// exact figure matters (Today / This Week commission) rather than the abbreviated "1.2K".
+function fmtKshFull(v: number): string {
+  return `KSh ${v.toLocaleString("en-US", { maximumFractionDigits: 1 })}`;
+}
+
 // ─── Mini Bar Chart ───────────────────────────────────────────────────────────
 
 function MiniBar({ data, color }: { data: BarItem[]; color: string }) {
@@ -614,8 +620,8 @@ function CommissionDetail({ stats, period, onPeriodChange }: { stats: Stats; per
   return (
     <div className="flex flex-col gap-3 pb-4">
       <SummaryNumbers items={[
-        { label: "Today", value: fmtKsh(stats.todayCommission), color: "text-emerald-600" },
-        { label: "This Week", value: fmtKsh(stats.weekCommission), color: "text-emerald-600" },
+        { label: "Today", value: fmtKshFull(stats.todayCommission), color: "text-emerald-600" },
+        { label: "This Week", value: fmtKshFull(stats.weekCommission), color: "text-emerald-600" },
         { label: "This Month", value: fmtKsh(stats.monthCommission), color: "text-neutral-500" },
       ]} />
       <ChartCard title="Progress">

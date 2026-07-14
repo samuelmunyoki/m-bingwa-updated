@@ -3,6 +3,15 @@ import { query, mutation } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { paginationOptsValidator } from "convex/server";
 
+// Day boundary in Africa/Nairobi (EAT, UTC+3, no DST) — must match messageDailyStats.getDayStart
+// and transactions.tsx nairobiStartOfDay(), so the daily-tally deltas land in the same Kenya day
+// the website counts them in.
+const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+function eatDayStart(timestamp: number): number {
+  const shifted = timestamp + EAT_OFFSET_MS;
+  return shifted - (shifted % 86_400_000) - EAT_OFFSET_MS;
+}
+
 // Mutation to create a new mpesa message
 export const createMpesaMessage = mutation({
   args: {
@@ -48,6 +57,24 @@ export const createMpesaMessage = mutation({
           scheduledRetryAt: nextRetry,
         });
         console.log(`[DEDUP-MERGE] _id=${row._id} processed=${nextProcessed} scheduledRetryAt=${nextRetry}`);
+
+        // Count this sale into the daily tally (Total Sales / Top Bundles). This is the
+        // "merge door": on a busy device the final status usually arrives as a POST that
+        // upgrades the pending row HERE, not via updateMpesaMessage — so the +1 must fire
+        // here too, or the sale goes uncounted. The old status is pending (guarded above),
+        // so this is a pure add; only successful/failed count (tally ignores pending/not-viable).
+        if (nextProcessed === "successful" || nextProcessed === "failed") {
+          const dayStart = eatDayStart(row.time);
+          await ctx.scheduler.runAfter(0, internal.features.messageDailyStats.applyDailyStatsDelta, {
+            userId: row.userId,
+            dayStart,
+            successfulDelta: nextProcessed === "successful" ? 1 : 0,
+            failedDelta: nextProcessed === "failed" ? 1 : 0,
+            totalDelta: 1,
+            offerName: nextProcessed === "successful" ? ((args.offerName ?? row.offerName ?? "Unknown").trim() || "Unknown") : undefined,
+            offerDelta: nextProcessed === "successful" ? 1 : 0,
+          });
+        }
         return await ctx.db.get(row._id);
       }
       return row;
@@ -102,6 +129,23 @@ export const createMpesaMessage = mutation({
       scheduledRetryAt: (args.processed ?? "pending") === "pending" ? (args.scheduledRetryAt ?? undefined) : undefined,
     });
 
+    // Count this sale if it was inserted already-final (a brand-new row created directly
+    // with successful/failed and no prior pending row — the "create-insert door"). Same
+    // tally as the merge door above. A createMpesaMessage call either dedups (returns above)
+    // or reaches this insert — never both — so there's no double count.
+    if (args.processed === "successful" || args.processed === "failed") {
+      const dayStart = eatDayStart(args.time);
+      await ctx.scheduler.runAfter(0, internal.features.messageDailyStats.applyDailyStatsDelta, {
+        userId: args.userId,
+        dayStart,
+        successfulDelta: args.processed === "successful" ? 1 : 0,
+        failedDelta: args.processed === "failed" ? 1 : 0,
+        totalDelta: 1,
+        offerName: args.processed === "successful" ? ((args.offerName ?? "Unknown").trim() || "Unknown") : undefined,
+        offerDelta: args.processed === "successful" ? 1 : 0,
+      });
+    }
+
     const message = await ctx.db.get(messageId);
     return message;
   },
@@ -132,6 +176,49 @@ export const getMpesaMessagesByUserId = query({
     }));
 
     return messagesWithAllFields;
+  },
+});
+
+// Full-text search across name / phoneNumber / transactionId for the Transactions page search box.
+// Uses the mpesaMessages search indexes so it hits the WHOLE table (not just loaded pages) without a
+// scan — safe on a loaded backend. Convex FTS is token/prefix-based (start-of-word / whole-token,
+// not arbitrary substring). Runs the 3 indexes, merges, dedupes by _id, returns newest-first.
+export const searchMpesaMessages = query({
+  args: {
+    userId: v.string(),
+    query: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { userId, query, limit }) => {
+    const q = query.trim();
+    if (q.length < 2) return [];
+    const cap = limit ?? 100;
+
+    const [byName, byPhone, byTx] = await Promise.all([
+      ctx.db
+        .query("mpesaMessages")
+        .withSearchIndex("search_name", (s) => s.search("name", q).eq("userId", userId))
+        .take(cap),
+      ctx.db
+        .query("mpesaMessages")
+        .withSearchIndex("search_phone", (s) => s.search("phoneNumber", q).eq("userId", userId))
+        .take(cap),
+      ctx.db
+        .query("mpesaMessages")
+        .withSearchIndex("search_txid", (s) => s.search("transactionId", q).eq("userId", userId))
+        .take(cap),
+    ]);
+
+    const seen = new Set<string>();
+    const merged: typeof byName = [];
+    for (const m of [...byName, ...byPhone, ...byTx]) {
+      if (!seen.has(m._id)) {
+        seen.add(m._id);
+        merged.push(m);
+      }
+    }
+    merged.sort((a, b) => b.time - a.time);
+    return merged.slice(0, cap);
   },
 });
 
@@ -257,17 +344,90 @@ export const updateMpesaMessage = mutation({
     processedUSSD: v.optional(v.string()),
     verified: v.optional(v.boolean()),
     mpesaDate: v.optional(v.union(v.string(), v.number())),
+    scheduledRetryAt: v.optional(v.float64()),
   },
   handler: async (ctx, args) => {
-    const { messageId, ...updates } = args;
-    
+    const { messageId, scheduledRetryAt, ...updates } = args;
+
     // Remove undefined values
-    const cleanUpdates = Object.fromEntries(
+    const cleanUpdates: Record<string, any> = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined)
     );
 
+    // Guard: only a 'pending' row may carry a retry time. Keep scheduledRetryAt when the
+    // status is pending (the auto-reschedule case — this is the PATCH the app actually sends
+    // to /api/mpesa-messages/update/); clear it on any final status so a verification-retry
+    // time doesn't ride along on a finished transaction. If the status isn't being changed,
+    // honor an explicitly provided scheduledRetryAt. (undefined in a patch removes the field.)
+    if (args.processed === "pending") {
+      if (scheduledRetryAt !== undefined) cleanUpdates.scheduledRetryAt = scheduledRetryAt;
+    } else if (args.processed !== undefined) {
+      cleanUpdates.scheduledRetryAt = undefined;
+    } else if (scheduledRetryAt !== undefined) {
+      cleanUpdates.scheduledRetryAt = scheduledRetryAt;
+    }
+
+    // Read the current row BEFORE patching so we know the old status for the stats delta.
+    const currentMsg = args.processed !== undefined ? await ctx.db.get(messageId) : null;
+
     if (Object.keys(cleanUpdates).length > 0) {
       await ctx.db.patch(messageId, cleanUpdates);
+    }
+
+    // Keep messageDailyStats (Total Sales / Top Bundles on the stats page) up to date.
+    // The app finalizes status through THIS mutation (route /api/mpesa-messages/update/),
+    // so the daily-stats delta must fire here — it previously only fired in
+    // updateMpesaMessageProcessedStatus (route /update-processed/), which the app never
+    // calls, so the counting silently stopped. This is a *delta* (removes the old status,
+    // adds the new one), so re-updates self-correct and never double-count.
+    if (currentMsg && args.processed !== undefined) {
+      const oldStatus = currentMsg.processed;
+      const newStatus = args.processed;
+      const finalStatuses = ["successful", "failed"];
+      const oldIsFinal = finalStatuses.includes(oldStatus ?? "");
+      const newIsFinal = finalStatuses.includes(newStatus);
+
+      if (oldIsFinal || newIsFinal) {
+        const dayStart = eatDayStart(currentMsg.time);
+
+        let successfulDelta = 0;
+        let failedDelta = 0;
+        let totalDelta = 0;
+        let offerName: string | undefined;
+        let offerDelta: number | undefined;
+
+        if (oldIsFinal) {
+          totalDelta--;
+          if (oldStatus === "successful") {
+            successfulDelta--;
+            offerName = ((currentMsg.offerName ?? "Unknown").trim() || "Unknown");
+            offerDelta = -1;
+          } else if (oldStatus === "failed") {
+            failedDelta--;
+          }
+        }
+
+        if (newIsFinal) {
+          totalDelta++;
+          if (newStatus === "successful") {
+            successfulDelta++;
+            offerName = ((args.offerName ?? currentMsg.offerName ?? "Unknown").trim() || "Unknown");
+            offerDelta = (offerDelta ?? 0) + 1;
+          } else if (newStatus === "failed") {
+            failedDelta++;
+          }
+        }
+
+        await ctx.scheduler.runAfter(0, internal.features.messageDailyStats.applyDailyStatsDelta, {
+          userId: currentMsg.userId,
+          dayStart,
+          successfulDelta,
+          failedDelta,
+          totalDelta,
+          offerName,
+          offerDelta,
+        });
+      }
     }
   },
 });
@@ -418,11 +578,7 @@ export const updateMpesaMessageProcessedStatus = mutation({
       const newIsFinal = finalStatuses.includes(newStatus);
 
       if (oldIsFinal || newIsFinal) {
-        const dayStart = (() => {
-          const d = new Date(currentMsg.time);
-          d.setHours(0, 0, 0, 0);
-          return d.getTime();
-        })();
+        const dayStart = eatDayStart(currentMsg.time);
 
         let successfulDelta = 0;
         let failedDelta = 0;
