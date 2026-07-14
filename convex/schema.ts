@@ -234,7 +234,12 @@ export default defineSchema({
     .index("by_user_processed_time", ["userId", "processed", "time"])
     .index("by_source_androidProcessed", ["source", "androidProcessed"])
     .index("by_user_transaction", ["userId", "transactionId"])
-    .index("by_user_webRetry", ["userId", "webRetryRequested"]),
+    .index("by_user_webRetry", ["userId", "webRetryRequested"])
+    // Full-text search for the Transactions page search box — hits the WHOLE table (not just
+    // loaded pages) without a scan. One searchField per index, so name/phone/txId each get one.
+    .searchIndex("search_name", { searchField: "name", filterFields: ["userId"] })
+    .searchIndex("search_phone", { searchField: "phoneNumber", filterFields: ["userId"] })
+    .searchIndex("search_txid", { searchField: "transactionId", filterFields: ["userId"] }),
 
   userSenderRelations: defineTable({
     userId: v.string(),

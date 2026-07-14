@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useQuery, useMutation, usePaginatedQuery } from "convex/react";
+import { useQuery, useMutation, usePaginatedQuery, useConvex } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -577,6 +577,14 @@ function TransactionsMainInner({ userId }: { userId: string }) {
     { initialNumItems: 50 }
   );
 
+  // ── DB-backed M-Pesa search — hits the WHOLE table (not just loaded pages) via search indexes.
+  //    Active at 2+ chars; when active it replaces the paginated M-Pesa source in allTransactions. ─
+  const isSearching = search.trim().length >= 2;
+  const mpesaSearchResults = useQuery(
+    api.features.mpesaMessages.searchMpesaMessages,
+    isSearching ? { userId, query: search.trim() } : "skip"
+  );
+
   // ── Small datasets — fully loaded ──────────────────────────────────────────
   const dialerData = useQuery(api.features.ussdHistory.getUSSDHistory, { userId });
   const scheduledData = useQuery(api.features.scheduled_events.getScheduledEvents, { userId });
@@ -600,14 +608,16 @@ function TransactionsMainInner({ userId }: { userId: string }) {
   const [bulkRetrying, setBulkRetrying] = React.useState(false);
   const [cardActionId, setCardActionId] = React.useState<string | null>(null);
 
-  const loading = smsLoadStatus === "LoadingFirstPage" || dialerData === undefined || scheduledData === undefined;
+  const loading = (isSearching ? mpesaSearchResults === undefined : smsLoadStatus === "LoadingFirstPage") || dialerData === undefined || scheduledData === undefined;
 
   // Merge all sources — M-Pesa is paginated (server-filtered), dialer/scheduled fully loaded
   const allTransactions = React.useMemo<UnifiedTransaction[]>(() => {
     const result: UnifiedTransaction[] = [];
 
     const now = Date.now();
-    (smsResults ?? []).forEach((m) => {
+    // When searching, M-Pesa comes from the whole-DB search query; otherwise the paginated pages.
+    const smsSource = isSearching ? (mpesaSearchResults ?? []) : (smsResults ?? []);
+    smsSource.forEach((m) => {
       // Failed-retries only: "Scheduled" means a pending message waiting on a future retry. A
       // 'successful' message awaiting verification can also carry scheduledRetryAt but must stay under
       // Successful, so require pending here.
@@ -658,7 +668,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
     });
 
     return result.sort((a, b) => b.timestampMs - a.timestampMs);
-  }, [smsResults, dialerData, scheduledData, typeFilter]);
+  }, [smsResults, mpesaSearchResults, isSearching, dialerData, scheduledData, typeFilter]);
 
   // All offer names from bundles (not from transactions)
   const offerNames = React.useMemo(() => {
@@ -738,7 +748,10 @@ function TransactionsMainInner({ userId }: { userId: string }) {
         const q = search.toLowerCase();
         const has = (v: unknown) => typeof v === "string" && v.toLowerCase().includes(q);
         const match =
-          tx.type === "sms"    ? has(raw.name) || has(raw.phoneNumber) || has(raw.transactionId) :
+          // M-Pesa: when searching (2+ chars) the DB search already matched these rows, so keep them
+          // all — a client substring check would drop valid FTS/prefix/typo hits. Below 2 chars,
+          // fall back to filtering the loaded pages.
+          tx.type === "sms"    ? (isSearching ? true : (has(raw.name) || has(raw.phoneNumber) || has(raw.transactionId))) :
           tx.type === "dialer" ? has(raw.ussdCode) || has(raw.targetNumber) || has(raw.offerName) :
           /* scheduled */        has(raw.offerName) || has(raw.offerNum);
         if (!match) return false;
@@ -746,7 +759,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
 
       return true;
     });
-  }, [allTransactions, typeFilter, statusFilter, periodFilter, offerFilter, verifiedFilter, search]);
+  }, [allTransactions, typeFilter, statusFilter, periodFilter, offerFilter, verifiedFilter, search, isSearching]);
 
   const selectionMode = selected.size > 0;
 
@@ -759,7 +772,41 @@ function TransactionsMainInner({ userId }: { userId: string }) {
     });
   };
 
-  const selectAll = () => setSelected(new Set(filtered.map((tx) => tx.id)));
+  const convex = useConvex();
+  const selectAll = async () => {
+    // Dialer/Scheduled are fully loaded, so their matches are already in `filtered`.
+    const nonMpesaIds = filtered.filter((tx) => tx.type !== "sms").map((tx) => tx.id);
+
+    // Searching already pulls the WHOLE matching M-Pesa set into `filtered`, so it's complete.
+    if (isSearching) {
+      setSelected(new Set(filtered.map((tx) => tx.id)));
+      return;
+    }
+
+    // Not searching: we can pull ALL matching M-Pesa IDs from the DB only when the active filters are
+    // ones the backend query reproduces exactly — status ∈ {all,successful,failed} + period, and no
+    // offer/verified filter. Otherwise stay loaded-only so we never select (and later delete) rows
+    // that are filtered out of view.
+    const serverStatuses = ["all", "successful", "failed"];
+    const canSelectAllMpesa =
+      offerFilter === "all" && verifiedFilter === "all" && serverStatuses.includes(statusFilter);
+    if (!canSelectAllMpesa) {
+      setSelected(new Set(filtered.map((tx) => tx.id)));
+      return;
+    }
+
+    try {
+      const mpesaIds = (await convex.query(api.features.mpesaMessages.getMpesaIdsForFilter, {
+        userId,
+        ...(statusFilter !== "all" ? { statusFilter } : {}),
+        ...periodTimes,
+      })) as string[];
+      setSelected(new Set([...mpesaIds, ...nonMpesaIds]));
+    } catch {
+      // On any failure, fall back to loaded-only (safe — never over-selects).
+      setSelected(new Set(filtered.map((tx) => tx.id)));
+    }
+  };
   const clearSelection = () => setSelected(new Set());
 
   const handleBulkDelete = async () => {
@@ -1012,7 +1059,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
         {selectionMode && (
           <div className="flex items-center gap-3 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl">
             <span className="text-sm font-medium text-neutral-700">{selected.size} selected</span>
-            <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Select all ({filtered.length})</button>
+            <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Select all</button>
             <button onClick={clearSelection} className="text-xs text-neutral-400 hover:text-neutral-600 flex items-center gap-1">
               <X className="w-3 h-3" /> Clear
             </button>
@@ -1079,7 +1126,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
                 />
               ))}
               {/* Load More — only shown when M-Pesa has more pages */}
-              {(typeFilter === "all" || typeFilter === "sms") && smsLoadStatus !== "Exhausted" && (
+              {!isSearching && (typeFilter === "all" || typeFilter === "sms") && smsLoadStatus !== "Exhausted" && (
                 <div className="flex justify-center pt-2 pb-2">
                   <Button
                     variant="outline"

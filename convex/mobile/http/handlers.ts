@@ -1456,7 +1456,7 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD, verified, mpesaDate } = body;
+  const { messageId, name, amount, phoneNumber, senderId, time, processed, fullMessage, processResponse, offerName, processedUSSD, verified, mpesaDate, scheduledRetryAt } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
@@ -1506,9 +1506,10 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
       offerName,
       processedUSSD,
       verified,
-      mpesaDate
+      mpesaDate,
+      scheduledRetryAt
     });
-    
+
     return createResponse("success", { message: updatedMessage }, null);
   } catch (error: any) {
     console.error("Error updating mpesa message:", error);
