@@ -452,14 +452,21 @@ export const getPendingOnlineBridgeTransactions = query({
 export const getOnlineBridgeTransactionStatusCounts = query({
   args: {
     userId: v.string(),
+    // Optional "counters reset point" (epoch millis). When set, only transactions created
+    // strictly after it are counted — used by the app's Reset-counters feature. Same base
+    // set as getOnlineBridgeTransactions, so the counts stay in step with that list.
+    since: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const transactions = await ctx.db
+    const since = args.since ?? 0;
+    const all = await ctx.db
       .query("onlineBridgeTransactions")
       .withIndex("by_user_and_deleted", (q) =>
         q.eq("userId", args.userId).eq("isDeleted", false)
       )
       .collect();
+
+    const transactions = since > 0 ? all.filter((t) => t.createdAt > since) : all;
 
     const successCount = transactions.filter((t) => t.status === "Success").length;
     const failedCount = transactions.filter((t) => t.status === "Failed" || t.status === "Rejected").length;

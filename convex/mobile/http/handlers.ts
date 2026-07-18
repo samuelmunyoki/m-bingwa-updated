@@ -4935,6 +4935,8 @@ export const getOnlineBridgeTransactionStats = httpAction(
     try {
       const url = new URL(request.url);
       const userId = url.searchParams.get("userId");
+      const sinceParam = url.searchParams.get("since");
+      const since = sinceParam ? Number(sinceParam) : undefined;
 
       if (!userId) {
         return new Response(JSON.stringify({ error: "Missing userId" }), {
@@ -4945,7 +4947,7 @@ export const getOnlineBridgeTransactionStats = httpAction(
 
       const stats = await ctx.runQuery(
         api.features.onlineBridge.getOnlineBridgeTransactionStatusCounts,
-        { userId }
+        since && !Number.isNaN(since) ? { userId, since } : { userId }
       );
 
       return new Response(JSON.stringify(stats), {
