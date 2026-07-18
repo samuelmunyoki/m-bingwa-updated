@@ -480,6 +480,47 @@ export const getOnlineBridgeTransactionStatusCounts = query({
   },
 });
 
+// One-time maintenance: soft-delete transactions stranded in "Executing" (receiver claimed
+// them but the Success/Failed mark never landed). ONLY touches status === "Executing" and
+// only those older than the threshold — never Pending/Success/Failed. Soft-delete
+// (isDeleted: true) so they drop off the counter and the app's sync ignores them.
+export const cleanupStaleExecutingTransactions = mutation({
+  args: {
+    userId: v.string(),
+    olderThanMs: v.optional(v.number()), // default 5 minutes
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    const threshold = args.olderThanMs ?? 5 * 60 * 1000;
+    const cutoff = now - threshold;
+    const MAX_PER_CALL = 2000; // safety cap so one call never blows the write budget
+
+    // Index-scoped read: ONLY this user's "Executing" rows (a small subset) — avoids the
+    // collect-everything timeout that hits getOnlineBridgeTransactionStatusCounts.
+    const executing = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_user_and_status", (q) =>
+        q.eq("userId", args.userId).eq("status", "Executing")
+      )
+      .collect();
+
+    // HARD delete: physically remove the row. Targets stale ones (Executing > threshold) AND any
+    // already-soft-deleted tombstones still sitting in the table. Spares only Executing rows that
+    // are live AND fresh (< threshold) — i.e. ones actually being processed right now.
+    const toDelete = executing.filter((t) => t.isDeleted || t.updatedAt < cutoff);
+
+    let deleted = 0;
+    for (const t of toDelete) {
+      if (deleted >= MAX_PER_CALL) break;
+      await ctx.db.delete(t._id);
+      deleted++;
+    }
+
+    // remaining > 0 → run the URL again to clear the rest.
+    return { deleted, remaining: toDelete.length - deleted, thresholdMs: threshold };
+  },
+});
+
 /**
  * Get Online Bridge transactions for a specific device
  */
