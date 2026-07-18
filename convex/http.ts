@@ -75,6 +75,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateOnlineBridgeTransactionStatus,
   deleteOnlineBridgeTransaction,
   getOnlineBridgeTransactionStats,
+  cleanupStaleExecutingTransactions,
   updateServiceStatus,
   getServiceStatus,
   getMultipleServiceStatuses,
@@ -953,6 +954,16 @@ http.route({
   path: "/api/online-bridge/transactions/stats/",
   method: "GET",
   handler: getOnlineBridgeTransactionStats,
+});
+
+/**
+ * GET /api/online-bridge/transactions/cleanup-executing/?userId=...
+ * One-time: soft-delete transactions stuck in "Executing" for > 5 min (or &olderThanMs=).
+ */
+http.route({
+  path: "/api/online-bridge/transactions/cleanup-executing/",
+  method: "GET",
+  handler: cleanupStaleExecutingTransactions,
 });
 
 http.route({

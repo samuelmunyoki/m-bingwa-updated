@@ -433,7 +433,8 @@ export default defineSchema({
     .index("by_receiver", ["receiverPhoneNumber"])
     .index("by_receiver_and_status", ["receiverPhoneNumber", "status"])
     .index("by_status", ["status"])
-    .index("by_device", ["deviceId"]),  
+    .index("by_user_and_status", ["userId", "status"])
+    .index("by_device", ["deviceId"]),
 
   serviceStatus: defineTable({
     phoneNumber: v.string(),

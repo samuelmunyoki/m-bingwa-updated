@@ -4964,6 +4964,44 @@ export const getOnlineBridgeTransactionStats = httpAction(
   }
 );
 
+// One-time cleanup: soft-delete transactions stranded in "Executing" for > 5 min (or ?olderThanMs).
+// GET/POST with ?userId=... (required). Only touches status === "Executing".
+export const cleanupStaleExecutingTransactions = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const userId = url.searchParams.get("userId");
+      const olderThanParam = url.searchParams.get("olderThanMs");
+      const olderThanMs = olderThanParam ? Number(olderThanParam) : undefined;
+
+      if (!userId) {
+        return new Response(JSON.stringify({ error: "Missing userId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const result = await ctx.runMutation(
+        api.features.onlineBridge.cleanupStaleExecutingTransactions,
+        olderThanMs && !Number.isNaN(olderThanMs)
+          ? { userId, olderThanMs }
+          : { userId }
+      );
+
+      return new Response(JSON.stringify({ status: "success", ...result }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("cleanupStaleExecutingTransactions error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
 export const updateServiceStatus = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed");
