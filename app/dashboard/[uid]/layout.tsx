@@ -5,9 +5,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Mobile: min-height + vertical scroll so content isn't clipped; w-full + overflow-x-hidden avoids
+  // the sideways scrollbar that w-screen causes. Desktop (md+): original fixed-viewport, no-scroll shell.
   return (
     <div
-      className={`h-screen w-screen overflow-hidden flex flex-col align-center bg-gray-100/30`}
+      className={`min-h-screen w-full overflow-x-hidden overflow-y-auto md:h-screen md:w-screen md:overflow-hidden flex flex-col bg-gray-100/30`}
     >
       <AuthenticationChangeProvider>{children}</AuthenticationChangeProvider>
     </div>

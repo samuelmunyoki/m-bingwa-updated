@@ -87,7 +87,13 @@ export const sendBalanceCheckPush = action({
           body: JSON.stringify({
             message: {
               token: fcmRecord.token,
-              data: { type: "check_balance", requestId, userId, simSlot },
+              // sentAt lets the phone measure FCM delivery latency (received - sentAt). FCM data
+              // values must be strings.
+              data: { type: "check_balance", requestId, userId, simSlot, sentAt: String(Date.now()) },
+              // HIGH priority: deliver immediately and wake the device from Doze/App-Standby.
+              // Without this, a data-only message defaults to NORMAL priority and can be held/batched
+              // for seconds-to-minutes while the phone is idle — the main cause of the slow response.
+              android: { priority: "high" },
             },
           }),
         }

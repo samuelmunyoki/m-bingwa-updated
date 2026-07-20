@@ -4808,6 +4808,42 @@ export const getOnlineBridgeTransactions = httpAction(
 );
 
 /**
+ * POST /api/online-bridge/transactions/by-ids/   body: { ids: string[] }
+ * Returns the current state of just the given transactions (bounded fetch — no full-history scan).
+ */
+export const getOnlineBridgeTransactionsByIds = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { ids } = body;
+
+      if (!ids || !Array.isArray(ids)) {
+        return new Response(
+          JSON.stringify({ error: "Missing or invalid ids array" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionsByIds,
+        { ids }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionsByIdsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
  * GET /api/online-bridge/transactions/pending/
  * Get pending Online Bridge transactions for a receiver
  */

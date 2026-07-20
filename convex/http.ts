@@ -71,6 +71,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   deleteTotalCommission,
   createOnlineBridgeTransaction,
   getOnlineBridgeTransactions,
+  getOnlineBridgeTransactionsByIds,
   getPendingOnlineBridgeTransactions,
   updateOnlineBridgeTransactionStatus,
   deleteOnlineBridgeTransaction,
@@ -914,6 +915,16 @@ http.route({
   path: "/api/online-bridge/transactions/",
   method: "GET",
   handler: getOnlineBridgeTransactions,
+});
+
+/**
+ * POST /api/online-bridge/transactions/by-ids/
+ * Get the current state of specific transactions (bounded fetch by ids)
+ */
+http.route({
+  path: "/api/online-bridge/transactions/by-ids/",
+  method: "POST",
+  handler: getOnlineBridgeTransactionsByIds,
 });
 
 /**

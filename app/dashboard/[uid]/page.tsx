@@ -388,7 +388,7 @@ export default function Dashboard() {
   return (
     <div
       className={cn(
-        "md:rounded-lg shadow-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 flex-1 border border-neutral-200 dark:border-neutral-700 overflow-hidden m-1 md:m-10 h-[80%]"
+        "md:rounded-lg shadow-md flex flex-col md:flex-row bg-gray-100 dark:bg-neutral-800 flex-1 border border-neutral-200 dark:border-neutral-700 overflow-visible md:overflow-hidden m-1 md:m-10 h-auto md:h-[80%]"
       )}
     >
       <Sidebar open={open} setOpen={setOpen} animate={false}>
@@ -506,7 +506,7 @@ export default function Dashboard() {
           </div>
         </SidebarBody>
       </Sidebar>
-      <div className="z-30 w-full !h-full flex flex-col gap-2 lg:mr-1 lg:pb-1 overflow-hidden">
+      <div className="z-30 w-full h-auto md:!h-full flex flex-col gap-2 lg:mr-1 lg:pb-1 overflow-visible md:overflow-hidden">
         <BalanceBar
           userId={activeProfileId}
           phoneSelector={
