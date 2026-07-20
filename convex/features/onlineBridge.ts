@@ -416,12 +416,33 @@ export const getOnlineBridgeTransactionById = query({
   },
   handler: async (ctx, args) => {
     const transaction = await ctx.db.get(args.transactionId);
-    
+
     if (!transaction || transaction.isDeleted) {
       return null;
     }
 
     return transaction;
+  },
+});
+
+/**
+ * Get the current state of specific transactions by their ids (bounded — the caller passes only the
+ * handful it cares about, e.g. the sender's local in-flight rows). Used by the sender to fetch the
+ * final status of the few that just resolved, without ever pulling its whole history.
+ */
+export const getOnlineBridgeTransactionsByIds = query({
+  args: {
+    ids: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const results: any[] = [];
+    for (const idStr of args.ids) {
+      const id = ctx.db.normalizeId("onlineBridgeTransactions", idStr);
+      if (!id) continue;
+      const tx = await ctx.db.get(id);
+      if (tx && !tx.isDeleted) results.push(tx);
+    }
+    return results;
   },
 });
 
@@ -443,6 +464,37 @@ export const getPendingOnlineBridgeTransactions = query({
       .collect();
 
     return transactions;
+  },
+});
+
+/**
+ * Get a SENDER's in-progress transactions (Pending + Executing) by userId.
+ *
+ * This is the subscription source for the sender's phone: it's a small, bounded set (the few
+ * still-in-flight ones), so subscribing to it is cheap and never scans history. When the receiver
+ * resolves a transaction (Success/Failed/Rejected), it leaves this set and Convex fires the
+ * subscription — that's how the sender learns to refresh that one row locally. Mirrors
+ * getPendingOnlineBridgeTransactions (the receiver's subscription), keyed by userId instead of phone.
+ */
+export const getInProgressOnlineBridgeTransactionsForUser = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const pending = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_user_and_status", (q) =>
+        q.eq("userId", args.userId).eq("status", "Pending")
+      )
+      .collect();
+    const executing = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_user_and_status", (q) =>
+        q.eq("userId", args.userId).eq("status", "Executing")
+      )
+      .collect();
+
+    return [...pending, ...executing].filter((t) => !t.isDeleted);
   },
 });
 
