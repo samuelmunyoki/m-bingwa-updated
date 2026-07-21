@@ -79,8 +79,8 @@ export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
     <div className="w-full px-1 mt-4">
       {/* Results bar */}
       {step === "done" && isCompleted && latestRequest ? (
-        <div className="flex items-center justify-between bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-2 shadow-sm">
-          <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-4 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
             <div>
               <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Airtime Balance</p>
               <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{latestRequest.airtimeBalance} KSh</p>
@@ -144,8 +144,8 @@ export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => !noDevice && setStep("select_sim")}
               disabled={noDevice}
