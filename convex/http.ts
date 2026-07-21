@@ -72,6 +72,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   createOnlineBridgeTransaction,
   getOnlineBridgeTransactions,
   getOnlineBridgeTransactionsByIds,
+  getOnlineBridgeTransactionsBySmsContents,
   getPendingOnlineBridgeTransactions,
   updateOnlineBridgeTransactionStatus,
   deleteOnlineBridgeTransaction,
@@ -925,6 +926,16 @@ http.route({
   path: "/api/online-bridge/transactions/by-ids/",
   method: "POST",
   handler: getOnlineBridgeTransactionsByIds,
+});
+
+/**
+ * POST /api/online-bridge/transactions/by-sms/
+ * Heal orphaned sender rows: fetch server copies matching given M-Pesa messages (bounded)
+ */
+http.route({
+  path: "/api/online-bridge/transactions/by-sms/",
+  method: "POST",
+  handler: getOnlineBridgeTransactionsBySmsContents,
 });
 
 /**

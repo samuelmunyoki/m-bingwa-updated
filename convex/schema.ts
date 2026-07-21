@@ -434,7 +434,10 @@ export default defineSchema({
     .index("by_receiver_and_status", ["receiverPhoneNumber", "status"])
     .index("by_status", ["status"])
     .index("by_user_and_status", ["userId", "status"])
-    .index("by_device", ["deviceId"]),
+    .index("by_device", ["deviceId"])
+    // Heals orphaned sender rows: match a phone's stuck local copy to its real server doc by the
+    // (unique) M-Pesa message text when the ids differ. Bounded, exact lookup — no history scan.
+    .index("by_user_and_sms", ["userId", "smsContent"]),
 
   serviceStatus: defineTable({
     phoneNumber: v.string(),

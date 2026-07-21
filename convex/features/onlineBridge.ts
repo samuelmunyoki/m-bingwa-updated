@@ -304,6 +304,28 @@ export const isOnlineWhitelisted = query({
 /**
  * Create a new Online Bridge transaction
  */
+/**
+ * Idempotency guard for creates. A bridge transaction is uniquely identified by (userId + the M-Pesa
+ * message text) — the message carries a unique Safaricom code that never repeats. The sender's phone
+ * may re-send the same create when a response is lost, so before inserting we look for an existing,
+ * non-deleted copy and reuse it. Without this, one payment becomes two server rows and the receiver
+ * dials the same bundle twice. Uses the by_user_and_sms index (exact, bounded — no history scan).
+ */
+async function findExistingBridgeTransactionId(
+  ctx: any,
+  userId: string,
+  smsContent: string
+): Promise<Id<"onlineBridgeTransactions"> | null> {
+  const existing = await ctx.db
+    .query("onlineBridgeTransactions")
+    .withIndex("by_user_and_sms", (q: any) =>
+      q.eq("userId", userId).eq("smsContent", smsContent)
+    )
+    .filter((q: any) => q.eq(q.field("isDeleted"), false))
+    .first();
+  return existing ? existing._id : null;
+}
+
 export const createOnlineBridgeTransaction = mutation({
   args: {
     userId: v.string(),
@@ -318,7 +340,11 @@ export const createOnlineBridgeTransaction = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    
+
+    // Idempotent: if this exact transaction already exists, return it instead of duplicating.
+    const existingId = await findExistingBridgeTransactionId(ctx, args.userId, args.smsContent);
+    if (existingId) return existingId;
+
     const transactionId = await ctx.db.insert("onlineBridgeTransactions", {
       userId: args.userId,
       senderPhoneNumber: args.senderPhoneNumber,
@@ -441,6 +467,37 @@ export const getOnlineBridgeTransactionsByIds = query({
       if (!id) continue;
       const tx = await ctx.db.get(id);
       if (tx && !tx.isDeleted) results.push(tx);
+    }
+    return results;
+  },
+});
+
+/**
+ * Match a SENDER's stuck local rows to their real server copies by M-Pesa message text.
+ *
+ * The sender's phone can be left with an orphaned local copy (temporary "local_" id, still "Pending")
+ * when a background create's response is lost — the server actually saved the transaction under its own
+ * id, but the phone never swapped. Those orphans can't be reconciled by id (the ids differ). Every
+ * M-Pesa message carries a unique Safaricom code, so smsContent uniquely identifies the same
+ * transaction on both sides. Bounded, exact lookups on the by_user_and_sms index (one per supplied
+ * message) — never a history scan.
+ */
+export const getOnlineBridgeTransactionsBySmsContents = query({
+  args: {
+    userId: v.string(),
+    smsContents: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (args.smsContents.length === 0) return [];
+    const results: any[] = [];
+    for (const sms of args.smsContents) {
+      const rows = await ctx.db
+        .query("onlineBridgeTransactions")
+        .withIndex("by_user_and_sms", (q) =>
+          q.eq("userId", args.userId).eq("smsContent", sms)
+        )
+        .collect();
+      for (const tx of rows) if (!tx.isDeleted) results.push(tx);
     }
     return results;
   },
@@ -616,6 +673,18 @@ export const batchCreateOnlineBridgeTransactions = mutation({
     const transactionIds: Id<"onlineBridgeTransactions">[] = [];
 
     for (const transaction of args.transactions) {
+      // Idempotent: skip re-creating one that already exists (same user + M-Pesa message) — the
+      // buffered resync can re-send rows the server already has; without this it double-dials.
+      const existingId = await findExistingBridgeTransactionId(
+        ctx,
+        transaction.userId,
+        transaction.smsContent
+      );
+      if (existingId) {
+        transactionIds.push(existingId);
+        continue;
+      }
+
       const transactionId = await ctx.db.insert("onlineBridgeTransactions", {
         userId: transaction.userId,
         senderPhoneNumber: transaction.senderPhoneNumber,
