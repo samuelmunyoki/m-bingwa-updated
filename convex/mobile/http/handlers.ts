@@ -4844,6 +4844,43 @@ export const getOnlineBridgeTransactionsByIds = httpAction(
 );
 
 /**
+ * POST /api/online-bridge/transactions/by-sms/   body: { userId: string, smsContents: string[] }
+ * Match a sender's orphaned local rows to their real server copies by M-Pesa message text
+ * (bounded — indexed by userId+smsContent, no full-history scan).
+ */
+export const getOnlineBridgeTransactionsBySmsContents = httpAction(
+  async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { userId, smsContents } = body;
+
+      if (!userId || !smsContents || !Array.isArray(smsContents)) {
+        return new Response(
+          JSON.stringify({ error: "Missing or invalid userId/smsContents" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionsBySmsContents,
+        { userId, smsContents }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionsBySmsContentsHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
  * GET /api/online-bridge/transactions/pending/
  * Get pending Online Bridge transactions for a receiver
  */
