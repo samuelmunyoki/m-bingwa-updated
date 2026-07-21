@@ -873,7 +873,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
           // this is why the web read e.g. 22 while the app correctly showed 0.
           const pending    = mpesaTodayCounts?.pending    ?? 0;
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Successful */}
               <button
                 onClick={() => {
@@ -955,7 +955,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
             verifiedFilter !== "all",
           ].filter(Boolean).length;
           return (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowFilterPanel(true)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-neutral-200 bg-white dark:bg-neutral-900 dark:border-neutral-700 text-sm text-neutral-600 dark:text-neutral-300 hover:border-neutral-300 transition-all"
