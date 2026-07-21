@@ -93,6 +93,28 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
     if (steps.some(s => s.type === "INPUT" && !s.inputValue.trim())) {
       setError("INPUT steps require a value (e.g. {phone})."); return;
     }
+    // Guard against malformed patterns being shipped to the app. The app compiles each
+    // SELECT pattern as a regex and reads the menu number from capture group 1, so a bad
+    // pattern (e.g. a dropped "(" like "\d+).*Airtime") throws at runtime and the step
+    // silently fails on every device. Catch both failure classes here, at save time.
+    for (const s of steps) {
+      if (s.type === "SELECT" && s.pattern.trim()) {
+        const p = s.pattern.trim();
+        try {
+          new RegExp(p, "i");
+        } catch {
+          setError(`Step "${s.inputKey.trim() || "?"}": "${p}" is not a valid pattern. Please fix it.`);
+          return;
+        }
+        // The app needs the menu number captured in a group, e.g. (\d+).*Airtime.
+        // Trick: appending "|" makes the regex match "", so exec("").length - 1 = group count.
+        const groupCount = new RegExp(p + "|").exec("")!.length - 1;
+        if (groupCount < 1) {
+          setError(`Step "${s.inputKey.trim() || "?"}": pattern must capture the number in a group, e.g. (\\d+).*Airtime`);
+          return;
+        }
+      }
+    }
     setSaving(true); setError("");
     try {
       const payload = {
