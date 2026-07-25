@@ -100,7 +100,7 @@ export default function AppConfigMain({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden">
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
       <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-6 overflow-hidden">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium">
           App Config

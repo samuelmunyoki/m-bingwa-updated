@@ -144,18 +144,20 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-col gap-4 p-4 w-full h-full overflow-y-auto">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">
-          Pattern Offers
-        </h2>
-        <button
-          onClick={openCreate}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
-        >
-          + New Offer
-        </button>
-      </div>
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
+      <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-4 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-neutral-700 dark:text-neutral-200">
+            Pattern Offers
+          </h2>
+          <button
+            onClick={openCreate}
+            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700"
+          >
+            + New Offer
+          </button>
+        </div>
+        <div className="flex flex-col gap-4 flex-1 overflow-y-auto">
 
       {/* Form */}
       {showForm && (
@@ -269,14 +271,14 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
         {offers?.length === 0 && <p className="text-sm text-neutral-400">No pattern offers yet.</p>}
         {offers?.map(offer => (
           <div key={offer._id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200">{offer.name}</p>
-                  <p className="text-xs text-neutral-400">{offer.ussdBaseCode} · KES {offer.price} · {offer.offerType} · {offer.steps.length} step{offer.steps.length !== 1 ? "s" : ""}</p>
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200 truncate">{offer.name}</p>
+                  <p className="text-xs text-neutral-400 truncate">{offer.ussdBaseCode} · KES {offer.price} · {offer.offerType} · {offer.steps.length} step{offer.steps.length !== 1 ? "s" : ""}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => toggleActive({ id: offer._id, isActive: !offer.isActive })}
                   className={`text-xs px-2 py-1 rounded-full font-medium ${offer.isActive ? "bg-green-100 text-green-700" : "bg-neutral-100 text-neutral-500"}`}>
@@ -295,7 +297,7 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
             </div>
 
             {expandedId === offer._id && (
-              <div className="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3">
+              <div className="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3 overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-neutral-400 text-left">
@@ -324,6 +326,8 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
             )}
           </div>
         ))}
+        </div>
+        </div>
       </div>
     </div>
   );

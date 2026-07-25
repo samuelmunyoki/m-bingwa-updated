@@ -95,6 +95,7 @@ const CHANGELOG = [
 
 export default function DownloadMain() {
   return (
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
     <ScrollArea className="w-full h-full">
       <div className="p-4 lg:p-8 space-y-8 max-w-4xl mx-auto pb-16">
 
@@ -256,5 +257,6 @@ export default function DownloadMain() {
 
       </div>
     </ScrollArea>
+    </div>
   );
 }
