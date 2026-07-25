@@ -76,13 +76,13 @@ export function StoreDashboard({ userId }: { userId: string }) {
     <div className="w-full max-w-2xl flex flex-col gap-5">
 
       {/* Store Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-lg bg-neutral-100 flex items-center justify-center shrink-0">
             <Store className="h-5 w-5 text-neutral-500" />
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-neutral-800">{store.storeName}</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold text-neutral-800 truncate">{store.storeName}</h2>
             <p className="text-xs text-muted-foreground">Store overview</p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export function StoreDashboard({ userId }: { userId: string }) {
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <EditStoreModal userId={userId} store={store} onStoreUpdated={() => {}} />
         <Button
           variant={confirmDelete ? "destructive" : "outline"}

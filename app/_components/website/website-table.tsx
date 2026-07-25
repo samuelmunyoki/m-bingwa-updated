@@ -388,7 +388,7 @@ export function BundlesTable({ userId }: { userId: string }) {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between py-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 py-1">
         <p className="text-xs text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length > 0
             ? `${table.getFilteredSelectedRowModel().rows.length} of ${table.getFilteredRowModel().rows.length} selected`
