@@ -193,10 +193,10 @@ const USSD_DialerMain = ({ user }: Props) => {
               ) : ussdHistory.length === 0 ? (
                 <p className="text-sm text-neutral-400">No USSD history yet.</p>
               ) : (
-                {/* Plain scroll div, not Radix ScrollArea — see website.tsx: ScrollArea's Viewport
-                    wraps children in a display:table element to measure overflow, which forces
-                    itself as wide as this table's unwrapped columns, then Root's overflow-hidden
-                    clips everything past the visible edge with no way to reach it. */}
+                // Plain scroll div, not Radix ScrollArea — see website.tsx: ScrollArea's Viewport
+                // wraps children in a display:table element to measure overflow, which forces
+                // itself as wide as this table's unwrapped columns, then Root's overflow-hidden
+                // clips everything past the visible edge with no way to reach it.
                 <div className="h-[300px] w-full overflow-auto rounded-md border border-neutral-200 dark:border-neutral-700">
                   <Table>
                     <TableHeader>
