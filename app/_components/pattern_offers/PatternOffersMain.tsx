@@ -271,7 +271,7 @@ export default function PatternOffersMain({ userId }: { userId: string }) {
         {offers?.length === 0 && <p className="text-sm text-neutral-400">No pattern offers yet.</p>}
         {offers?.map(offer => (
           <div key={offer._id} className="border border-neutral-200 dark:border-neutral-700 rounded-lg bg-white dark:bg-neutral-900">
-            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-4 py-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-neutral-700 dark:text-neutral-200 truncate">{offer.name}</p>
