@@ -5157,7 +5157,7 @@ export const getMultipleServiceStatuses = httpAction(async (ctx, request) => {
 export const updateDeviceHeartbeat = httpAction(async (ctx, request) => {
   try {
     const body = await request.json();
-    const { phoneNumber, userId } = body;
+    const { phoneNumber, userId, batteryLevel } = body;
 
     if (!phoneNumber || !userId) {
       return new Response(
@@ -5173,6 +5173,7 @@ export const updateDeviceHeartbeat = httpAction(async (ctx, request) => {
     const result = await ctx.runMutation(api.features.serviceStatus.updateDeviceHeartbeat, {
       phoneNumber,
       userId,
+      ...(typeof batteryLevel === "number" ? { batteryLevel } : {}),
     });
 
     return new Response(
