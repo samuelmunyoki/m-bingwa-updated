@@ -480,9 +480,10 @@ export default defineSchema({
     phoneNumber: v.string(),
     lastSeenTimestamp: v.number(),
     userId: v.string(),
+    batteryLevel: v.optional(v.number()),
   })
    .index("by_phoneNumber", ["phoneNumber"])
-   .index("by_userId", ["userId"]), 
+   .index("by_userId", ["userId"]),
 
   onlineServiceStatus: defineTable({
     phoneNumber: v.string(),

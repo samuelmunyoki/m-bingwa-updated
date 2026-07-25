@@ -91,6 +91,7 @@ export const updateDeviceHeartbeat = mutation({
   args: {
     phoneNumber: v.string(),
     userId: v.string(),
+    batteryLevel: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -105,6 +106,7 @@ export const updateDeviceHeartbeat = mutation({
       // Update existing
       await ctx.db.patch(existing._id, {
         lastSeenTimestamp: now,
+        ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
       });
       return existing._id;
     } else {
@@ -113,9 +115,27 @@ export const updateDeviceHeartbeat = mutation({
         phoneNumber: args.phoneNumber,
         userId: args.userId,
         lastSeenTimestamp: now,
+        ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
       });
       return id;
     }
+  },
+});
+
+// Query to get a device's latest heartbeat (battery level + last-seen) for one user
+export const getDeviceHeartbeatByUserId = query({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const heartbeat = await ctx.db
+      .query("deviceHeartbeats")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .first();
+    return {
+      batteryLevel: heartbeat?.batteryLevel ?? null,
+      lastSeenTimestamp: heartbeat?.lastSeenTimestamp ?? null,
+    };
   },
 });
 

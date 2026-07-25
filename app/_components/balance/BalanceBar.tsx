@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useEffect, useRef, useState } from "react";
-import { Smartphone, RefreshCw, Eye, EyeOff, Play, Pause } from "lucide-react";
+import { Smartphone, RefreshCw, Eye, EyeOff, Play, Pause, BatteryWarning, Battery } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BalanceBarProps {
@@ -21,6 +21,8 @@ export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
   const createRequest = useMutation(api.features.balanceRequests.createBalanceRequest);
   const sendPush = useAction(api.actions.fcm.sendBalanceCheckPush);
   const serviceStatus = useQuery(api.features.serviceStatus.getServiceStatusByUserId, { userId });
+  const deviceHeartbeat = useQuery(api.features.serviceStatus.getDeviceHeartbeatByUserId, { userId });
+  const batteryLevel = deviceHeartbeat?.batteryLevel ?? null;
   const setServiceStatus = useMutation(api.features.serviceStatus.setServiceStatusByUserId);
   const [isToggling, setIsToggling] = useState(false);
 
@@ -171,25 +173,45 @@ export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
             )}
           </div>
 
-          <button
-            onClick={handleServiceToggle}
-            disabled={isToggling || serviceStatus === undefined}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200",
-              serviceStatus?.isServiceRunning
-                ? "bg-red-500 hover:bg-red-600 text-white shadow-sm hover:shadow-md"
-                : "bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 shadow-sm"
+          <div className="flex flex-wrap items-center gap-2">
+            {batteryLevel !== null && (
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold",
+                  batteryLevel <= 20
+                    ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400"
+                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                )}
+                title="Phone's battery level"
+              >
+                {batteryLevel <= 20 ? (
+                  <BatteryWarning className="h-4 w-4" />
+                ) : (
+                  <Battery className="h-4 w-4" />
+                )}
+                {batteryLevel}%
+              </div>
             )}
-          >
-            {isToggling ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : serviceStatus?.isServiceRunning ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-            {serviceStatus?.isServiceRunning ? "Stop Service" : "Start Service"}
-          </button>
+            <button
+              onClick={handleServiceToggle}
+              disabled={isToggling || serviceStatus === undefined}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200",
+                serviceStatus?.isServiceRunning
+                  ? "bg-red-500 hover:bg-red-600 text-white shadow-sm hover:shadow-md"
+                  : "bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 shadow-sm"
+              )}
+            >
+              {isToggling ? (
+                <RefreshCw className="h-4 w-4 animate-spin" />
+              ) : serviceStatus?.isServiceRunning ? (
+                <Pause className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {serviceStatus?.isServiceRunning ? "Stop Service" : "Start Service"}
+            </button>
+          </div>
         </div>
       )}
     </div>
