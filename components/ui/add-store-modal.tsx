@@ -97,7 +97,7 @@ export function AddStoreModal({ userId, onStoreCreated }: AddStoreModalProps) {
       <DialogTrigger asChild>
         <Button>Add Store</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] rounded-md">
+      <DialogContent className="sm:max-w-[425px] rounded-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Store</DialogTitle>
         </DialogHeader>

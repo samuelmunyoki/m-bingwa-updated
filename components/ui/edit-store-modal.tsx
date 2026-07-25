@@ -110,7 +110,7 @@ export function EditStoreModal({
       <DialogTrigger asChild>
         <Button variant="outline">Edit Store</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px] rounded-md">
+      <DialogContent className="sm:max-w-[425px] rounded-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Store</DialogTitle>
         </DialogHeader>
