@@ -3,7 +3,7 @@
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useEffect, useRef, useState } from "react";
-import { Smartphone, RefreshCw, Eye, EyeOff, Play, Pause, BatteryWarning, Battery } from "lucide-react";
+import { Smartphone, RefreshCw, Eye, EyeOff, Play, Pause, BatteryWarning, BatteryLow, BatteryMedium, BatteryFull } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BalanceBarProps {
@@ -12,6 +12,77 @@ interface BalanceBarProps {
 }
 
 type Step = "idle" | "select_sim" | "loading" | "done";
+
+// Phone's live battery level, reported via the app's existing heartbeat ping.
+// Icon, color, and the little fill bar all shift with charge — "--%" with a dim/empty
+// look whenever the value hasn't landed yet (older app build, or not reported yet).
+function BatteryGauge({ level }: { level: number | null }) {
+  const tier =
+    level === null ? "unknown" :
+    level <= 15 ? "critical" :
+    level <= 40 ? "low" :
+    level <= 75 ? "medium" : "high";
+
+  const theme = {
+    unknown: {
+      Icon: BatteryWarning,
+      badge: "bg-neutral-100 dark:bg-neutral-800",
+      text: "text-neutral-400 dark:text-neutral-500",
+      bar: "bg-neutral-300 dark:bg-neutral-600",
+      track: "bg-neutral-200 dark:bg-neutral-700",
+    },
+    critical: {
+      Icon: BatteryWarning,
+      badge: "bg-red-50 dark:bg-red-950/30",
+      text: "text-red-600 dark:text-red-400",
+      bar: "bg-red-500",
+      track: "bg-red-100 dark:bg-red-900/40",
+    },
+    low: {
+      Icon: BatteryLow,
+      badge: "bg-amber-50 dark:bg-amber-950/30",
+      text: "text-amber-600 dark:text-amber-400",
+      bar: "bg-amber-500",
+      track: "bg-amber-100 dark:bg-amber-900/40",
+    },
+    medium: {
+      Icon: BatteryMedium,
+      badge: "bg-blue-50 dark:bg-blue-950/30",
+      text: "text-blue-600 dark:text-blue-400",
+      bar: "bg-blue-500",
+      track: "bg-blue-100 dark:bg-blue-900/40",
+    },
+    high: {
+      Icon: BatteryFull,
+      badge: "bg-emerald-50 dark:bg-emerald-950/30",
+      text: "text-emerald-600 dark:text-emerald-400",
+      bar: "bg-emerald-500",
+      track: "bg-emerald-100 dark:bg-emerald-900/40",
+    },
+  }[tier];
+
+  const { Icon } = theme;
+
+  return (
+    <div
+      className={cn("flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors duration-300", theme.badge)}
+      title={level !== null ? `Phone battery: ${level}%` : "Battery level not reported yet"}
+    >
+      <Icon className={cn("h-4 w-4 shrink-0", theme.text)} />
+      <div className="flex flex-col gap-1 min-w-[42px]">
+        <span className={cn("text-sm font-bold leading-none tabular-nums", theme.text)}>
+          {level !== null ? `${level}%` : "--%"}
+        </span>
+        <div className={cn("h-1 w-full rounded-full overflow-hidden", theme.track)}>
+          <div
+            className={cn("h-full rounded-full transition-all duration-700 ease-out", theme.bar)}
+            style={{ width: level !== null ? `${level}%` : "0%" }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
   const [step, setStep] = useState<Step>("idle");
@@ -174,24 +245,7 @@ export default function BalanceBar({ userId, phoneSelector }: BalanceBarProps) {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {batteryLevel !== null && (
-              <div
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold",
-                  batteryLevel <= 20
-                    ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400"
-                    : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-                )}
-                title="Phone's battery level"
-              >
-                {batteryLevel <= 20 ? (
-                  <BatteryWarning className="h-4 w-4" />
-                ) : (
-                  <Battery className="h-4 w-4" />
-                )}
-                {batteryLevel}%
-              </div>
-            )}
+            <BatteryGauge level={batteryLevel} />
             <button
               onClick={handleServiceToggle}
               disabled={isToggling || serviceStatus === undefined}
