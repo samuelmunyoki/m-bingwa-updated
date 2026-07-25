@@ -1131,7 +1131,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
             </div>
           </div>
         ) : (
-          <ScrollArea className="flex-1 pr-2">
+          <ScrollArea className="flex-1 md:pr-2">
             <div className="flex flex-col gap-2 pb-4">
               {filtered.map((tx) => (
                 <TransactionCard
