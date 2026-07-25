@@ -97,7 +97,7 @@ export default function DownloadMain() {
   return (
     <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
     <ScrollArea className="w-full h-full">
-      <div className="p-4 lg:p-8 space-y-8 max-w-4xl mx-auto pb-16">
+      <div className="p-2 lg:p-8 space-y-8 max-w-4xl mx-auto pb-16">
 
         {/* ── Header card ─────────────────────────────── */}
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1E232E] to-[#252C3A] border border-neutral-200 dark:border-neutral-700 p-8 text-center">
