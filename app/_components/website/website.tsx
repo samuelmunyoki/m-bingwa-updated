@@ -1,6 +1,5 @@
 import React from "react";
 import { BundlesTable } from "./website-table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 const WebsiteMain = ({ userId }: { userId: string }) => {
   return (
@@ -9,9 +8,13 @@ const WebsiteMain = ({ userId }: { userId: string }) => {
         <h2 className="text-lg text-neutral-600 font-medium">
           Website Management
         </h2>
-        <ScrollArea className="flex-1">
+        {/* Plain scroll div, not Radix ScrollArea: ScrollArea's Viewport wraps children in a
+            display:table element to measure overflow, which forces itself as wide as the offers
+            table's full unwrapped column width — then Root's overflow-hidden clips everything
+            past that (toolbar's Columns button, Add Bundle button) with no way to reach it. */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
           <BundlesTable userId={userId} />
-        </ScrollArea>
+        </div>
       </div>
     </div>
   );
