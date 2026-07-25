@@ -371,16 +371,37 @@ function TransactionCard({
   })();
   const retryCountdown = useRetryCountdown(scheduledRetryAt);
 
+  // Touch has no hover, so long-press is the mobile equivalent of the desktop hover-to-select
+  // affordance: hold ~450ms to enter selection mode, instead of the browser's native text-select.
+  const longPressTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFired = React.useRef(false);
+  const clearLongPress = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  };
+  const handleTouchStart = () => {
+    longPressFired.current = false;
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      onSelect(tx.id);
+    }, 450);
+  };
+
   return (
     <div
-      className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer
+      className={`group relative flex items-center gap-3 px-4 py-3 rounded-xl border transition-all cursor-pointer select-none touch-manipulation
         ${selected
           ? "border-neutral-400 bg-neutral-50 dark:bg-neutral-800"
           : "border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 hover:border-neutral-300 hover:shadow-sm"
         }`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={clearLongPress}
+      onTouchMove={clearLongPress}
+      onTouchCancel={clearLongPress}
       onClick={() => {
+        if (longPressFired.current) { longPressFired.current = false; return; }
         if (selectionMode) { onSelect(tx.id); return; }
         onClick(tx);
       }}
@@ -405,8 +426,8 @@ function TransactionCard({
       </div>
 
       {/* Right side */}
-      <div className="shrink-0 flex flex-col items-end gap-1.5">
-        <div className="flex items-center gap-1.5">
+      <div className="shrink-0 flex flex-col items-end gap-1.5 max-w-[45%]">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${typeConf.pill}`}>
             {typeConf.label}
           </span>
@@ -1057,7 +1078,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
 
         {/* Selection bar */}
         {selectionMode && (
-          <div className="flex items-center gap-3 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl">
+          <div className="flex flex-wrap items-center gap-3 px-4 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl">
             <span className="text-sm font-medium text-neutral-700">{selected.size} selected</span>
             <button onClick={selectAll} className="text-xs text-blue-600 hover:underline">Select all</button>
             <button onClick={clearSelection} className="text-xs text-neutral-400 hover:text-neutral-600 flex items-center gap-1">
