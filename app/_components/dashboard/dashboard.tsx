@@ -11,7 +11,7 @@ const DashboardMain = () => {
           Admin Dashboard
         </h2>
         <ScrollArea className="w-full h-[80%] lg:h-auto">
-          <div className="flex flex-col h-full items-center min-h-[80%] overflow-hidden px-1 md:px-3">
+          <div className="flex flex-col h-full items-center min-h-[80%] overflow-hidden px-0 md:px-3">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full min-h-[80%] lg:h-[80%]">
               <div className="w-full h-full min-h-[300px] md:min-h-[300px]">
                 <MyChart />
