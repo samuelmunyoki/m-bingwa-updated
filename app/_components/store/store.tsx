@@ -5,7 +5,7 @@ import { Store } from "lucide-react";
 
 const StoreMain = ({ userId }: { userId: string }) => {
   return (
-    <div className="flex flex-1 h-full overflow-hidden px-2 md:px-0">
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
       <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-2 overflow-hidden">
         <div className="flex items-center gap-2 mb-2">
           <Store className="w-5 h-5 text-neutral-500" />

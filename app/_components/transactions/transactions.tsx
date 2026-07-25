@@ -875,8 +875,8 @@ function TransactionsMainInner({ userId }: { userId: string }) {
   };
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden">
-      <div className="p-3 md:p-3 md:pl-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full overflow-hidden">
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
+      <div className="p-2 md:p-3 md:pl-6 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900 flex flex-col gap-2 flex-1 w-full overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-2">
