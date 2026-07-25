@@ -125,7 +125,7 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
   };
 
   return (
-    <div className="flex flex-1 h-full">
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
       <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-6">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium">
           Settings
@@ -221,22 +221,22 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
                   return (
                     <div
                       key={profile._id}
-                      className="flex items-center justify-between px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800"
+                      className="flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800"
                     >
-                      <div className="flex items-center gap-3">
-                        <Smartphone className="h-4 w-4 text-neutral-400" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Smartphone className="h-4 w-4 text-neutral-400 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
                               {profile.displayName || profile.phoneNumber}
                             </p>
                             {isPrimary && (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400">
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 flex-shrink-0">
                                 Primary
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-neutral-400">{profile.phoneNumber}</p>
+                          <p className="text-xs text-neutral-400 truncate">{profile.phoneNumber}</p>
                         </div>
                       </div>
                       {!isPrimary && (
@@ -244,7 +244,7 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDelete(profile.profileId)}
-                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                          className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 flex-shrink-0"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
