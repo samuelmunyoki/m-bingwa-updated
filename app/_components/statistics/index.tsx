@@ -831,7 +831,7 @@ export default function StatisticsMain({ userId }: { userId: string }) {
 
   return (
     <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
-      <div className="p-4 md:p-5 md:pl-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900 flex flex-col gap-4 flex-1 w-full overflow-hidden">
+      <div className="p-3 md:p-5 md:pl-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900 flex flex-col gap-4 flex-1 w-full overflow-hidden">
 
         {/* Header */}
         <div className="flex items-center gap-2 flex-shrink-0">
