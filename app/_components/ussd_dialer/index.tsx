@@ -30,7 +30,6 @@ import { Phone, Loader2, CheckCircle2, XCircle, Timer, Smartphone, Globe } from 
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/convex/_generated/api";
 
 interface DbUser {
@@ -118,7 +117,7 @@ const USSD_DialerMain = ({ user }: Props) => {
   };
 
   return (
-    <div className="flex flex-1 w-full">
+    <div className="flex flex-1 w-full overflow-hidden px-1.5 md:px-0">
       <div className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 flex flex-col flex-1 w-full gap-2">
         <h2 className="text-lg text-neutral-600 dark:text-neutral-300 font-medium mb-4">
           USSD Dialer
@@ -194,7 +193,11 @@ const USSD_DialerMain = ({ user }: Props) => {
               ) : ussdHistory.length === 0 ? (
                 <p className="text-sm text-neutral-400">No USSD history yet.</p>
               ) : (
-                <ScrollArea className="h-[300px] w-full">
+                {/* Plain scroll div, not Radix ScrollArea — see website.tsx: ScrollArea's Viewport
+                    wraps children in a display:table element to measure overflow, which forces
+                    itself as wide as this table's unwrapped columns, then Root's overflow-hidden
+                    clips everything past the visible edge with no way to reach it. */}
+                <div className="h-[300px] w-full overflow-auto rounded-md border border-neutral-200 dark:border-neutral-700">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -245,7 +248,7 @@ const USSD_DialerMain = ({ user }: Props) => {
                       })}
                     </TableBody>
                   </Table>
-                </ScrollArea>
+                </div>
               )}
             </CardContent>
           </Card>
