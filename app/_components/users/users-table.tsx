@@ -40,7 +40,6 @@ import { cn } from "@/lib/utils";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { toast } from "sonner";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { UserSubscriptionModal } from "@/components/ui/user-modal";
 
 type User = {
@@ -249,7 +248,7 @@ export function UsersTable() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 placeholder="Filter emails..."
                 value={
@@ -290,7 +289,7 @@ export function UsersTable() {
           </div>
         </CardContent>
       </Card>
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-auto">
         <Table className="w-full !h-[300px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -338,7 +337,7 @@ export function UsersTable() {
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 !mb-6">
+      <div className="flex flex-wrap items-center justify-end gap-2 !mb-6">
         <div className="text-sm text-muted-foreground">
           Page {table.getState().pagination.pageIndex + 1} of{" "}
           {table.getPageCount()}
