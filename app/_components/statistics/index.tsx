@@ -830,7 +830,7 @@ export default function StatisticsMain({ userId }: { userId: string }) {
   const isLoading = commData === undefined || msgData === undefined;
 
   return (
-    <div className="flex flex-1 h-full overflow-hidden">
+    <div className="flex flex-1 h-full overflow-hidden px-1.5 md:px-0">
       <div className="p-4 md:p-5 md:pl-8 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white -m-[1px] dark:bg-neutral-900 flex flex-col gap-4 flex-1 w-full overflow-hidden">
 
         {/* Header */}
