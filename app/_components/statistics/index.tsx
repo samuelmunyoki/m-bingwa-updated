@@ -761,7 +761,7 @@ function Overview({ stats, period, onNavigate }: { stats: Stats; period: Period;
         <StatCard
           title="Top Bundles"
           value={topBundleName}
-          subtitle={`${bundlesSoldInDefaultBucket} sold ${periodRangeLabel(period)}`}
+          subtitle={`${bundlesSoldInDefaultBucket.toLocaleString()} sold ${periodRangeLabel(period)}`}
           bars={stats.bundleBars.length ? stats.bundleBars : [{ label: "", value: 0 }]}
           color="#3B82F6"
           gradient="bg-gradient-to-br from-blue-50 to-indigo-100/90 dark:from-blue-950/40 dark:to-indigo-900/20"
@@ -771,7 +771,7 @@ function Overview({ stats, period, onNavigate }: { stats: Stats; period: Period;
         />
         <StatCard
           title="Total Sales"
-          value={`${stats.weekSales}`}
+          value={stats.weekSales.toLocaleString()}
           subtitle="successful this week"
           bars={stats.salesBars}
           color="#F59E0B"
