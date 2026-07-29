@@ -679,7 +679,11 @@ function computeStats(
       map[r.offerType].count += r.salesCount;
     });
     const byTypeArr = Object.entries(map).map(([type, d]) => ({ type, ...d })).sort((a, b) => b.amount - a.amount);
-    return { label, start, end, byType: byTypeArr, total: byTypeArr.reduce((t, d) => t + d.amount, 0) };
+    // Total comes from the same source as the fixed Today/Week/Month tiles (commInRange),
+    // not from summing byType — the by-type breakdown table can drift from the totals table
+    // (e.g. older records without offer-type tagging), which would otherwise make "This
+    // Month" and "Details" (Monthly, default bucket) show two different numbers.
+    return { label, start, end, byType: byTypeArr, total: sumComm(commInRange(start, end)) };
   });
   const nowTsComm = Date.now();
   const foundCommIdx = commissionBuckets.findIndex(b => nowTsComm >= b.start && nowTsComm < b.end);
@@ -920,7 +924,7 @@ function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period
     <div className="flex flex-col gap-3 pb-4">
       <SummaryNumbers items={[
         { label: "Top Seller", value: topSellerName === "—" ? "—" : topSellerName.length > 10 ? topSellerName.slice(0, 10) + "…" : topSellerName, color: "text-blue-600" },
-        { label: "Total Sold", value: `${selectedBucket?.total ?? 0}`, color: "text-blue-600" },
+        { label: "Total Sold", value: (selectedBucket?.total ?? 0).toLocaleString(), color: "text-blue-600" },
         { label: "Bundles", value: `${selectedBucket?.entries.length ?? 0}`, color: "text-neutral-500" },
       ]} />
       <ChartCard title="Comparison">
@@ -945,7 +949,7 @@ function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period
               rank={i + 1}
               label={name}
               sub={i === 0 ? "Top seller" : `${Math.round((count / selectedBucket.total) * 100)}% of sales`}
-              right={`${count} sold`}
+              right={`${count.toLocaleString()} sold`}
             />
           ))
         )}
@@ -1007,7 +1011,7 @@ function SalesDetail({ stats, period, onPeriodChange }: { stats: Stats; period: 
                 rank={i + 1}
                 label={row.label}
                 sub={`${Math.round((row.count / bucketDenominator) * 100)}% of total`}
-                right={`${row.count}`}
+                right={`${row.count.toLocaleString()}`}
                 statusBadge={row.status}
               />
             ))
