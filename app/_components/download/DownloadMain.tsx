@@ -168,7 +168,7 @@ export default function DownloadMain() {
         </div>
 
         {/* ── Stats row ───────────────────────────────── */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { value: "12+", label: "Features" },
             { value: "< 3s", label: "Bundle Delivery" },

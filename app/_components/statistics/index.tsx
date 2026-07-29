@@ -34,6 +34,11 @@ interface BarItem {
   fullName?: string;
 }
 
+// Validated categorical palette (see dataviz skill) — fixed rank-to-color assignment,
+// shared with the Android app so a given bundle's rank always renders the same color.
+const BUNDLE_SERIES_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
+const BUNDLE_OTHER_COLOR = "#9CA3AF";
+
 // ─── Date Helpers ─────────────────────────────────────────────────────────────
 
 function getTodayMidnight(): number {
@@ -65,20 +70,19 @@ function get6MonthsAgoStart(): number {
 
 // ─── Bar Generator (matches Android: Daily/Weekly/Monthly) ────────────────────
 
-function genBars(
-  period: Period,
-  getValue: (start: number, end: number) => number
-): BarItem[] {
+// Bucket boundaries for the Daily/Weekly/Monthly toggle — shared by genBars and
+// the per-bundle stacked chart so both slice time identically.
+function getBuckets(period: Period): { label: string; start: number; end: number }[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayTs = today.getTime();
 
   if (period === 0) {
-    // Daily: 7 bars Sun–Sat for the current week
+    // Daily: 7 buckets Sun–Sat for the current week
     const weekStart = todayTs - today.getDay() * 86_400_000;
     return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((label, i) => {
       const s = weekStart + i * 86_400_000;
-      return { label, value: getValue(s, s + 86_400_000) };
+      return { label, start: s, end: s + 86_400_000 };
     });
   }
 
@@ -95,7 +99,7 @@ function genBars(
       const endDay = Math.min(daysInMonth, w * 7 - firstDayOfWeek);
       const s = new Date(year, month, startDay).getTime();
       const e = new Date(year, month, endDay + 1).getTime();
-      return { label: `W${w}`, value: getValue(s, e) };
+      return { label: `W${w}`, start: s, end: e };
     });
   }
 
@@ -105,8 +109,29 @@ function genBars(
     const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
     const s = d.getTime();
     const e = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
-    return { label: names[d.getMonth()], value: getValue(s, e) };
+    return { label: names[d.getMonth()], start: s, end: e };
   });
+}
+
+function genBars(
+  period: Period,
+  getValue: (start: number, end: number) => number
+): BarItem[] {
+  return getBuckets(period).map(({ label, start, end }) => ({ label, value: getValue(start, end) }));
+}
+
+// Overall range a period covers (matches Android's getBundleTimeRange): Daily→current
+// week, Weekly→current month, Monthly→past 6 months. Used for period-aware bundle ranking.
+function getPeriodRange(period: Period, weekStart: number, weekEnd: number, monthStart: number, monthEnd: number): [number, number] {
+  if (period === 0) return [weekStart, weekEnd];
+  if (period === 1) return [monthStart, monthEnd];
+  return [get6MonthsAgoStart(), Date.now()];
+}
+
+function periodRangeLabel(period: Period): string {
+  if (period === 0) return "this week";
+  if (period === 1) return "this month";
+  return "the last 6 months";
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -203,6 +228,96 @@ function FullChart({
   );
 }
 
+// ─── Stacked Bundle Comparison Chart ───────────────────────────────────────────
+// Shared shape with Android's TopBundles chart: top-5 bundles each get a fixed
+// rank-based color (see BUNDLE_SERIES_COLORS), everything else folds into "Other".
+
+function StackedBundleTooltip({
+  active,
+  payload,
+  label,
+  series,
+}: {
+  active?: boolean;
+  payload?: { dataKey: string; value: number }[];
+  label?: string;
+  series: { key: string; name: string; color: string }[];
+}) {
+  if (!active || !payload?.length) return null;
+  const rows = payload.filter((p) => p.value > 0);
+  if (rows.length === 0) return null;
+  return (
+    <div className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 shadow-xl text-xs min-w-[130px]">
+      <p className="font-bold text-neutral-700 dark:text-neutral-200 mb-1">{label}</p>
+      <div className="flex flex-col gap-1">
+        {rows.map((p) => {
+          const s = series.find((s) => s.key === p.dataKey);
+          if (!s) return null;
+          return (
+            <div key={p.dataKey} className="flex items-center justify-between gap-3">
+              <span className="flex items-center gap-1.5 text-neutral-500 truncate max-w-[110px]">
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                {s.name}
+              </span>
+              <span className="font-semibold text-neutral-700 dark:text-neutral-200">{p.value}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StackedBundleChart({
+  data,
+  series,
+}: {
+  data: Record<string, string | number>[];
+  series: { key: string; name: string; color: string }[];
+}) {
+  if (series.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[170px] text-xs text-neutral-400">
+        No bundle sales for this period.
+      </div>
+    );
+  }
+  return (
+    <div>
+      <ResponsiveContainer width="100%" height={170}>
+        <BarChart data={data} barCategoryGap="25%" margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 10, fill: "#9CA3AF" }}
+            axisLine={false}
+            tickLine={false}
+            interval={data.length > 14 ? Math.floor(data.length / 7) : 0}
+          />
+          <Tooltip content={<StackedBundleTooltip series={series} />} cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }} />
+          {series.map((s, i) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              stackId="bundles"
+              fill={s.color}
+              radius={i === series.length - 1 ? [4, 4, 0, 0] as [number, number, number, number] : [0, 0, 0, 0] as [number, number, number, number]}
+            />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="flex flex-wrap gap-x-3 gap-y-1.5 mt-2 justify-center">
+        {series.map((s) => (
+          <div key={s.key} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+            <span className="text-[11px] text-neutral-500 dark:text-neutral-400 truncate max-w-[110px]">{s.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
 interface StatCardProps {
@@ -235,7 +350,7 @@ function StatCard({ title, value, subtitle, bars, color, gradient, border, icon,
         <ChevronRight className="h-4 w-4 text-neutral-300 group-hover:text-neutral-500 group-hover:translate-x-0.5 transition-all duration-200" />
       </div>
       <div className="mt-0.5">
-        <div className="text-2xl font-bold text-neutral-800 dark:text-neutral-100 leading-tight tracking-tight">{value}</div>
+        <div className="text-2xl font-bold text-neutral-800 dark:text-neutral-100 leading-tight tracking-tight truncate">{value}</div>
         <div className="text-xs text-neutral-400 mt-0.5 font-medium truncate">{subtitle}</div>
       </div>
       <MiniBar data={bars} color={color} />
@@ -448,25 +563,54 @@ function computeStats(
   const successRate = totalMsgs > 0 ? Math.round((salesByStatus["successful"] ?? 0) / totalMsgs * 100) : 0;
 
   // ── Bundles ─────────────────────────────────────────────────────────────────
+  // Ranking now follows the Daily/Weekly/Monthly toggle (matches Android) instead of
+  // always being locked to the current calendar week.
+  const [bundleRangeStart, bundleRangeEnd] = getPeriodRange(period, weekStart, weekEnd, monthStart, monthEnd);
   const bundleMap: Record<string, number> = {};
-  daysInRange(weekStart, weekEnd).forEach(d => {
+  daysInRange(bundleRangeStart, bundleRangeEnd).forEach(d => {
     Object.entries(d.offerCounts).forEach(([name, count]) => {
       bundleMap[name] = (bundleMap[name] ?? 0) + count;
     });
   });
   const bundleEntries = Object.entries(bundleMap).sort((a, b) => b[1] - a[1]);
   const topBundle: [string, number] = bundleEntries[0] ?? ["—", 0];
+  const bundleTotalInPeriod = bundleEntries.reduce((t, [, c]) => t + c, 0);
   const bundleBars: BarItem[] = bundleEntries.slice(0, 6).map(([name, count]) => ({
     label: name.length > 7 ? name.slice(0, 7) + "…" : name,
     value: count,
     fullName: name,
   }));
 
-  const bundleBarsChart = genBars(period, (s, e) => successCountIn(s, e));
-
-  const todayBundles = successCountIn(todayStart, todayEnd);
-  const weekBundles = weekSales;
-  const monthBundles = monthSales;
+  // Stacked per-bundle comparison: top 5 bundles (by total in the selected range) each
+  // get their own series/color; everything else folds into a single "Other" series.
+  const TOP_N = 5;
+  const topBundleNames = bundleEntries.slice(0, TOP_N).map(([name]) => name);
+  const hasOtherBundles = bundleEntries.length > TOP_N;
+  const bundleSeries: { key: string; name: string; color: string }[] = topBundleNames.map((name, i) => ({
+    key: `s${i}`,
+    name,
+    color: BUNDLE_SERIES_COLORS[i],
+  }));
+  if (hasOtherBundles) {
+    bundleSeries.push({ key: "other", name: "Other", color: BUNDLE_OTHER_COLOR });
+  }
+  const bundleStackedBars: Record<string, string | number>[] = getBuckets(period).map(({ label, start, end }) => {
+    const row: Record<string, string | number> = { label };
+    const bucketOfferCounts: Record<string, number> = {};
+    daysInRange(start, end).forEach(d => {
+      Object.entries(d.offerCounts).forEach(([name, count]) => {
+        bucketOfferCounts[name] = (bucketOfferCounts[name] ?? 0) + count;
+      });
+    });
+    topBundleNames.forEach((name, i) => { row[`s${i}`] = bucketOfferCounts[name] ?? 0; });
+    if (hasOtherBundles) {
+      const otherTotal = Object.entries(bucketOfferCounts)
+        .filter(([name]) => !topBundleNames.includes(name))
+        .reduce((t, [, c]) => t + c, 0);
+      row.other = otherTotal;
+    }
+    return row;
+  });
 
   // ── AutoSaver ───────────────────────────────────────────────────────────────
   const autoInRange = (s: number, e: number) => auto.filter(r => r.day >= s && r.day < e);
@@ -504,8 +648,7 @@ function computeStats(
     // Sales
     todaySales, weekSales, monthSales, salesBars, salesByStatus, totalMsgs, successRate,
     // Bundles
-    topBundle, bundleEntries, bundleBars, bundleBarsChart,
-    todayBundles, weekBundles, monthBundles,
+    topBundle, bundleEntries, bundleBars, bundleTotalInPeriod, bundleSeries, bundleStackedBars,
     // AutoSaver
     todaySaved, weekSaved, monthSaved, totalSkipped, autoSaverBars,
     // By type
@@ -517,7 +660,7 @@ type Stats = ReturnType<typeof computeStats>;
 
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
-function Overview({ stats, onNavigate }: { stats: Stats; onNavigate: (v: View) => void }) {
+function Overview({ stats, period, onNavigate }: { stats: Stats; period: Period; onNavigate: (v: View) => void }) {
   return (
     <div className="flex flex-col gap-3 pb-4">
       {/* Commission Banner */}
@@ -558,7 +701,7 @@ function Overview({ stats, onNavigate }: { stats: Stats; onNavigate: (v: View) =
         <StatCard
           title="Top Bundles"
           value={stats.topBundle[0] === "—" ? "—" : stats.topBundle[0]}
-          subtitle={`${stats.weekBundles} sold this week`}
+          subtitle={`${stats.bundleTotalInPeriod} sold ${periodRangeLabel(period)}`}
           bars={stats.bundleBars.length ? stats.bundleBars : [{ label: "", value: 0 }]}
           color="#3B82F6"
           gradient="bg-gradient-to-br from-blue-50 to-indigo-100/90 dark:from-blue-950/40 dark:to-indigo-900/20"
@@ -686,14 +829,14 @@ function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period
     <div className="flex flex-col gap-3 pb-4">
       <SummaryNumbers items={[
         { label: "Top Seller", value: stats.topBundle[0] === "—" ? "—" : stats.topBundle[0].length > 10 ? stats.topBundle[0].slice(0, 10) + "…" : stats.topBundle[0], color: "text-blue-600" },
-        { label: "Total Sold", value: `${stats.weekBundles}`, color: "text-blue-600" },
+        { label: "Total Sold", value: `${stats.bundleTotalInPeriod}`, color: "text-blue-600" },
         { label: "Bundles", value: `${stats.bundleEntries.length}`, color: "text-neutral-500" },
       ]} />
-      <ChartCard title="Progress">
+      <ChartCard title="Comparison">
         <div className="flex justify-end mb-3">
           <PeriodToggle period={period} onChange={onPeriodChange} />
         </div>
-        <FullChart data={stats.bundleBarsChart} color="#3B82F6" />
+        <StackedBundleChart data={stats.bundleStackedBars} series={stats.bundleSeries} />
       </ChartCard>
       <ListCard title="Details">
         {stats.bundleEntries.length === 0 ? (
@@ -704,7 +847,7 @@ function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period
               key={i}
               rank={i + 1}
               label={name}
-              sub={i === 0 ? "Top seller" : `${Math.round((count / stats.weekBundles) * 100)}% of sales`}
+              sub={i === 0 ? "Top seller" : `${Math.round((count / stats.bundleTotalInPeriod) * 100)}% of sales`}
               right={`${count} sold`}
             />
           ))
@@ -856,7 +999,7 @@ export default function StatisticsMain({ userId }: { userId: string }) {
           {isLoading ? (
             <LoadingState />
           ) : view === "overview" ? (
-            <Overview stats={stats} onNavigate={setView} />
+            <Overview stats={stats} period={period} onNavigate={setView} />
           ) : view === "commission" ? (
             <CommissionDetail stats={stats} period={period} onPeriodChange={setPeriod} />
           ) : view === "airtime" ? (

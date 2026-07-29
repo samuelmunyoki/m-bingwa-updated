@@ -426,7 +426,7 @@ function TransactionCard({
       </div>
 
       {/* Right side */}
-      <div className="shrink-0 flex flex-col items-end gap-1.5 max-w-[45%]">
+      <div className="shrink-0 flex flex-col items-end gap-1.5">
         <div className="flex flex-wrap items-center justify-end gap-1.5">
           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${typeConf.pill}`}>
             {typeConf.label}

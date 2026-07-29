@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useState, useCallback, useRef } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
   Dialog,
@@ -99,12 +99,6 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
   const timeInputRef = useRef<HTMLInputElement>(null);
 
   const updateBundle = useMutation(api.features.bundles.updateBundle);
-  const modeSettings = useQuery(api.features.userModeSettings.getUserModeSettings, { userId: bundle.userId });
-
-  const isNormalMode = modeSettings?.isNormalMode ?? true;
-  const isMultiSessionAvailable = modeSettings?.isAdvancedMode ?? false;
-  const isSimpleUSSDAvailable = modeSettings?.isSimpleMode ?? false;
-  const showProcessingOptions = !isNormalMode;
 
   const clearError = useCallback(() => {
     if (error) setError(null);
@@ -267,59 +261,46 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
           {/* Processing Type */}
           <div className="space-y-2">
             <Label>Processing Type</Label>
-            {showProcessingOptions ? (
-              <>
-                {isMultiSessionAvailable && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="isMultiSession"
-                      checked={isMultiSession}
-                      onCheckedChange={(c) => handleMultiSessionChange(c === true)}
-                    />
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="isMultiSession" className="cursor-pointer font-normal">Multi-Session</Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            Multi-step USSD automation that navigates through multiple dialog screens.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </div>
-                )}
-                {isSimpleUSSDAvailable && (
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="isSimpleUSSD"
-                      checked={isSimpleUSSD}
-                      onCheckedChange={(c) => handleSimpleUSSDChange(c === true)}
-                    />
-                    <div className="flex items-center gap-1">
-                      <Label htmlFor="isSimpleUSSD" className="cursor-pointer font-normal">Simple USSD</Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            Single-step USSD execution with no session management.
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-start gap-2 rounded-md border p-3 bg-blue-50 text-blue-700 border-blue-200 text-xs">
-                <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                <span>Normal Mode is active — USSD processing options are disabled. Change the mode on your device to enable Multi-Session or Simple USSD.</span>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isMultiSession"
+                checked={isMultiSession}
+                onCheckedChange={(c) => handleMultiSessionChange(c === true)}
+              />
+              <div className="flex items-center gap-1">
+                <Label htmlFor="isMultiSession" className="cursor-pointer font-normal">Multi-Session</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      Multi-step USSD automation that navigates through multiple dialog screens.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-            )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isSimpleUSSD"
+                checked={isSimpleUSSD}
+                onCheckedChange={(c) => handleSimpleUSSDChange(c === true)}
+              />
+              <div className="flex items-center gap-1">
+                <Label htmlFor="isSimpleUSSD" className="cursor-pointer font-normal">Simple USSD</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      Single-step USSD execution with no session management.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            </div>
           </div>
 
           {/* Response Validator — only when Multi-Session */}

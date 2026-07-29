@@ -124,6 +124,8 @@ async function sendSkipSmsWithRetry(ctx: any, phoneNumber: string, smsContent: s
         service: "STORE",
       });
 
+      console.log(`SKIP SMS attempt ${attempt} raw gateway response:`, JSON.stringify(response));
+
       if (response.status === "success" && response.data?.responses?.[0]?.["response-code"] === 200) {
         return true;
       }

@@ -1,15 +1,62 @@
 import { v } from "convex/values";
 import { mutation } from "../functions";
-import { query } from "../_generated/server";
+import { query, MutationCtx } from "../_generated/server";
 import { BackendResponse } from "../../lib/custom_types";
+
+const patternStepArgs = v.object({
+  stepIndex: v.number(),
+  inputKey: v.string(),
+  inputValue: v.string(),
+  pattern: v.optional(v.string()),
+  type: v.optional(v.string()),
+  inputMode: v.optional(v.string()),
+});
+
+// Replaces (never appends to) a bundle's pattern-offer step recipe — delete-then-insert
+// within the same mutation call so it's atomic and safe to call repeatedly without ever
+// producing duplicate step rows.
+async function replaceBundleSteps(
+  ctx: MutationCtx,
+  bundleId: string,
+  userId: string,
+  steps: { stepIndex: number; inputKey: string; inputValue: string; pattern?: string; type?: string; inputMode?: string }[]
+) {
+  const existingSteps = await ctx.db
+    .query("patternOfferSteps")
+    .withIndex("by_bundleId", (q) => q.eq("bundleId", bundleId))
+    .collect();
+  for (const step of existingSteps) {
+    await ctx.db.delete(step._id);
+  }
+  for (const step of steps) {
+    await ctx.db.insert("patternOfferSteps", { bundleId, userId, ...step });
+  }
+}
 
 export const getAllBundles = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const bundles = await ctx.db
       .query("bundles")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .collect();
+
+    return await Promise.all(
+      bundles.map(async (bundle) => {
+        const steps = await ctx.db
+          .query("patternOfferSteps")
+          .withIndex("by_bundleId", (q) => q.eq("bundleId", bundle._id.toString()))
+          .collect();
+        return {
+          ...bundle,
+          patternSteps: steps
+            .sort((a, b) => a.stepIndex - b.stepIndex)
+            .map(({ stepIndex, inputKey, inputValue, pattern, type, inputMode }) => ({
+              stepIndex, inputKey, inputValue, pattern, type, inputMode,
+            })),
+        };
+      })
+    );
   },
 });
 
@@ -29,13 +76,15 @@ export const createBundleFromAPI = mutation({
     autoReschedule: v.optional(v.string()),
     dialingSIM: v.union(v.literal("SIM1"), v.literal("SIM2")),
     offerType: v.union(
-      v.literal("Data"), 
-      v.literal("SMS"), 
-      v.literal("Minutes"), 
+      v.literal("Data"),
+      v.literal("SMS"),
+      v.literal("Minutes"),
       v.literal("Airtime"),
       v.literal("Bundles"),
       v.literal("Other")
     ),
+    isPatternOffer: v.optional(v.boolean()),
+    patternSteps: v.optional(v.array(patternStepArgs)),
   },
   handler: async (ctx, args) => {
     const {
@@ -51,7 +100,9 @@ export const createBundleFromAPI = mutation({
       responseValidatorText = "",
       autoReschedule = "",
       dialingSIM,
-      offerType
+      offerType,
+      isPatternOffer = false,
+      patternSteps
     } = args;
 
     // Validation: Ensure only one of isMultiSession or isSimpleUSSD is true
@@ -100,8 +151,12 @@ export const createBundleFromAPI = mutation({
         responseValidatorText,
         autoReschedule,
         dialingSIM,
-        offerType
+        offerType,
+        isPatternOffer
       });
+      if (patternSteps && patternSteps.length > 0) {
+        await replaceBundleSteps(ctx, id.toString(), userId, patternSteps);
+      }
       return id.toString();
     } catch (error) {
       return null;
@@ -127,16 +182,18 @@ export const updateBundle = mutation({
     autoReschedule: v.optional(v.string()),
     dialingSIM: v.optional(v.union(v.literal("SIM1"), v.literal("SIM2"))),
     offerType: v.optional(v.union(
-      v.literal("Data"), 
-      v.literal("SMS"), 
-      v.literal("Minutes"), 
+      v.literal("Data"),
+      v.literal("SMS"),
+      v.literal("Minutes"),
       v.literal("Airtime"),
       v.literal("Bundles"),
       v.literal("Other")
     )),
+    isPatternOffer: v.optional(v.boolean()),
+    patternSteps: v.optional(v.array(patternStepArgs)),
   },
   handler: async (ctx, args) => {
-    const { id, userId, offerName, price, isMultiSession, isSimpleUSSD, responseValidatorText, ...updates } = args;
+    const { id, userId, offerName, price, isMultiSession, isSimpleUSSD, responseValidatorText, patternSteps, isPatternOffer, ...updates } = args;
 
     const existingBundle = await ctx.db.get(id);
     if (!existingBundle || existingBundle.userId !== userId) {
@@ -217,14 +274,23 @@ export const updateBundle = mutation({
     }
 
     try {
-      await ctx.db.patch(id, { 
-        offerName, 
-        price, 
+      // isPatternOffer is intentionally excluded unless the caller explicitly sent it: Convex's
+      // patch() clears a field entirely when it's given the value `undefined`, and most callers of
+      // this mutation (ordinary bundle edits — price/name/status changes) don't know about pattern
+      // offers at all and never set this arg. Including it unconditionally would silently unset
+      // isPatternOffer on every unrelated edit to a pattern-offer bundle.
+      await ctx.db.patch(id, {
+        offerName,
+        price,
         isMultiSession: finalIsMultiSession,
         isSimpleUSSD: finalIsSimpleUSSD,
         responseValidatorText: finalResponseValidatorText,
-        ...updates 
+        ...updates,
+        ...(isPatternOffer !== undefined ? { isPatternOffer } : {}),
       });
+      if (patternSteps !== undefined) {
+        await replaceBundleSteps(ctx, id.toString(), userId, patternSteps);
+      }
       return {
         status: "success",
         message: `Bundle updated successfully.`,
