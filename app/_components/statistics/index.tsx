@@ -191,10 +191,18 @@ function FullChart({
   data,
   color,
   formatter,
+  selectedIndex,
+  onBarClick,
 }: {
   data: BarItem[];
   color: string;
   formatter?: (v: number) => string;
+  // Optional click-to-select — when provided, bars become tappable and the selected one is
+  // highlighted while the rest dim (replacing the default "highlight the max bar" behavior).
+  // Plots the exact same data either way; this only adds a selection overlay. Omit both to
+  // keep a chart exactly as before (Airtime/AutoSaver stay non-interactive, unchanged).
+  selectedIndex?: number;
+  onBarClick?: (index: number) => void;
 }) {
   const max = Math.max(...data.map((d) => d.value), 1);
   return (
@@ -208,12 +216,21 @@ function FullChart({
           interval={data.length > 14 ? Math.floor(data.length / 7) : 0}
         />
         <Tooltip content={<CustomTooltip formatter={formatter} />} cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }} />
-        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+        <Bar
+          dataKey="value"
+          radius={[4, 4, 0, 0]}
+          onClick={onBarClick ? (_, index) => onBarClick(index) : undefined}
+          style={{ cursor: onBarClick ? "pointer" : undefined }}
+        >
           {data.map((d, i) => (
             <Cell
               key={i}
               fill={color}
-              opacity={d.value === max && d.value > 0 ? 1 : d.value === 0 ? 0.12 : 0.5}
+              opacity={
+                selectedIndex !== undefined
+                  ? (i === selectedIndex ? 1 : 0.35)
+                  : (d.value === max && d.value > 0 ? 1 : d.value === 0 ? 0.12 : 0.5)
+              }
             />
           ))}
         </Bar>
@@ -511,7 +528,7 @@ function LoadingState() {
 type CommRec = { day: number; totalCommissionAmount: number; totalAirtimeUsed?: number | null };
 type DayStat = { dayStart: number; successful: number; failed: number; total: number; offerCounts: Record<string, number> };
 type MsgData = { dailyStats: DayStat[]; byStatus: Record<string, number>; totalMessages: number };
-type ByTypeRec = { offerType: string; commissionAmount: number; salesCount: number };
+type ByTypeRec = { day: number; offerType: string; commissionAmount: number; salesCount: number };
 type AutoRec = { day: number; savedCount: number; skippedCount: number };
 
 function computeStats(
@@ -566,6 +583,22 @@ function computeStats(
   const salesByStatus = byStatus;
   const totalMsgs = totalMessages;
   const successRate = totalMsgs > 0 ? Math.round((salesByStatus["successful"] ?? 0) / totalMsgs * 100) : 0;
+
+  // Details drills into a single bucket (day/week/month), same pattern as Bundles/Commission —
+  // defaults to whichever bucket contains "now", chart bars are clickable to change it. Only
+  // successful/failed are tracked per-day server-side, so the bucketed Details view covers
+  // those two (matching what's realistically populated in salesByStatus above anyway).
+  type SalesBucket = { label: string; start: number; end: number; successful: number; failed: number; total: number };
+  const salesBuckets: SalesBucket[] = getBuckets(period).map(({ label, start, end }) => {
+    const days = daysInRange(start, end);
+    const successful = days.reduce((t, d) => t + d.successful, 0);
+    const failed = days.reduce((t, d) => t + d.failed, 0);
+    const total = days.reduce((t, d) => t + d.total, 0);
+    return { label, start, end, successful, failed, total };
+  });
+  const nowTsSales = Date.now();
+  const foundSalesIdx = salesBuckets.findIndex(b => nowTsSales >= b.start && nowTsSales < b.end);
+  const defaultSalesBucketIndex = foundSalesIdx === -1 ? Math.max(0, salesBuckets.length - 1) : foundSalesIdx;
 
   // ── Bundles ─────────────────────────────────────────────────────────────────
   // Details drills into a single bucket (a day under Daily, a week under Weekly, a month
@@ -635,13 +668,22 @@ function computeStats(
   const autoSaverBars = genBars(period, (s, e) => sumSaved(autoInRange(s, e)));
 
   // ── By Type ─────────────────────────────────────────────────────────────────
-  const typeMap: Record<string, { amount: number; count: number }> = {};
-  byType.forEach(r => {
-    if (!typeMap[r.offerType]) typeMap[r.offerType] = { amount: 0, count: 0 };
-    typeMap[r.offerType].amount += r.commissionAmount;
-    typeMap[r.offerType].count += r.salesCount;
+  // Details drills into a single bucket (day/week/month), same pattern as Bundles —
+  // defaults to whichever bucket contains "now", chart bars are clickable to change it.
+  type CommissionBucket = { label: string; start: number; end: number; byType: { type: string; amount: number; count: number }[]; total: number };
+  const commissionBuckets: CommissionBucket[] = getBuckets(period).map(({ label, start, end }) => {
+    const map: Record<string, { amount: number; count: number }> = {};
+    byType.filter(r => r.day >= start && r.day < end).forEach(r => {
+      if (!map[r.offerType]) map[r.offerType] = { amount: 0, count: 0 };
+      map[r.offerType].amount += r.commissionAmount;
+      map[r.offerType].count += r.salesCount;
+    });
+    const byTypeArr = Object.entries(map).map(([type, d]) => ({ type, ...d })).sort((a, b) => b.amount - a.amount);
+    return { label, start, end, byType: byTypeArr, total: byTypeArr.reduce((t, d) => t + d.amount, 0) };
   });
-  const commByType = Object.entries(typeMap).map(([type, d]) => ({ type, ...d })).sort((a, b) => b.amount - a.amount);
+  const nowTsComm = Date.now();
+  const foundCommIdx = commissionBuckets.findIndex(b => nowTsComm >= b.start && nowTsComm < b.end);
+  const defaultCommissionBucketIndex = foundCommIdx === -1 ? Math.max(0, commissionBuckets.length - 1) : foundCommIdx;
 
   // ── Percent change ───────────────────────────────────────────────────────────
   const commPctChange = lastWeekCommission > 0
@@ -657,12 +699,13 @@ function computeStats(
     todayAirtime, weekAirtime, monthAirtime, airtimeBars,
     // Sales
     todaySales, weekSales, monthSales, salesBars, salesByStatus, totalMsgs, successRate,
+    salesBuckets, defaultSalesBucketIndex,
     // Bundles
     bundleBuckets, defaultBundleBucketIndex, bundleBars, bundleSeries, bundleStackedBars,
     // AutoSaver
     todaySaved, weekSaved, monthSaved, totalSkipped, autoSaverBars,
     // By type
-    commByType,
+    commissionBuckets, defaultCommissionBucketIndex,
   };
 }
 
@@ -773,6 +816,20 @@ function Overview({ stats, period, onNavigate }: { stats: Stats; period: Period;
 // ─── Commission Detail ────────────────────────────────────────────────────────
 
 function CommissionDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
+  // Details reflects ONE selected bucket (a day/week/month bar), not a fixed range — defaults
+  // to whichever bucket contains "now", resets whenever the toggle changes. The Today/This
+  // Week/This Month tiles above stay exactly as they were (always the real calendar values).
+  const [selectedBucketIndex, setSelectedBucketIndex] = useState(stats.defaultCommissionBucketIndex);
+  useEffect(() => {
+    setSelectedBucketIndex(stats.defaultCommissionBucketIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
+  const clampedIndex = Math.min(selectedBucketIndex, stats.commissionBuckets.length - 1);
+  const selectedBucket = stats.commissionBuckets[clampedIndex];
+  const isDefaultBucket = clampedIndex === stats.defaultCommissionBucketIndex;
+  const bucketHeading = isDefaultBucket ? periodRangeLabel(period) : selectedBucket?.label ?? "";
+
   return (
     <div className="flex flex-col gap-3 pb-4">
       <SummaryNumbers items={[
@@ -784,18 +841,25 @@ function CommissionDetail({ stats, period, onPeriodChange }: { stats: Stats; per
         <div className="flex justify-end mb-3">
           <PeriodToggle period={period} onChange={onPeriodChange} />
         </div>
-        <FullChart data={stats.commBars} color="#10B981" formatter={fmtKsh} />
+        <FullChart
+          data={stats.commBars}
+          color="#10B981"
+          formatter={fmtKsh}
+          selectedIndex={clampedIndex}
+          onBarClick={setSelectedBucketIndex}
+        />
+        <p className="text-[10px] text-neutral-400 text-center mt-2">Tap a bar to see its totals below</p>
       </ChartCard>
-      <ListCard title="Details">
-        {stats.commByType.length === 0 ? (
+      <ListCard title={`Details — ${bucketHeading}`}>
+        {!selectedBucket || selectedBucket.byType.length === 0 ? (
           <EmptyState message="Commission by offer type will appear here once your device syncs." />
         ) : (
-          stats.commByType.map((item, i) => (
+          selectedBucket.byType.map((item, i) => (
             <DetailRow
               key={i}
               rank={i + 1}
               label={`${item.type} Bundles`}
-              sub={`${item.count} sale${item.count !== 1 ? "s" : ""} · ${((item.amount / stats.weekCommission) * 100).toFixed(1)}% of total`}
+              sub={`${item.count} sale${item.count !== 1 ? "s" : ""} · ${((item.amount / selectedBucket.total) * 100).toFixed(1)}% of total`}
               right={fmtKsh(item.amount)}
               typeBadge={item.type}
             />
@@ -893,40 +957,58 @@ function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period
 // ─── Sales Detail ─────────────────────────────────────────────────────────────
 
 function SalesDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
-  const statusLabels: Record<string, string> = {
-    successful: "Successful",
-    failed: "Failed",
-    pending: "Pending",
-    "not-viable": "Not Viable",
-    disabled: "Disabled",
-  };
+  // Details reflects ONE selected bucket (a day/week/month bar), not a fixed range — defaults
+  // to whichever bucket contains "now", resets whenever the toggle changes. The chart itself
+  // keeps plotting successful sales only, unchanged — this only adds a tap-to-select overlay.
+  const [selectedBucketIndex, setSelectedBucketIndex] = useState(stats.defaultSalesBucketIndex);
+  useEffect(() => {
+    setSelectedBucketIndex(stats.defaultSalesBucketIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
+  const clampedIndex = Math.min(selectedBucketIndex, stats.salesBuckets.length - 1);
+  const selectedBucket = stats.salesBuckets[clampedIndex];
+  const isDefaultBucket = clampedIndex === stats.defaultSalesBucketIndex;
+  const bucketHeading = isDefaultBucket ? periodRangeLabel(period) : selectedBucket?.label ?? "";
+  const bucketDenominator = selectedBucket ? selectedBucket.successful + selectedBucket.failed : 0;
+
   return (
     <div className="flex flex-col gap-3 pb-4">
       <SummaryNumbers items={[
-        { label: "Today", value: `${stats.todaySales}`, color: "text-amber-600" },
-        { label: "This Week", value: `${stats.weekSales}`, color: "text-amber-600" },
-        { label: "This Month", value: `${stats.monthSales}`, color: "text-neutral-500" },
+        { label: "Today", value: stats.todaySales.toLocaleString(), color: "text-amber-600" },
+        { label: "This Week", value: stats.weekSales.toLocaleString(), color: "text-amber-600" },
+        { label: "This Month", value: stats.monthSales.toLocaleString(), color: "text-neutral-500" },
       ]} />
       <ChartCard title="Progress">
         <div className="flex justify-end mb-3">
           <PeriodToggle period={period} onChange={onPeriodChange} />
         </div>
-        <FullChart data={stats.salesBars} color="#F59E0B" />
+        <FullChart
+          data={stats.salesBars}
+          color="#F59E0B"
+          selectedIndex={clampedIndex}
+          onBarClick={setSelectedBucketIndex}
+        />
+        <p className="text-[10px] text-neutral-400 text-center mt-2">Tap a bar to see its totals below</p>
       </ChartCard>
-      <ListCard title="Details">
-        {Object.keys(stats.salesByStatus).length === 0 ? (
+      <ListCard title={`Details — ${bucketHeading}`}>
+        {!selectedBucket || bucketDenominator === 0 ? (
           <EmptyState message="No transactions for this period." />
         ) : (
-          Object.entries(stats.salesByStatus)
-            .sort((a, b) => (b[1] as number) - (a[1] as number))
-            .map(([status, count], i) => (
+          [
+            { status: "successful", label: "Successful", count: selectedBucket.successful },
+            { status: "failed", label: "Failed", count: selectedBucket.failed },
+          ]
+            .filter(row => row.count > 0)
+            .sort((a, b) => b.count - a.count)
+            .map((row, i) => (
               <DetailRow
                 key={i}
                 rank={i + 1}
-                label={statusLabels[status] ?? status}
-                sub={`${Math.round(((count as number) / stats.totalMsgs) * 100)}% of total`}
-                right={`${count}`}
-                statusBadge={status}
+                label={row.label}
+                sub={`${Math.round((row.count / bucketDenominator) * 100)}% of total`}
+                right={`${row.count}`}
+                statusBadge={row.status}
               />
             ))
         )}
