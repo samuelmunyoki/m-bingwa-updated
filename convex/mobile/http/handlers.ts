@@ -205,20 +205,22 @@ export const createBundle = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body")
   }
 
-  const { 
-    userId, 
-    offerName, 
-    duration, 
-    bundlesUSSD, 
-    price, 
+  const {
+    userId,
+    offerName,
+    duration,
+    bundlesUSSD,
+    price,
     commission = 0,
-    status, 
-    isMultiSession, 
+    status,
+    isMultiSession,
     isSimpleUSSD,
     responseValidatorText = "",
     autoReschedule = "",
     dialingSIM,
-    offerType = "Data"
+    offerType = "Data",
+    isPatternOffer = false,
+    patternSteps
   } = body
 
   if (
@@ -234,6 +236,10 @@ export const createBundle = httpAction(async (ctx, request) => {
     !offerType
   ) {
     return createResponse("error", null, "Missing required fields in request body")
+  }
+
+  if (patternSteps !== undefined && !Array.isArray(patternSteps)) {
+    return createResponse("error", null, "patternSteps must be an array")
   }
 
   if (typeof price !== "number") {
@@ -357,7 +363,9 @@ export const createBundle = httpAction(async (ctx, request) => {
       responseValidatorText,
       autoReschedule,
       dialingSIM,
-      offerType
+      offerType,
+      isPatternOffer,
+      patternSteps
     })
 
     return createResponse("success", { bundleId: newBundleId }, "Bundle created successfully")
@@ -380,25 +388,34 @@ export const updateBundle = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body")
   }
 
-  const { 
-    id, 
-    userId, 
-    offerName, 
-    duration, 
-    bundlesUSSD, 
-    price, 
+  const {
+    id,
+    userId,
+    offerName,
+    duration,
+    bundlesUSSD,
+    price,
     commission,
-    status, 
-    isMultiSession, 
+    status,
+    isMultiSession,
     isSimpleUSSD,
     responseValidatorText,
     autoReschedule,
     dialingSIM,
-    offerType
+    offerType,
+    isPatternOffer,
+    patternSteps
   } = body
 
   if (!id || !userId) {
     return createResponse("error", null, "Missing required fields: id and userId")
+  }
+
+  if (patternSteps !== undefined && !Array.isArray(patternSteps)) {
+    return createResponse("error", null, "patternSteps must be an array")
+  }
+  if (isPatternOffer !== undefined && typeof isPatternOffer !== "boolean") {
+    return createResponse("error", null, "isPatternOffer must be a boolean")
   }
 
   // Validate id
@@ -548,7 +565,9 @@ export const updateBundle = httpAction(async (ctx, request) => {
       responseValidatorText: finalResponseValidatorText,
       autoReschedule: autoReschedule,
       dialingSIM: dialingSIM,
-      offerType: offerType
+      offerType: offerType,
+      isPatternOffer: isPatternOffer,
+      patternSteps: patternSteps
     })
 
     return createResponse("success", null, "Bundle updated successfully")

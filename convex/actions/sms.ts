@@ -62,7 +62,7 @@ export const sendSMS = action({
 
       await ctx.runMutation(api.features.sms.updateSMS, {
         smsId: args.smsId,
-        messageId: messageid,
+        messageId: String(messageid),
         status: responseDescription,
         service: args.service,
       });
@@ -128,20 +128,22 @@ export const sendOTPSMS = action({
       });
 
       if (!response.ok) {
-        console.log(`SMS API Error: HTTP status ${response.status}`);
+        const bodyText = await response.text().catch(() => "<unreadable body>");
+        console.log(`SMS OTP API Error: HTTP status ${response.status} ${response.statusText}, body: ${bodyText}`);
         return {
           status: "error",
         } as BackendResponse;
       }
 
       const data = await response.json();
+      console.log(`SMS OTP API raw response body: ${JSON.stringify(data)}`);
 
       const { "response-description": responseDescription, messageid } =
         data.responses[0];
 
       await ctx.runMutation(api.features.sms.updateSMS, {
         smsId: args.smsId,
-        messageId: messageid,
+        messageId: String(messageid),
         status: responseDescription,
         service: args.service,
       });
@@ -149,7 +151,8 @@ export const sendOTPSMS = action({
         status: "success",
         data,
       } as BackendResponse;
-    } catch (error) {
+    } catch (error: any) {
+      console.error(`SMS OTP API threw: ${error?.message}`, error?.stack);
       await ctx.runMutation(api.features.sms.updateSMS, {
         smsId: args.smsId,
         status: "Errored",

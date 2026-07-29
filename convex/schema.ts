@@ -35,14 +35,33 @@ export default defineSchema({
     autoReschedule: v.optional(v.string()),
     dialingSIM: v.union(v.literal("SIM1"), v.literal("SIM2")),
     offerType: v.optional(v.union(
-    v.literal("Data"), 
-    v.literal("SMS"), 
-    v.literal("Minutes"), 
+    v.literal("Data"),
+    v.literal("SMS"),
+    v.literal("Minutes"),
     v.literal("Airtime"),
     v.literal("Bundles"),
     v.literal("Other"))
   ),
+    // True only for bundles whose multi-step USSD recipe lives in patternOfferSteps
+    // (added via the app's Smart Offers catalog). Plain multi-session bundles created
+    // manually never set this and never have pattern steps — that's expected, not data loss.
+    isPatternOffer: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
+
+  // Per-bundle USSD menu-navigation recipe for pattern/smart offers. One row per step.
+  // Mirrors the app's local pattern_offer_steps Room table so a bundle's recipe survives
+  // the user clearing the app's local data.
+  patternOfferSteps: defineTable({
+    bundleId: v.string(),
+    userId: v.string(),
+    stepIndex: v.number(),
+    inputKey: v.string(),
+    inputValue: v.string(),
+    pattern: v.optional(v.string()),
+    type: v.optional(v.string()),
+    inputMode: v.optional(v.string()),
+  }).index("by_bundleId", ["bundleId"])
+    .index("by_user", ["userId"]),
 
   subscription_price: defineTable({
     price: v.number(),
