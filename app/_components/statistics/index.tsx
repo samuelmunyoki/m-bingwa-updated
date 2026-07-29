@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -120,18 +120,12 @@ function genBars(
   return getBuckets(period).map(({ label, start, end }) => ({ label, value: getValue(start, end) }));
 }
 
-// Overall range a period covers (matches Android's getBundleTimeRange): Daily→current
-// week, Weekly→current month, Monthly→past 6 months. Used for period-aware bundle ranking.
-function getPeriodRange(period: Period, weekStart: number, weekEnd: number, monthStart: number, monthEnd: number): [number, number] {
-  if (period === 0) return [weekStart, weekEnd];
-  if (period === 1) return [monthStart, monthEnd];
-  return [get6MonthsAgoStart(), Date.now()];
-}
-
+// Label for the default bucket under each toggle (the bucket containing "now"):
+// Daily→today, Weekly→this week, Monthly→this month.
 function periodRangeLabel(period: Period): string {
-  if (period === 0) return "this week";
-  if (period === 1) return "this month";
-  return "the last 6 months";
+  if (period === 0) return "today";
+  if (period === 1) return "this week";
+  return "this month";
 }
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -271,9 +265,13 @@ function StackedBundleTooltip({
 function StackedBundleChart({
   data,
   series,
+  selectedIndex,
+  onSelectIndex,
 }: {
   data: Record<string, string | number>[];
   series: { key: string; name: string; color: string }[];
+  selectedIndex?: number;
+  onSelectIndex?: (i: number) => void;
 }) {
   if (series.length === 0) {
     return (
@@ -282,6 +280,7 @@ function StackedBundleChart({
       </div>
     );
   }
+  const handleClick = (_: unknown, index: number) => onSelectIndex?.(index);
   return (
     <div>
       <ResponsiveContainer width="100%" height={170}>
@@ -302,7 +301,13 @@ function StackedBundleChart({
               stackId="bundles"
               fill={s.color}
               radius={i === series.length - 1 ? [4, 4, 0, 0] as [number, number, number, number] : [0, 0, 0, 0] as [number, number, number, number]}
-            />
+              onClick={handleClick}
+              style={{ cursor: onSelectIndex ? "pointer" : undefined }}
+            >
+              {data.map((_, di) => (
+                <Cell key={di} fillOpacity={selectedIndex === undefined || di === selectedIndex ? 1 : 0.35} />
+              ))}
+            </Bar>
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -563,25 +568,38 @@ function computeStats(
   const successRate = totalMsgs > 0 ? Math.round((salesByStatus["successful"] ?? 0) / totalMsgs * 100) : 0;
 
   // ── Bundles ─────────────────────────────────────────────────────────────────
-  // Ranking now follows the Daily/Weekly/Monthly toggle (matches Android) instead of
-  // always being locked to the current calendar week.
-  const [bundleRangeStart, bundleRangeEnd] = getPeriodRange(period, weekStart, weekEnd, monthStart, monthEnd);
-  const bundleMap: Record<string, number> = {};
-  daysInRange(bundleRangeStart, bundleRangeEnd).forEach(d => {
-    Object.entries(d.offerCounts).forEach(([name, count]) => {
-      bundleMap[name] = (bundleMap[name] ?? 0) + count;
+  // Details drills into a single bucket (a day under Daily, a week under Weekly, a month
+  // under Monthly) instead of summing the whole toggle range — chart bars are clickable
+  // to pick which bucket; the default is whichever bucket contains "now".
+  type BundleBucket = { label: string; start: number; end: number; entries: [string, number][]; total: number };
+  const bundleBuckets: BundleBucket[] = getBuckets(period).map(({ label, start, end }) => {
+    const map: Record<string, number> = {};
+    daysInRange(start, end).forEach(d => {
+      Object.entries(d.offerCounts).forEach(([name, count]) => {
+        map[name] = (map[name] ?? 0) + count;
+      });
     });
+    const entries = Object.entries(map).sort((a, b) => b[1] - a[1]);
+    return { label, start, end, entries, total: entries.reduce((t, [, c]) => t + c, 0) };
   });
+  const nowTs = Date.now();
+  const foundBucketIdx = bundleBuckets.findIndex(b => nowTs >= b.start && nowTs < b.end);
+  const defaultBundleBucketIndex = foundBucketIdx === -1 ? Math.max(0, bundleBuckets.length - 1) : foundBucketIdx;
+
+  // Overall period ranking — used only to pick a stable top-5 color assignment for the
+  // chart, so a bundle's color doesn't change as you click between buckets.
+  const bundleMap: Record<string, number> = {};
+  bundleBuckets.forEach(b => b.entries.forEach(([name, count]) => {
+    bundleMap[name] = (bundleMap[name] ?? 0) + count;
+  }));
   const bundleEntries = Object.entries(bundleMap).sort((a, b) => b[1] - a[1]);
-  const topBundle: [string, number] = bundleEntries[0] ?? ["—", 0];
-  const bundleTotalInPeriod = bundleEntries.reduce((t, [, c]) => t + c, 0);
   const bundleBars: BarItem[] = bundleEntries.slice(0, 6).map(([name, count]) => ({
     label: name.length > 7 ? name.slice(0, 7) + "…" : name,
     value: count,
     fullName: name,
   }));
 
-  // Stacked per-bundle comparison: top 5 bundles (by total in the selected range) each
+  // Stacked per-bundle comparison: top 5 bundles (by total across the whole period) each
   // get their own series/color; everything else folds into a single "Other" series.
   const TOP_N = 5;
   const topBundleNames = bundleEntries.slice(0, TOP_N).map(([name]) => name);
@@ -594,20 +612,12 @@ function computeStats(
   if (hasOtherBundles) {
     bundleSeries.push({ key: "other", name: "Other", color: BUNDLE_OTHER_COLOR });
   }
-  const bundleStackedBars: Record<string, string | number>[] = getBuckets(period).map(({ label, start, end }) => {
-    const row: Record<string, string | number> = { label };
-    const bucketOfferCounts: Record<string, number> = {};
-    daysInRange(start, end).forEach(d => {
-      Object.entries(d.offerCounts).forEach(([name, count]) => {
-        bucketOfferCounts[name] = (bucketOfferCounts[name] ?? 0) + count;
-      });
-    });
-    topBundleNames.forEach((name, i) => { row[`s${i}`] = bucketOfferCounts[name] ?? 0; });
+  const bundleStackedBars: Record<string, string | number>[] = bundleBuckets.map((bucket) => {
+    const bucketMap = Object.fromEntries(bucket.entries);
+    const row: Record<string, string | number> = { label: bucket.label };
+    topBundleNames.forEach((name, i) => { row[`s${i}`] = bucketMap[name] ?? 0; });
     if (hasOtherBundles) {
-      const otherTotal = Object.entries(bucketOfferCounts)
-        .filter(([name]) => !topBundleNames.includes(name))
-        .reduce((t, [, c]) => t + c, 0);
-      row.other = otherTotal;
+      row.other = bucket.entries.filter(([name]) => !topBundleNames.includes(name)).reduce((t, [, c]) => t + c, 0);
     }
     return row;
   });
@@ -648,7 +658,7 @@ function computeStats(
     // Sales
     todaySales, weekSales, monthSales, salesBars, salesByStatus, totalMsgs, successRate,
     // Bundles
-    topBundle, bundleEntries, bundleBars, bundleTotalInPeriod, bundleSeries, bundleStackedBars,
+    bundleBuckets, defaultBundleBucketIndex, bundleBars, bundleSeries, bundleStackedBars,
     // AutoSaver
     todaySaved, weekSaved, monthSaved, totalSkipped, autoSaverBars,
     // By type
@@ -661,6 +671,9 @@ type Stats = ReturnType<typeof computeStats>;
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
 function Overview({ stats, period, onNavigate }: { stats: Stats; period: Period; onNavigate: (v: View) => void }) {
+  const defaultBundleBucket = stats.bundleBuckets[stats.defaultBundleBucketIndex];
+  const topBundleName = defaultBundleBucket?.entries[0]?.[0] ?? "—";
+  const bundlesSoldInDefaultBucket = defaultBundleBucket?.total ?? 0;
   return (
     <div className="flex flex-col gap-3 pb-4">
       {/* Commission Banner */}
@@ -700,8 +713,8 @@ function Overview({ stats, period, onNavigate }: { stats: Stats; period: Period;
         />
         <StatCard
           title="Top Bundles"
-          value={stats.topBundle[0] === "—" ? "—" : stats.topBundle[0]}
-          subtitle={`${stats.bundleTotalInPeriod} sold ${periodRangeLabel(period)}`}
+          value={topBundleName}
+          subtitle={`${bundlesSoldInDefaultBucket} sold ${periodRangeLabel(period)}`}
           bars={stats.bundleBars.length ? stats.bundleBars : [{ label: "", value: 0 }]}
           color="#3B82F6"
           gradient="bg-gradient-to-br from-blue-50 to-indigo-100/90 dark:from-blue-950/40 dark:to-indigo-900/20"
@@ -825,29 +838,49 @@ function AirtimeDetail({ stats, period, onPeriodChange }: { stats: Stats; period
 // ─── Bundles Detail ───────────────────────────────────────────────────────────
 
 function BundlesDetail({ stats, period, onPeriodChange }: { stats: Stats; period: Period; onPeriodChange: (p: Period) => void }) {
+  // Details reflects ONE selected bucket (a day/week/month bar), not the whole toggle
+  // range — defaults to whichever bucket contains "now", resets whenever the toggle changes.
+  const [selectedBucketIndex, setSelectedBucketIndex] = useState(stats.defaultBundleBucketIndex);
+  useEffect(() => {
+    setSelectedBucketIndex(stats.defaultBundleBucketIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period]);
+
+  const clampedIndex = Math.min(selectedBucketIndex, stats.bundleBuckets.length - 1);
+  const selectedBucket = stats.bundleBuckets[clampedIndex];
+  const isDefaultBucket = clampedIndex === stats.defaultBundleBucketIndex;
+  const bucketHeading = isDefaultBucket ? periodRangeLabel(period) : selectedBucket?.label ?? "";
+  const topSellerName = selectedBucket?.entries[0]?.[0] ?? "—";
+
   return (
     <div className="flex flex-col gap-3 pb-4">
       <SummaryNumbers items={[
-        { label: "Top Seller", value: stats.topBundle[0] === "—" ? "—" : stats.topBundle[0].length > 10 ? stats.topBundle[0].slice(0, 10) + "…" : stats.topBundle[0], color: "text-blue-600" },
-        { label: "Total Sold", value: `${stats.bundleTotalInPeriod}`, color: "text-blue-600" },
-        { label: "Bundles", value: `${stats.bundleEntries.length}`, color: "text-neutral-500" },
+        { label: "Top Seller", value: topSellerName === "—" ? "—" : topSellerName.length > 10 ? topSellerName.slice(0, 10) + "…" : topSellerName, color: "text-blue-600" },
+        { label: "Total Sold", value: `${selectedBucket?.total ?? 0}`, color: "text-blue-600" },
+        { label: "Bundles", value: `${selectedBucket?.entries.length ?? 0}`, color: "text-neutral-500" },
       ]} />
       <ChartCard title="Comparison">
         <div className="flex justify-end mb-3">
           <PeriodToggle period={period} onChange={onPeriodChange} />
         </div>
-        <StackedBundleChart data={stats.bundleStackedBars} series={stats.bundleSeries} />
+        <StackedBundleChart
+          data={stats.bundleStackedBars}
+          series={stats.bundleSeries}
+          selectedIndex={clampedIndex}
+          onSelectIndex={setSelectedBucketIndex}
+        />
+        <p className="text-[10px] text-neutral-400 text-center mt-2">Tap a bar to see its totals below</p>
       </ChartCard>
-      <ListCard title="Details">
-        {stats.bundleEntries.length === 0 ? (
+      <ListCard title={`Details — ${bucketHeading}`}>
+        {!selectedBucket || selectedBucket.entries.length === 0 ? (
           <EmptyState message="No bundle sales for this period." />
         ) : (
-          stats.bundleEntries.map(([name, count]: [string, number], i: number) => (
+          selectedBucket.entries.map(([name, count]: [string, number], i: number) => (
             <DetailRow
               key={i}
               rank={i + 1}
               label={name}
-              sub={i === 0 ? "Top seller" : `${Math.round((count / stats.bundleTotalInPeriod) * 100)}% of sales`}
+              sub={i === 0 ? "Top seller" : `${Math.round((count / selectedBucket.total) * 100)}% of sales`}
               right={`${count} sold`}
             />
           ))
