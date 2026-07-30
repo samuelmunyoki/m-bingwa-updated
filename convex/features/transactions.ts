@@ -19,6 +19,7 @@ export const createBundlesTransaction = mutation({
     paymentMethod: v.string(),
     paymentAccount: v.string(),
     CheckoutRequestID: v.string(),
+    skipId: v.optional(v.id("pendingSkips")),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("transactions", {
@@ -32,6 +33,7 @@ export const createBundlesTransaction = mutation({
       storeOwnerId: args.storeOwnerId,
       paymentStatus: "PENDING",
       checkoutRequestID: args.CheckoutRequestID,
+      skipId: args.skipId,
     });
   },
 });
@@ -87,6 +89,14 @@ export const updateTransactionStatus = mutation({
       await ctx.db.patch(extTxn._id, {
         paymentStatus: args.paymentStatus,
       });
+      // Terminal STK result — free the paying number from the skip list right away rather
+      // than waiting on the TTL sweep in skips.ts.
+      if (extTxn.skipId) {
+        const skipEntry = await ctx.db.get(extTxn.skipId);
+        if (skipEntry && skipEntry.status !== "released") {
+          await ctx.db.patch(extTxn.skipId, { status: "released" });
+        }
+      }
     }
   },
 });

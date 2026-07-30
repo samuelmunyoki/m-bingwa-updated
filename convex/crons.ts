@@ -26,4 +26,12 @@ crons.interval(
   internal.features.appLogs.pruneOldLogsScheduled
 );
 
+// Safety net for store-purchase SKIP entries whose STK callback never arrived — without this,
+// a lost callback would leave that phone number permanently skipped. See skips.ts.
+crons.interval(
+  "Release stale store-purchase skips",
+  { minutes: 5 },
+  internal.features.skips.releaseStaleSkips
+);
+
 export default crons;

@@ -211,12 +211,28 @@ export default defineSchema({
         v.literal("ERRORED")
       )
     ),
+    skipId: v.optional(v.id("pendingSkips")),
   })
     .index("by_recieving_number_id", ["receivingNumber"])
     .index("by_paying_number_id", ["payingNumber"])
     .index("by_bundles_id", ["bundlesID"])
     .index("by_checkoutrequest_id", ["checkoutRequestID"])
     .index("by_store_owner_id", ["storeOwnerId"]),
+
+  // Store-purchase SKIP signal, delivered to the store owner's device over the live
+  // Convex push instead of an SMS — see payBundle in actions/transactions.ts.
+  pendingSkips: defineTable({
+    userId: v.string(), // store owner's user id
+    phoneNumber: v.string(), // paying number the app should skip on next M-Pesa SMS
+    status: v.union(
+      v.literal("pending"),
+      v.literal("acknowledged"),
+      v.literal("released")
+    ),
+    createdAt: v.number(),
+    acknowledgedAt: v.optional(v.number()),
+  })
+    .index("by_userId_status", ["userId", "status"]),
 
   mpesaMessages: defineTable({
   name: v.string(),
@@ -634,6 +650,36 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_userId", ["userId"]),
 
+  bridgeAutoTopupSettings: defineTable({
+    userId: v.string(),
+    isEnabled: v.boolean(),
+    updatedAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
+  bridgeAutoTopupWatch: defineTable({
+    userId: v.string(),
+    originalMessageId: v.string(),
+    phoneNumber: v.string(),
+    originalAmount: v.number(),
+    reason: v.string(), // "UNAVAILABLE" | "DISABLED"
+    failedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_user_phone", ["userId", "phoneNumber"]),
+
+  bridgeAutoTopupHistory: defineTable({
+    userId: v.string(),
+    phoneNumber: v.string(),
+    originalAmount: v.number(),
+    topupAmount: v.number(),
+    combinedAmount: v.number(),
+    bridgeOfferName: v.string(),
+    deviceName: v.string(),
+    bridgedAt: v.number(),
+    createdAt: v.number(),
+  }).index("by_userId", ["userId"]),
+
   phoneProfiles: defineTable({
     ownerId: v.string(),      // Clerk Gmail userId — primary owner
     profileId: v.string(),    // unique data key used across all data tables
@@ -681,6 +727,22 @@ export default defineSchema({
       inputMode: v.string(),
     })),
   }).index("by_isActive", ["isActive"]),
+
+  helpContent: defineTable({
+    type: v.union(
+      v.literal("heading"),
+      v.literal("text"),
+      v.literal("image"),
+      v.literal("video")
+    ),
+    content: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
+    caption: v.optional(v.string()),
+    order: v.number(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_order", ["order"]),
 
 });
 
