@@ -128,6 +128,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getBlacklistHttp,
   addToBlacklistHttp,
   removeFromBlacklistHttp,
+  getPendingSkipsHttp,
+  acknowledgeSkipHttp,
   getPendingStoreMpesaMessagesHttp,
   markStoreMessageAndroidProcessedHttp,
   getPendingWebRetriesHttp,
@@ -138,6 +140,10 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   upsertAutoTopupWatchHttp,
   deleteAutoTopupWatchHttp,
   insertAutoTopupHistoryHttp,
+  upsertBridgeAutoTopupSettingsHttp,
+  upsertBridgeAutoTopupWatchHttp,
+  deleteBridgeAutoTopupWatchHttp,
+  insertBridgeAutoTopupHistoryHttp,
   getOrCreatePhoneProfileHttp,
   getPhoneProfileByPhone,
   getServerPatternOffersHttp,
@@ -360,6 +366,18 @@ http.route({
 });
 
 // Store transaction mpesa message endpoints
+http.route({
+  pathPrefix: "/api/store-skips/pending/",
+  method: "GET",
+  handler: getPendingSkipsHttp,
+});
+
+http.route({
+  pathPrefix: "/api/store-skips/acknowledge/",
+  method: "PATCH",
+  handler: acknowledgeSkipHttp,
+});
+
 http.route({
   pathPrefix: "/api/mpesa-messages/store/pending/",
   method: "GET",
@@ -1323,6 +1341,32 @@ http.route({
   pathPrefix: "/api/autotopup/history/create/",
   method: "POST",
   handler: insertAutoTopupHistoryHttp,
+});
+
+// ── Bridge AutoTopup routes ────────────────────────────────────────────────────
+
+http.route({
+  pathPrefix: "/api/bridge-autotopup/settings/",
+  method: "POST",
+  handler: upsertBridgeAutoTopupSettingsHttp,
+});
+
+http.route({
+  pathPrefix: "/api/bridge-autotopup/watch/create/",
+  method: "POST",
+  handler: upsertBridgeAutoTopupWatchHttp,
+});
+
+http.route({
+  pathPrefix: "/api/bridge-autotopup/watch/delete/",
+  method: "POST",
+  handler: deleteBridgeAutoTopupWatchHttp,
+});
+
+http.route({
+  pathPrefix: "/api/bridge-autotopup/history/create/",
+  method: "POST",
+  handler: insertBridgeAutoTopupHistoryHttp,
 });
 
 http.route({

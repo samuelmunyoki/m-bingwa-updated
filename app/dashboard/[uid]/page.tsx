@@ -49,8 +49,9 @@ import BalanceBar from "@/app/_components/balance/BalanceBar";
 import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
 import RevenueMain from "@/app/_components/revenue/RevenueMain";
 import AppConfigMain from "@/app/_components/app_config/AppConfigMain";
-import { IconCurrencyDollar, IconDeviceMobile, IconAppWindow } from "@tabler/icons-react";
-import DownloadMain from "@/app/_components/download/DownloadMain";
+import { IconCurrencyDollar, IconAppWindow, IconHelpCircle } from "@tabler/icons-react";
+import HelpMain from "@/app/_components/help/HelpMain";
+// import DownloadMain from "@/app/_components/download/DownloadMain";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -244,10 +245,10 @@ export default function Dashboard() {
 
   const appLinks = [
     {
-      label: "Download App",
+      label: "Help",
       href: "#",
       icon: (
-        <IconDeviceMobile className="text-sky-500 h-5 w-5 flex-shrink-0" />
+        <IconHelpCircle className="text-sky-500 h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
@@ -466,9 +467,6 @@ export default function Dashboard() {
                     </Accordion>
                   </>
                 )}
-                <div className="hidden lg:block font-normal text-md text-neutral-700 mt-2">
-                  M-Bingwa App
-                </div>
                 {appLinks.map((link, idx) => (
                   <SidebarLink
                     onClick={() => {
@@ -540,7 +538,8 @@ export default function Dashboard() {
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
         {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
         {navItem === "App Config" && isAdmin && <AppConfigMain userId={userId} />}
-        {navItem === "Download App" && <DownloadMain />}
+        {navItem === "Help" && <HelpMain userId={userId} isAdmin={isAdmin} />}
+        {/* {navItem === "Download App" && <DownloadMain />} */}
       </div>
     </div>
   );

@@ -6652,6 +6652,37 @@ export const removeFromBlacklistHttp = httpAction(async (ctx, request) => {
   }
 });
 
+// Get pending store-purchase SKIP entries for Android to record locally (replaces the old
+// SKIP| SMS — see payBundle in actions/transactions.ts).
+export const getPendingSkipsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") return createResponse("error", null, "Method not allowed");
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId");
+  try {
+    const skips = await ctx.runQuery(api.features.skips.getPendingSkips, { userId });
+    return createResponse("success", { skips });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Android calls this once it has written a SKIP entry into its local skip list — payBundle is
+// polling for this before it lets the STK push fire.
+export const acknowledgeSkipHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { skipId } = body ?? {};
+  if (!skipId) return createResponse("error", null, "Missing skipId");
+  try {
+    const result = await ctx.runMutation(api.features.skips.acknowledgeSkip, { skipId });
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 // Get pending store mpesa messages for Android to process
 export const getPendingStoreMpesaMessagesHttp = httpAction(async (ctx, request) => {
   if (request.method !== "GET") return createResponse("error", null, "Method not allowed");
@@ -6810,6 +6841,71 @@ export const insertAutoTopupHistoryHttp = httpAction(async (ctx, request) => {
   try {
     const result = await ctx.runMutation(api.features.autoTopup.insertHistory, {
       userId, phoneNumber, originalAmount, topupAmount, combinedAmount, bundleDelivered, completedAt,
+    });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// ── Bridge AutoTopup HTTP handlers ──────────────────────────────────────────────
+
+export const upsertBridgeAutoTopupSettingsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, isEnabled } = body ?? {};
+  if (!userId || isEnabled === undefined) return createResponse("error", null, "Missing userId or isEnabled");
+  try {
+    const result = await ctx.runMutation(api.features.bridgeAutoTopup.upsertSettings, { userId, isEnabled });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const upsertBridgeAutoTopupWatchHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, originalMessageId, phoneNumber, originalAmount, reason, failedAt } = body ?? {};
+  if (!userId || !originalMessageId || !phoneNumber || originalAmount === undefined || !reason || !failedAt)
+    return createResponse("error", null, "Missing required fields");
+  try {
+    const result = await ctx.runMutation(api.features.bridgeAutoTopup.upsertWatch, {
+      userId, originalMessageId, phoneNumber, originalAmount, reason, failedAt,
+    });
+    return createResponse("success", { id: result.id });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const deleteBridgeAutoTopupWatchHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { id, userId } = body ?? {};
+  if (!id || !userId) return createResponse("error", null, "Missing id or userId");
+  try {
+    await ctx.runMutation(api.features.bridgeAutoTopup.deleteWatch, { id, userId });
+    return createResponse("success", null);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const insertBridgeAutoTopupHistoryHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { userId, phoneNumber, originalAmount, topupAmount, combinedAmount, bridgeOfferName, deviceName, bridgedAt } = body ?? {};
+  if (!userId || !phoneNumber || originalAmount === undefined || topupAmount === undefined ||
+      combinedAmount === undefined || !bridgeOfferName || !deviceName || !bridgedAt)
+    return createResponse("error", null, "Missing required fields");
+  try {
+    const result = await ctx.runMutation(api.features.bridgeAutoTopup.insertHistory, {
+      userId, phoneNumber, originalAmount, topupAmount, combinedAmount, bridgeOfferName, deviceName, bridgedAt,
     });
     return createResponse("success", { id: result.id });
   } catch (e: any) {
