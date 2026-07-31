@@ -6367,6 +6367,64 @@ export const updateUserProfile = httpAction(async (ctx, request) => {
   }
 });
 
+export const checkPhoneAvailabilityHttp = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const phoneNumber = url.searchParams.get("phoneNumber");
+  const userId = url.searchParams.get("userId");
+
+  if (!phoneNumber || typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
+    return createResponse("error", null, "Missing or invalid 'phoneNumber' parameter");
+  }
+  if (!userId || typeof userId !== "string") {
+    return createResponse("error", null, "Missing or invalid 'userId' parameter");
+  }
+
+  try {
+    const result = await ctx.runQuery(api.users.checkPhoneAvailability, {
+      phoneNumber,
+      requestingUserId: userId,
+    });
+    return createResponse("success", result);
+  } catch (e) {
+    return createResponse("error", null, `Failed to check phone availability: ${e}`);
+  }
+});
+
+export const changePhoneNumberHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, newPhoneNumber } = body ?? {};
+
+  if (!userId || typeof userId !== "string") {
+    return createResponse("error", null, "Missing or invalid 'userId' field");
+  }
+  if (!newPhoneNumber || typeof newPhoneNumber !== "string" || newPhoneNumber.trim().length === 0) {
+    return createResponse("error", null, "Missing or invalid 'newPhoneNumber' field");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.changePhoneNumber, {
+      userId,
+      newPhoneNumber: newPhoneNumber.trim(),
+    });
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+    return createResponse("success", { message: result.message });
+  } catch (e) {
+    return createResponse("error", null, `Failed to change phone number: ${e}`);
+  }
+});
+
 export const sendEmailTokenHttp = httpAction(async (ctx, request) => {
   if (request.method !== "POST") {
     return createResponse("error", null, "Method not allowed");

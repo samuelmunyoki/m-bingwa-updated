@@ -228,6 +228,145 @@ export const updateAgentNumber = mutation({
   },
 });
 
+// Pre-check before sending an OTP for a phone-number change — lets the app avoid
+// burning an SMS on a request that's going to be rejected anyway. The change itself
+// is still re-validated inside changePhoneNumber below (state can shift between
+// send-OTP and confirm).
+export const checkPhoneAvailability = query({
+  args: {
+    phoneNumber: v.string(),
+    requestingUserId: v.string(),
+  },
+  handler: async (ctx, { phoneNumber, requestingUserId }) => {
+    const conflict = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .first();
+
+    if (!conflict || conflict.userId === requestingUserId) {
+      return { available: true };
+    }
+
+    const activeSession = await ctx.db
+      .query("deviceSessions")
+      .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+      .filter((q) => q.eq(q.field("isActive"), true))
+      .first();
+
+    if (activeSession) {
+      return {
+        available: false,
+        reason: "active_elsewhere",
+        message: "This phone number is currently active on another device. Ask that account to log out first, then try again.",
+      };
+    }
+
+    return { available: true };
+  },
+});
+
+// Changes the calling account's phone number, reassigning it away from a dormant
+// account if one already holds it, and re-keying this account's own phone-indexed
+// backend records (device session lock, service/online status, heartbeat, primary
+// phoneProfiles entry) so they don't go stale under the old number.
+export const changePhoneNumber = mutation({
+  args: {
+    userId: v.string(),
+    newPhoneNumber: v.string(),
+  },
+  handler: async (ctx, { userId, newPhoneNumber }) => {
+    const existingUser = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+
+    if (!existingUser) {
+      return { status: "error", message: "Account not found." } as BackendResponse;
+    }
+
+    if (existingUser.phoneNumber === newPhoneNumber) {
+      return { status: "error", message: "This is already your phone number." } as BackendResponse;
+    }
+
+    const oldPhoneNumber = existingUser.phoneNumber;
+
+    const conflict = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("phoneNumber"), newPhoneNumber))
+      .first();
+
+    if (conflict && conflict._id !== existingUser._id) {
+      const activeSession = await ctx.db
+        .query("deviceSessions")
+        .withIndex("by_phone", (q) => q.eq("phoneNumber", newPhoneNumber))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .first();
+
+      if (activeSession) {
+        return {
+          status: "error",
+          message: "This phone number is currently active on another device. Ask that account to log out first, then try again.",
+        } as BackendResponse;
+      }
+
+      // Dormant account holding the number — free it up.
+      await ctx.db.patch(conflict._id, { phoneNumber: undefined });
+    }
+
+    await ctx.db.patch(existingUser._id, { phoneNumber: newPhoneNumber });
+
+    // Re-key this account's own phone-indexed records so nothing goes silently stale.
+    if (oldPhoneNumber) {
+      const session = await ctx.db
+        .query("deviceSessions")
+        .withIndex("by_phone", (q) => q.eq("phoneNumber", oldPhoneNumber))
+        .filter((q) => q.eq(q.field("isActive"), true))
+        .first();
+      if (session) {
+        await ctx.db.patch(session._id, { phoneNumber: newPhoneNumber });
+      }
+
+      const svcStatus = await ctx.db
+        .query("serviceStatus")
+        .withIndex("by_phone", (q) => q.eq("phoneNumber", oldPhoneNumber))
+        .first();
+      if (svcStatus) {
+        await ctx.db.patch(svcStatus._id, { phoneNumber: newPhoneNumber });
+      }
+
+      const onlineStatus = await ctx.db
+        .query("onlineServiceStatus")
+        .withIndex("by_phoneNumber", (q) => q.eq("phoneNumber", oldPhoneNumber))
+        .first();
+      if (onlineStatus) {
+        await ctx.db.patch(onlineStatus._id, { phoneNumber: newPhoneNumber });
+      }
+
+      const heartbeat = await ctx.db
+        .query("deviceHeartbeats")
+        .withIndex("by_phoneNumber", (q) => q.eq("phoneNumber", oldPhoneNumber))
+        .first();
+      if (heartbeat) {
+        await ctx.db.patch(heartbeat._id, { phoneNumber: newPhoneNumber });
+      }
+    }
+
+    // Re-key the primary phoneProfiles entry (profileId === ownerId identifies "primary" —
+    // a by_owner lookup alone isn't safe since a user can also own additional, non-primary
+    // profiles for extra numbers they've added).
+    const ownedProfiles = await ctx.db
+      .query("phoneProfiles")
+      .withIndex("by_owner", (q) => q.eq("ownerId", userId))
+      .collect();
+    const primaryProfile = ownedProfiles.find((p) => p.profileId === p.ownerId);
+    if (primaryProfile) {
+      await ctx.db.patch(primaryProfile._id, { phoneNumber: newPhoneNumber });
+    }
+
+    return { status: "success", message: "Phone number updated." } as BackendResponse;
+  },
+});
+
 export const activateSubscription = mutation({
   args: {
     checkoutRequestID: v.string(),
