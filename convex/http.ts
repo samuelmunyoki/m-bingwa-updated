@@ -115,6 +115,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   clearAllDataHandler,
   setAdminByEmailHttp,
   updateUserProfile,
+  checkPhoneAvailabilityHttp,
+  changePhoneNumberHttp,
   sendEmailTokenHttp,
   verifyEmailTokenHttp,
   getUserByEmailHttp,
@@ -1235,6 +1237,18 @@ http.route({
   pathPrefix: "/api/users/update-profile/",
   method: "PATCH",
   handler: updateUserProfile,
+});
+
+http.route({
+  pathPrefix: "/api/users/check-phone-availability/",
+  method: "GET",
+  handler: checkPhoneAvailabilityHttp,
+});
+
+http.route({
+  pathPrefix: "/api/users/change-phone/",
+  method: "POST",
+  handler: changePhoneNumberHttp,
 });
 
 http.route({
