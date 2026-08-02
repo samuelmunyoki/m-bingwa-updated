@@ -21,34 +21,35 @@ export const createOtp = mutation({
   },
 });
 
+// phoneNumber is optional for backward compatibility with older callers, but every
+// known caller now passes it — an unscoped code-only match let a stale, unrelated
+// unverified OTP satisfy a different phone number's verification.
 export const verifyOtp = mutation({
-  args: { otpCode: v.string() },
+  args: { otpCode: v.string(), phoneNumber: v.optional(v.string()) },
   handler: async (ctx, args) => {
-    const { otpCode } = args;
+    const { otpCode, phoneNumber } = args;
 
-    const otp = await ctx.db
+    const candidates = await ctx.db
       .query("otps")
       .withIndex("by_otp_code", (q) => q.eq("otpCode", parseInt(otpCode)))
       .order("desc")
-      .first();
+      .collect();
 
-    if (!otp || otp.otpCode !== parseInt(otpCode)) {
-      return { success: false, message: "Invalid OTP Code" };
-    }
-    if (!otp || otp.otpCode !== parseInt(otpCode)) {
-      return { success: false, message: "Invalid OTP Code" };
-    }
-    if (!otp || otp.otpCode !== parseInt(otpCode)) {
-      return { success: false, message: "Invalid OTP Code" };
-    }
+    const now = Date.now();
+    const otp = candidates.find(
+      (c) =>
+        !c.isVerified &&
+        (!phoneNumber || c.phoneNumber === phoneNumber) &&
+        (!c.expiresAt || c.expiresAt > now)
+    );
 
-    if (otp.isVerified) {
-      return { success: false, message: "Invalid OTP Code" };
+    if (!otp) {
+      return { success: false, message: "Invalid or expired OTP code." };
     }
 
     await ctx.db.patch(otp._id, { isVerified: true });
 
-    return { success: true, message: "OTP verified successfully" , userId: otp.userId};
+    return { success: true, message: "OTP verified successfully", userId: otp.userId };
   },
 });
 
@@ -79,6 +80,7 @@ export const storeVerificationOtp = internalMutation({
       phoneNumber,
       otpCode,
       isVerified: false,
+      expiresAt: Date.now() + 5 * 60 * 1000,
     });
   },
 });

@@ -175,6 +175,7 @@ export default defineSchema({
     userId: v.string(),
     otpCode: v.number(),
     isVerified: v.boolean(),
+    expiresAt: v.optional(v.number()),
   })
     .index("by_phoneNumber", ["phoneNumber"])
     .index("by_otp_code", ["otpCode"])

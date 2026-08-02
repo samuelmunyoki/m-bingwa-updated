@@ -117,6 +117,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateUserProfile,
   checkPhoneAvailabilityHttp,
   changePhoneNumberHttp,
+  sendPhoneOtpHttp,
   sendEmailTokenHttp,
   verifyEmailTokenHttp,
   getUserByEmailHttp,
@@ -1249,6 +1250,12 @@ http.route({
   pathPrefix: "/api/users/change-phone/",
   method: "POST",
   handler: changePhoneNumberHttp,
+});
+
+http.route({
+  pathPrefix: "/api/otp/send-phone/",
+  method: "POST",
+  handler: sendPhoneOtpHttp,
 });
 
 http.route({

@@ -199,7 +199,7 @@ export default function Dashboard() {
     setIsVerifyingOtp(true);
     setPhoneModalError(null);
     try {
-      const result = await verifyPhoneOtp({ otpCode: otp });
+      const result = await verifyPhoneOtp({ otpCode: otp, phoneNumber: pendingPhone });
       if (result.success) {
         await updateAgentNumber({ userId, phoneNumber: pendingPhone });
         setShowPhoneModal(false);

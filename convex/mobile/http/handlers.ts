@@ -72,10 +72,11 @@ export const verifyOtpCode = httpAction(async (ctx, request) => {
   }
 
   try {
-    const { otpCode } = body;
+    const { otpCode, phoneNumber } = body;
 
     const response = await ctx.runMutation(api.features.otps.verifyOtp, {
       otpCode,
+      phoneNumber,
     });
 
     if (response.success) {
@@ -6422,6 +6423,41 @@ export const changePhoneNumberHttp = httpAction(async (ctx, request) => {
     return createResponse("success", { message: result.message });
   } catch (e) {
     return createResponse("error", null, `Failed to change phone number: ${e}`);
+  }
+});
+
+export const sendPhoneOtpHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, phoneNumber } = body ?? {};
+
+  if (!userId || typeof userId !== "string") {
+    return createResponse("error", null, "Missing or invalid 'userId' field");
+  }
+  if (!phoneNumber || typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
+    return createResponse("error", null, "Missing or invalid 'phoneNumber' field");
+  }
+
+  try {
+    const result = await ctx.runAction(api.actions.phoneVerification.sendPhoneVerificationOtp, {
+      userId,
+      phoneNumber: phoneNumber.trim(),
+    });
+    if (!result.success) {
+      return createResponse("error", null, result.message ?? "Failed to send OTP");
+    }
+    return createResponse("success", { message: "OTP sent" });
+  } catch (e) {
+    return createResponse("error", null, `Failed to send OTP: ${e}`);
   }
 });
 
