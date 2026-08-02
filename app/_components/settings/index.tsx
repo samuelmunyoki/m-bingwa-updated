@@ -79,7 +79,7 @@ const SettingsMain = ({ user }: SettingsMainProps) => {
     }
     setIsVerifying(true);
     try {
-      const verified = await verifyOtp({ otpCode });
+      const verified = await verifyOtp({ otpCode, phoneNumber: newPhone });
       if (!verified.success) {
         toast.error(verified.message ?? "Invalid OTP");
         return;

@@ -96,15 +96,24 @@ export const updateDeviceHeartbeat = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
-    // Check if heartbeat exists
+    // Dedupe by userId (the account), NOT phoneNumber. Phone numbers can be reassigned between
+    // accounts over time (see the phone-number-change feature elsewhere in this project). Deduping
+    // by phoneNumber caused a real cross-account bug: a number that used to belong to a different,
+    // now-dormant account still had a leftover row here, and a NEW account that later took over
+    // that same number kept silently patching the OLD account's row with its own fresh battery/
+    // timestamp data — while its own row (created earlier, before the number was assigned) sat
+    // frozen forever. Matching on userId instead means each account always finds/updates its own
+    // row, regardless of what phone number is currently attached to it.
     const existing = await ctx.db
       .query("deviceHeartbeats")
-      .withIndex("by_phoneNumber", (q) => q.eq("phoneNumber", args.phoneNumber))
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .first();
 
     if (existing) {
-      // Update existing
+      // Also correct phoneNumber here in case it drifted (e.g. this account's number changed) —
+      // keeps the row's phoneNumber field truthful without needing a separate migration.
       await ctx.db.patch(existing._id, {
+        phoneNumber: args.phoneNumber,
         lastSeenTimestamp: now,
         ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
       });
@@ -128,10 +137,22 @@ export const getDeviceHeartbeatByUserId = query({
     userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const heartbeat = await ctx.db
+    // updateDeviceHeartbeat (above) dedupes writes by phoneNumber, not userId — so if this
+    // account's phoneNumber value has ever changed (SIM swap, reformatting, re-registration),
+    // a NEW row gets inserted instead of the old one being patched, leaving multiple rows for
+    // the same userId. `.first()` with no explicit order returns the OLDEST match (ascending
+    // _creationTime), which can serve a long-stale battery reading while a separate, newer row
+    // is the one actually being updated. Collect all matches and take the one with the highest
+    // lastSeenTimestamp instead — that field can't be sorted via this index directly since it
+    // only covers userId.
+    const heartbeats = await ctx.db
       .query("deviceHeartbeats")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .first();
+      .collect();
+    const heartbeat = heartbeats.reduce<typeof heartbeats[number] | null>(
+      (latest, h) => (!latest || h.lastSeenTimestamp > latest.lastSeenTimestamp ? h : latest),
+      null
+    );
     return {
       batteryLevel: heartbeat?.batteryLevel ?? null,
       lastSeenTimestamp: heartbeat?.lastSeenTimestamp ?? null,
