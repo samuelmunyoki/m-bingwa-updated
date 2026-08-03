@@ -5467,6 +5467,7 @@ export const batchCreateOnlineBridgeTransactions = httpAction(
           status: "success",
           message: `${result.count} transactions created`,
           transactionIds: result.transactionIds,
+          count: result.count,
         }),
         {
           status: 201,
