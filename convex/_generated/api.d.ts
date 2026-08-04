@@ -38,6 +38,7 @@ import type * as features_mpesa_transactions from "../features/mpesa_transaction
 import type * as features_notifications from "../features/notifications.js";
 import type * as features_onlineBridge from "../features/onlineBridge.js";
 import type * as features_otps from "../features/otps.js";
+import type * as features_pendingDeletions from "../features/pendingDeletions.js";
 import type * as features_phoneProfiles from "../features/phoneProfiles.js";
 import type * as features_promo_codes from "../features/promo_codes.js";
 import type * as features_retryConfigs from "../features/retryConfigs.js";
@@ -105,6 +106,7 @@ declare const fullApi: ApiFromModules<{
   "features/notifications": typeof features_notifications;
   "features/onlineBridge": typeof features_onlineBridge;
   "features/otps": typeof features_otps;
+  "features/pendingDeletions": typeof features_pendingDeletions;
   "features/phoneProfiles": typeof features_phoneProfiles;
   "features/promo_codes": typeof features_promo_codes;
   "features/retryConfigs": typeof features_retryConfigs;
