@@ -407,8 +407,12 @@ async function sendSMS(
 }
 
 export const deleteScheduledEvent = mutation({
-  args: { id: v.id("scheduled_events") },
+  args: { id: v.id("scheduled_events"), userId: v.string() },
   handler: async (ctx, args) => {
+    const event = await ctx.db.get(args.id);
+    if (!event || event.userId !== args.userId) {
+      throw new Error("Scheduled event not found or unauthorized");
+    }
     await ctx.db.delete(args.id);
     return { success: true, message: "Deleted successfully" };
   },

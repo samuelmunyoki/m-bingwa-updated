@@ -235,6 +235,26 @@ export default defineSchema({
   })
     .index("by_userId_status", ["userId", "status"]),
 
+  // Transaction deletion signal, delivered to the app over the live Convex push (same
+  // mechanism as pendingSkips) so the app's local mirror stays in sync with deletions it
+  // didn't itself perform. For sms/dialer/scheduled, only created from the website's own
+  // delete handlers — app-initiated deletes for those already sync to Convex directly and
+  // never produce a signal. For bridge, only created by the scheduled cleanup cron — the
+  // app's own manual delete never signals (single device per account, app already cleans up
+  // its own local copy in the same call).
+  pendingDeletions: defineTable({
+    userId: v.string(),
+    type: v.union(v.literal("sms"), v.literal("dialer"), v.literal("scheduled"), v.literal("bridge")),
+    convexId: v.string(), // the deleted document's _id, as a string
+    status: v.union(
+      v.literal("pending"),
+      v.literal("acknowledged")
+    ),
+    createdAt: v.number(),
+    acknowledgedAt: v.optional(v.number()),
+  })
+    .index("by_userId_status", ["userId", "status"]),
+
   mpesaMessages: defineTable({
   name: v.string(),
   amount: v.float64(),//amount: v.number(),
@@ -473,7 +493,30 @@ export default defineSchema({
     .index("by_device", ["deviceId"])
     // Heals orphaned sender rows: match a phone's stuck local copy to its real server doc by the
     // (unique) M-Pesa message text when the ids differ. Bounded, exact lookup — no history scan.
-    .index("by_user_and_sms", ["userId", "smsContent"]),
+    .index("by_user_and_sms", ["userId", "smsContent"])
+    // Bounded per-user time lookup — used by getOnlineBridgeTransactionStatusCounts to precisely
+    // count just the partial "reset day" itself (see onlineBridgeDailyCounts below for everything
+    // else), without ever scanning this user's whole history.
+    .index("by_user_and_createdat", ["userId", "createdAt"])
+    // Global time lookup (no userId) — used by the deleteOldOnlineBridgeTransactions cron to find
+    // transactions older than the cutoff across ALL users, same shape as mpesaMessages' by_time.
+    .index("by_createdat", ["createdAt"]),
+
+  // Running daily tallies of bridge-transaction outcomes per user — lets
+  // getOnlineBridgeTransactionStatusCounts answer "all-time" or "since a reset point" by summing a
+  // handful of small day-rows instead of scanning the whole (potentially 25,000+ row) transactions
+  // table. Kept in sync by a small delta nudge at every place a transaction is created, has its
+  // status change, or gets deleted (see applyOnlineBridgeDailyDelta in onlineBridge.ts) — including
+  // the cleanup cron. successful/failed/pending mirror the same status grouping the old query used
+  // (failed = Failed+Rejected, pending = Pending+Executing).
+  onlineBridgeDailyCounts: defineTable({
+    userId: v.string(),
+    dayStart: v.number(),
+    successful: v.number(),
+    failed: v.number(),
+    pending: v.number(),
+  })
+    .index("by_user_day", ["userId", "dayStart"]),
 
   serviceStatus: defineTable({
     phoneNumber: v.string(),

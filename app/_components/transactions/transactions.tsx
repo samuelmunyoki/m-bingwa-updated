@@ -566,6 +566,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [detailTx, setDetailTx] = React.useState<UnifiedTransaction | null>(null);
   const [showDeleteAlert, setShowDeleteAlert] = React.useState(false);
+  const [pendingDeleteTx, setPendingDeleteTx] = React.useState<UnifiedTransaction | null>(null);
 
   // ── Period time ranges — for server-side filters ────────────────────────────
   const periodTimes = React.useMemo(() => {
@@ -622,6 +623,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
   const deleteSms = useMutation(api.features.mpesaMessages.deleteMpesaMessage);
   const deleteDialer = useMutation(api.features.ussdHistory.deleteUSSDHistory);
   const deleteScheduled = useMutation(api.features.scheduled_events.deleteScheduledEvent);
+  const createPendingDeletion = useMutation(api.features.pendingDeletions.createPendingDeletion);
   const resetForWebRetry = useMutation(api.features.mpesaMessages.resetMessageForWebRetry);
   const bulkResetForWebRetry = useMutation(api.features.mpesaMessages.bulkResetMessagesForWebRetry);
 
@@ -834,10 +836,13 @@ function TransactionsMainInner({ userId }: { userId: string }) {
     setDeleting(true);
     const toDelete = filtered.filter((tx) => selected.has(tx.id));
     await Promise.allSettled(
-      toDelete.map((tx) => {
-        if (tx.type === "sms") return deleteSms({ messageId: tx.rawId as Id<"mpesaMessages"> });
-        if (tx.type === "dialer") return deleteDialer({ historyId: tx.rawId as Id<"ussdHistory">, userId });
-        return deleteScheduled({ id: tx.rawId as Id<"scheduled_events"> });
+      toDelete.map(async (tx) => {
+        if (tx.type === "sms") await deleteSms({ messageId: tx.rawId as Id<"mpesaMessages">, userId });
+        else if (tx.type === "dialer") await deleteDialer({ historyId: tx.rawId as Id<"ussdHistory">, userId });
+        else await deleteScheduled({ id: tx.rawId as Id<"scheduled_events">, userId });
+        // Signal the app only after the delete itself succeeded — a failed delete must not
+        // tell the app to remove a transaction that's still on the server.
+        await createPendingDeletion({ userId, type: tx.type, convexId: tx.rawId });
       })
     );
     setSelected(new Set());
@@ -859,11 +864,19 @@ function TransactionsMainInner({ userId }: { userId: string }) {
 
   const handleCardDelete = async (tx: UnifiedTransaction) => {
     setCardActionId(tx.id);
-    if (tx.type === "sms") await deleteSms({ messageId: tx.rawId as Id<"mpesaMessages"> });
+    if (tx.type === "sms") await deleteSms({ messageId: tx.rawId as Id<"mpesaMessages">, userId });
     else if (tx.type === "dialer") await deleteDialer({ historyId: tx.rawId as Id<"ussdHistory">, userId });
-    else await deleteScheduled({ id: tx.rawId as Id<"scheduled_events"> });
+    else await deleteScheduled({ id: tx.rawId as Id<"scheduled_events">, userId });
+    // Signal the app only after the delete itself succeeded.
+    await createPendingDeletion({ userId, type: tx.type, convexId: tx.rawId });
     setCardActionId(null);
     if (detailTx?.id === tx.id) setDetailTx(null);
+  };
+
+  const confirmCardDelete = async () => {
+    if (!pendingDeleteTx) return;
+    await handleCardDelete(pendingDeleteTx);
+    setPendingDeleteTx(null);
   };
 
   const handleCardRetry = async (tx: UnifiedTransaction) => {
@@ -1141,7 +1154,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
                   selectionMode={selectionMode}
                   onSelect={toggleSelect}
                   onClick={setDetailTx}
-                  onDelete={handleCardDelete}
+                  onDelete={setPendingDeleteTx}
                   onRetry={handleCardRetry}
                   actionLoading={cardActionId === tx.id}
                 />
@@ -1170,7 +1183,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
         tx={detailTx}
         open={detailTx !== null}
         onClose={() => setDetailTx(null)}
-        onDelete={handleCardDelete}
+        onDelete={setPendingDeleteTx}
         onRetry={handleCardRetry}
         actionLoading={detailTx ? cardActionId === detailTx.id : false}
       />
@@ -1192,6 +1205,30 @@ function TransactionsMainInner({ userId }: { userId: string }) {
               className="bg-red-600 hover:bg-red-700"
             >
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Single Delete Confirmation */}
+      <AlertDialog open={pendingDeleteTx !== null} onOpenChange={(v) => { if (!v) setPendingDeleteTx(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this transaction? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pendingDeleteTx ? cardActionId === pendingDeleteTx.id : false}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCardDelete}
+              disabled={pendingDeleteTx ? cardActionId === pendingDeleteTx.id : false}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {pendingDeleteTx && cardActionId === pendingDeleteTx.id ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

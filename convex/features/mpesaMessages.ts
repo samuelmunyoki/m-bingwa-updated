@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation } from "../_generated/server";
+import { query, mutation, internalMutation } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { paginationOptsValidator } from "convex/server";
 
@@ -434,8 +434,12 @@ export const updateMpesaMessage = mutation({
 
 // Mutation to delete mpesa message
 export const deleteMpesaMessage = mutation({
-  args: { messageId: v.id("mpesaMessages") },
+  args: { messageId: v.id("mpesaMessages"), userId: v.string() },
   handler: async (ctx, args) => {
+    const message = await ctx.db.get(args.messageId);
+    if (!message || message.userId !== args.userId) {
+      throw new Error("Message not found or unauthorized");
+    }
     await ctx.db.delete(args.messageId);
   },
 });
@@ -940,10 +944,13 @@ export const deleteNonPendingMpesaMessages = mutation({
   },
 });
 
-// Mutation to delete mpesa messages older than 30 days
-// This is intended to be run as a cron job to clean up old data
-// Processes in batches to avoid timeouts and includes error handling
-export const deleteOldMpesaMessages = mutation({
+// Cron target: delete mpesa messages older than 2 days, in throttled batches, rescheduling
+// itself ONLY while a full-size batch was found — so it TERMINATES (the backlog is finite)
+// instead of running forever, same self-rescheduling pattern as pruneOldLogsScheduled (appLogs.ts).
+const MPESA_DELETE_FETCH_LIMIT = 500;
+const MPESA_DELETE_RESCHEDULE_DELAY_MS = 1000; // gap between successive runs
+
+export const deleteOldMpesaMessages = internalMutation({
   args: {},
   handler: async (ctx) => {
     const BATCH_SIZE = 100; // Process 100 messages at a time to avoid timeouts
@@ -952,25 +959,25 @@ export const deleteOldMpesaMessages = mutation({
     try {
       console.log("🗑️ Starting deleteOldMpesaMessages cron job...");
 
-      // Calculate the timestamp for 30 days ago
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const cutoffDate = new Date(thirtyDaysAgo).toISOString();
+      // Calculate the timestamp for 2 days ago
+      const twoDaysAgo = Date.now() - (2 * 24 * 60 * 60 * 1000);
+      const cutoffDate = new Date(twoDaysAgo).toISOString();
 
-      console.log(`Cutoff date: ${cutoffDate} (timestamp: ${thirtyDaysAgo})`);
+      console.log(`Cutoff date: ${cutoffDate} (timestamp: ${twoDaysAgo})`);
 
       // Use the by_time index to efficiently get old messages — avoids full table scan
       const oldMessages = await ctx.db
         .query("mpesaMessages")
-        .withIndex("by_time", (q) => q.lt("time", thirtyDaysAgo))
-        .take(500);
+        .withIndex("by_time", (q) => q.lt("time", twoDaysAgo))
+        .take(MPESA_DELETE_FETCH_LIMIT);
 
-      console.log(`Found ${oldMessages.length} messages older than 30 days`);
+      console.log(`Found ${oldMessages.length} messages older than 2 days`);
 
       if (oldMessages.length === 0) {
         console.log("✅ No messages to delete");
         return {
           success: true,
-          message: "No messages older than 30 days found",
+          message: "No messages older than 2 days found",
           deletedCount: 0,
           failedCount: 0,
           cutoffDate,
@@ -990,6 +997,15 @@ export const deleteOldMpesaMessages = mutation({
         for (const message of batch) {
           try {
             await ctx.db.delete(message._id);
+            // Signal the app so its local copy of this message gets cleaned up too — same
+            // pendingDeletions mechanism the website's own UI deletes use (see pendingDeletions.ts).
+            await ctx.db.insert("pendingDeletions", {
+              userId: message.userId,
+              type: "sms",
+              convexId: message._id,
+              status: "pending",
+              createdAt: Date.now(),
+            });
             deletedCount++;
           } catch (error) {
             failedCount++;
@@ -1006,13 +1022,24 @@ export const deleteOldMpesaMessages = mutation({
         console.warn(`⚠️ Cron job completed with errors: Deleted ${deletedCount} messages, failed to delete ${failedCount} messages`);
         console.warn(`First 5 errors:`, errors.slice(0, 5));
       } else {
-        console.log(`✅ Cron job completed successfully: Deleted ${deletedCount} mpesa messages older than 30 days in ${executionTimeMs}ms`);
+        console.log(`✅ Cron job completed successfully: Deleted ${deletedCount} mpesa messages older than 2 days in ${executionTimeMs}ms`);
+      }
+
+      // A full-size batch means there may be more still waiting — reschedule to keep draining
+      // the backlog. A short batch means we're caught up, so this stops naturally.
+      if (oldMessages.length === MPESA_DELETE_FETCH_LIMIT) {
+        await ctx.scheduler.runAfter(
+          MPESA_DELETE_RESCHEDULE_DELAY_MS,
+          internal.features.mpesaMessages.deleteOldMpesaMessages,
+          {}
+        );
+        console.log("↻ Full batch processed — scheduling another run to continue draining the backlog");
       }
 
       return {
         success: failedCount === 0,
         message: failedCount === 0
-          ? `Successfully deleted ${deletedCount} mpesa messages older than 30 days`
+          ? `Successfully deleted ${deletedCount} mpesa messages older than 2 days`
           : `Deleted ${deletedCount} messages but ${failedCount} deletions failed`,
         deletedCount,
         failedCount,
