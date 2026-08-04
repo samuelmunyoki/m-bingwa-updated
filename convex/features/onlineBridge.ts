@@ -1,6 +1,65 @@
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { mutation, query, internalMutation } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { api, internal } from "../_generated/api";
+
+// ============= DAILY TRANSACTION COUNTS (see onlineBridgeDailyCounts in schema.ts) =============
+// Day boundary in Africa/Nairobi (EAT, UTC+3, no DST) — same convention as messageDailyStats.ts /
+// transactions.tsx nairobiStartOfDay(), so bridge-transaction days line up with everything else.
+const BRIDGE_EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+export function getBridgeDayStart(timestamp: number): number {
+  const shifted = timestamp + BRIDGE_EAT_OFFSET_MS;
+  return shifted - (shifted % 86_400_000) - BRIDGE_EAT_OFFSET_MS;
+}
+
+// Maps a transaction's status to which daily-count bucket it belongs to — mirrors exactly the
+// grouping getOnlineBridgeTransactionStatusCounts used to compute in-memory (failed = Failed +
+// Rejected, pending = Pending + Executing). Anything else contributes to none of the three
+// buckets, same as before.
+export function bridgeStatusBucket(status: string): "successful" | "failed" | "pending" | null {
+  if (status === "Success") return "successful";
+  if (status === "Failed" || status === "Rejected") return "failed";
+  if (status === "Pending" || status === "Executing") return "pending";
+  return null;
+}
+
+// Internal helper — apply a delta to a user's daily bridge-transaction counts. Called via
+// ctx.scheduler.runAfter(0, ...) from every place a transaction is created, changes status, or
+// is deleted — same decoupled-from-the-main-write pattern as messageDailyStats.applyDailyStatsDelta,
+// so contention on one day's row can't make the original transaction write retry.
+export const applyOnlineBridgeDailyDelta = internalMutation({
+  args: {
+    userId: v.string(),
+    dayStart: v.number(),
+    successfulDelta: v.number(),
+    failedDelta: v.number(),
+    pendingDelta: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const { userId, dayStart, successfulDelta, failedDelta, pendingDelta } = args;
+
+    const existing = await ctx.db
+      .query("onlineBridgeDailyCounts")
+      .withIndex("by_user_day", (q) => q.eq("userId", userId).eq("dayStart", dayStart))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        successful: Math.max(0, existing.successful + successfulDelta),
+        failed: Math.max(0, existing.failed + failedDelta),
+        pending: Math.max(0, existing.pending + pendingDelta),
+      });
+    } else if (successfulDelta > 0 || failedDelta > 0 || pendingDelta > 0) {
+      await ctx.db.insert("onlineBridgeDailyCounts", {
+        userId,
+        dayStart,
+        successful: Math.max(0, successfulDelta),
+        failed: Math.max(0, failedDelta),
+        pending: Math.max(0, pendingDelta),
+      });
+    }
+  },
+});
 
 // ============= OFFERS MUTATIONS =============
 
@@ -362,6 +421,17 @@ export const createOnlineBridgeTransaction = mutation({
       isDeleted: false,
     });
 
+    const bucket = bridgeStatusBucket(args.status);
+    if (bucket) {
+      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+        userId: args.userId,
+        dayStart: getBridgeDayStart(now),
+        successfulDelta: bucket === "successful" ? 1 : 0,
+        failedDelta: bucket === "failed" ? 1 : 0,
+        pendingDelta: bucket === "pending" ? 1 : 0,
+      });
+    }
+
     return transactionId;
   },
 });
@@ -380,6 +450,8 @@ export const updateOnlineBridgeTransactionStatus = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
 
+    const before = await ctx.db.get(args.transactionId);
+
     await ctx.db.patch(args.transactionId, {
       status: args.status,
       result: args.result,
@@ -388,24 +460,56 @@ export const updateOnlineBridgeTransactionStatus = mutation({
       updatedAt: now,
     });
 
+    // Daily bucket lives under the transaction's CREATION day, never "today" — a transaction
+    // created weeks ago that resolves now still belongs to its original day's tally, just moving
+    // from one status column to another within that same day's row.
+    if (before) {
+      const oldBucket = bridgeStatusBucket(before.status);
+      const newBucket = bridgeStatusBucket(args.status);
+      if (oldBucket !== newBucket) {
+        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+          userId: before.userId,
+          dayStart: getBridgeDayStart(before.createdAt),
+          successfulDelta: (newBucket === "successful" ? 1 : 0) - (oldBucket === "successful" ? 1 : 0),
+          failedDelta: (newBucket === "failed" ? 1 : 0) - (oldBucket === "failed" ? 1 : 0),
+          pendingDelta: (newBucket === "pending" ? 1 : 0) - (oldBucket === "pending" ? 1 : 0),
+        });
+      }
+    }
+
     return args.transactionId;
   },
 });
 
 /**
- * Delete (soft delete) Online Bridge transaction
+ * Delete Online Bridge transaction — hard delete, actually removes the row. App-initiated,
+ * no pendingDeletions signal needed here (single-device-per-account, no other device to notify;
+ * the app already cleans up its own local copy in the same call) — see
+ * convex/features/pendingDeletions.ts for where "bridge" signals actually come from (the
+ * scheduled cleanup cron, which deletes rows the phone doesn't already know about).
  */
 export const deleteOnlineBridgeTransaction = mutation({
   args: {
     transactionId: v.id("onlineBridgeTransactions"),
+    userId: v.string(),
   },
   handler: async (ctx, args) => {
-    const now = Date.now();
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction || transaction.userId !== args.userId) {
+      throw new Error("Transaction not found or unauthorized");
+    }
+    await ctx.db.delete(args.transactionId);
 
-    await ctx.db.patch(args.transactionId, {
-      isDeleted: true,
-      updatedAt: now,
-    });
+    const bucket = bridgeStatusBucket(transaction.status);
+    if (bucket) {
+      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+        userId: transaction.userId,
+        dayStart: getBridgeDayStart(transaction.createdAt),
+        successfulDelta: bucket === "successful" ? -1 : 0,
+        failedDelta: bucket === "failed" ? -1 : 0,
+        pendingDelta: bucket === "pending" ? -1 : 0,
+      });
+    }
 
     return args.transactionId;
   },
@@ -568,18 +672,46 @@ export const getOnlineBridgeTransactionStatusCounts = query({
   },
   handler: async (ctx, args) => {
     const since = args.since ?? 0;
-    const all = await ctx.db
-      .query("onlineBridgeTransactions")
-      .withIndex("by_user_and_deleted", (q) =>
-        q.eq("userId", args.userId).eq("isDeleted", false)
+    const ONE_DAY_MS = 86_400_000;
+
+    // Reset day itself is handled separately below (exact, bounded lookup) — the bucket sum here
+    // only covers every FULL day strictly after it, so nothing gets double-counted. For "all-time"
+    // (since=0), bucketStartDay is 0 so every bucket ever recorded is included.
+    const sinceDay = since > 0 ? getBridgeDayStart(since) : 0;
+    const bucketStartDay = since > 0 ? sinceDay + ONE_DAY_MS : 0;
+
+    const buckets = await ctx.db
+      .query("onlineBridgeDailyCounts")
+      .withIndex("by_user_day", (q) =>
+        q.eq("userId", args.userId).gte("dayStart", bucketStartDay)
       )
       .collect();
 
-    const transactions = since > 0 ? all.filter((t) => t.createdAt > since) : all;
+    let successCount = buckets.reduce((sum, b) => sum + b.successful, 0);
+    let failedCount = buckets.reduce((sum, b) => sum + b.failed, 0);
+    let pendingCount = buckets.reduce((sum, b) => sum + b.pending, 0);
 
-    const successCount = transactions.filter((t) => t.status === "Success").length;
-    const failedCount = transactions.filter((t) => t.status === "Failed" || t.status === "Rejected").length;
-    const pendingCount = transactions.filter((t) => t.status === "Pending" || t.status === "Executing").length;
+    // Partial reset day: bounded to exactly this one day's transactions, created strictly after
+    // the exact reset moment — gives reset the same instant-drop precision the old query had,
+    // without ever touching the user's whole history (this never grows with account age; it's
+    // always just one day's worth of rows, whether the reset was yesterday or three years ago).
+    if (since > 0) {
+      const dayEnd = sinceDay + ONE_DAY_MS;
+      const partialDay = await ctx.db
+        .query("onlineBridgeTransactions")
+        .withIndex("by_user_and_createdat", (q) =>
+          q.eq("userId", args.userId).gt("createdAt", since).lt("createdAt", dayEnd)
+        )
+        .filter((q) => q.eq(q.field("isDeleted"), false))
+        .collect();
+
+      for (const t of partialDay) {
+        const bucket = bridgeStatusBucket(t.status);
+        if (bucket === "successful") successCount++;
+        else if (bucket === "failed") failedCount++;
+        else if (bucket === "pending") pendingCount++;
+      }
+    }
 
     return {
       successCount,
@@ -622,11 +754,162 @@ export const cleanupStaleExecutingTransactions = mutation({
     for (const t of toDelete) {
       if (deleted >= MAX_PER_CALL) break;
       await ctx.db.delete(t._id);
+      // Only decrement if this row was actually counted — an already-isDeleted tombstone (a
+      // leftover from before deletes were changed to hard-delete) was never in the daily tally
+      // in the first place, so it must not be double-subtracted here.
+      if (!t.isDeleted) {
+        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+          userId: args.userId,
+          dayStart: getBridgeDayStart(t.createdAt),
+          successfulDelta: 0,
+          failedDelta: 0,
+          pendingDelta: -1,
+        });
+      }
       deleted++;
     }
 
     // remaining > 0 → run the URL again to clear the rest.
     return { deleted, remaining: toDelete.length - deleted, thresholdMs: threshold };
+  },
+});
+
+// One-time backfill for onlineBridgeDailyCounts — needed because that table starts empty and the
+// live delta-nudges (see applyOnlineBridgeDailyDelta and its 6 call sites above) only account for
+// activity from the moment they're deployed onward. Mirrors migrateUserMessageStats
+// (messageDailyStats.ts) exactly: paginates a user's existing transactions in batches of 1000,
+// newest first (so today's numbers are correct even if the chain dies partway through an old
+// backlog), and self-reschedules server-side until done. Call once per user with just {userId} —
+// it drives itself to completion from there.
+export const migrateOnlineBridgeDailyCounts = mutation({
+  args: {
+    userId: v.string(),
+    cursor: v.optional(v.string()),
+    clearFirst: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { userId, cursor, clearFirst }) => {
+    // On first call (no cursor), clear this user's existing daily counts so a re-run is safe.
+    if (!cursor && clearFirst !== false) {
+      const existing = await ctx.db
+        .query("onlineBridgeDailyCounts")
+        .withIndex("by_user_day", (q) => q.eq("userId", userId))
+        .collect();
+      for (const e of existing) await ctx.db.delete(e._id);
+    }
+
+    const page = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_user_and_createdat", (q) => q.eq("userId", userId))
+      .order("desc")
+      .paginate({ numItems: 1000, cursor: cursor ?? null });
+
+    // Aggregate this batch into day buckets. Skips already-isDeleted tombstones — the live query
+    // never counted those either (same by_user_and_deleted exclusion the old query used), so
+    // backfilling them in as real counts would make the numbers wrong, not just stale.
+    const dayMap = new Map<number, { successful: number; failed: number; pending: number }>();
+
+    for (const t of page.page) {
+      if (t.isDeleted) continue;
+      const bucket = bridgeStatusBucket(t.status);
+      if (!bucket) continue;
+      const dayKey = getBridgeDayStart(t.createdAt);
+      if (!dayMap.has(dayKey)) dayMap.set(dayKey, { successful: 0, failed: 0, pending: 0 });
+      dayMap.get(dayKey)![bucket]++;
+    }
+
+    for (const [dayStart, stats] of dayMap.entries()) {
+      const existing = await ctx.db
+        .query("onlineBridgeDailyCounts")
+        .withIndex("by_user_day", (q) => q.eq("userId", userId).eq("dayStart", dayStart))
+        .first();
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          successful: existing.successful + stats.successful,
+          failed: existing.failed + stats.failed,
+          pending: existing.pending + stats.pending,
+        });
+      } else {
+        await ctx.db.insert("onlineBridgeDailyCounts", { userId, dayStart, ...stats });
+      }
+    }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(250, api.features.onlineBridge.migrateOnlineBridgeDailyCounts, {
+        userId,
+        cursor: page.continueCursor,
+        clearFirst: false,
+      });
+    }
+
+    return {
+      done: page.isDone,
+      nextCursor: page.isDone ? null : page.continueCursor,
+      batchProcessed: page.page.length,
+    };
+  },
+});
+
+// Cron target: delete bridge transactions older than 2 days, in throttled batches, rescheduling
+// itself ONLY while a full-size batch was found — same self-rescheduling/terminating pattern as
+// deleteOldMpesaMessages (mpesaMessages.ts). Uses the global by_createdat index (no userId scope)
+// since this runs across every user's transactions in one pass.
+const BRIDGE_DELETE_FETCH_LIMIT = 500;
+const BRIDGE_DELETE_RESCHEDULE_DELAY_MS = 1000;
+
+export const deleteOldOnlineBridgeTransactions = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const twoDaysAgo = Date.now() - (2 * 24 * 60 * 60 * 1000);
+
+    const oldTransactions = await ctx.db
+      .query("onlineBridgeTransactions")
+      .withIndex("by_createdat", (q) => q.lt("createdAt", twoDaysAgo))
+      .take(BRIDGE_DELETE_FETCH_LIMIT);
+
+    for (const t of oldTransactions) {
+      await ctx.db.delete(t._id);
+
+      // Decrement the daily bucket — same isDeleted-skip rule as everywhere else: an
+      // already-soft-deleted leftover was never counted, so it must not be double-subtracted.
+      if (!t.isDeleted) {
+        const bucket = bridgeStatusBucket(t.status);
+        if (bucket) {
+          await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+            userId: t.userId,
+            dayStart: getBridgeDayStart(t.createdAt),
+            successfulDelta: bucket === "successful" ? -1 : 0,
+            failedDelta: bucket === "failed" ? -1 : 0,
+            pendingDelta: bucket === "pending" ? -1 : 0,
+          });
+        }
+      }
+
+      // Signal the app so its local copy gets cleaned up too — bridge notes only ever come from
+      // this cron (see pendingDeletions.ts; app-initiated bridge deletes don't self-signal since
+      // there's only ever one device per account).
+      await ctx.db.insert("pendingDeletions", {
+        userId: t.userId,
+        type: "bridge",
+        convexId: t._id,
+        status: "pending",
+        createdAt: Date.now(),
+      });
+    }
+
+    // A full-size batch means there may be more still waiting — reschedule to keep draining the
+    // backlog. A short batch means we're caught up, so this stops naturally.
+    if (oldTransactions.length === BRIDGE_DELETE_FETCH_LIMIT) {
+      await ctx.scheduler.runAfter(
+        BRIDGE_DELETE_RESCHEDULE_DELAY_MS,
+        internal.features.onlineBridge.deleteOldOnlineBridgeTransactions,
+        {}
+      );
+    }
+
+    return {
+      deletedCount: oldTransactions.length,
+      cutoffDate: new Date(twoDaysAgo).toISOString(),
+    };
   },
 });
 
@@ -702,6 +985,17 @@ export const batchCreateOnlineBridgeTransactions = mutation({
         isDeleted: false,
       });
 
+      const bucket = bridgeStatusBucket(transaction.status);
+      if (bucket) {
+        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+          userId: transaction.userId,
+          dayStart: getBridgeDayStart(now),
+          successfulDelta: bucket === "successful" ? 1 : 0,
+          failedDelta: bucket === "failed" ? 1 : 0,
+          pendingDelta: bucket === "pending" ? 1 : 0,
+        });
+      }
+
       transactionIds.push(transactionId);
     }
 
@@ -725,14 +1019,33 @@ export const batchUpdateOnlineBridgeTransactionStatuses = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    
+
     for (const update of args.updates) {
+      // Fetched before patching — updates has no userId per item, and different items in the
+      // same batch can belong to different users, so each one's daily bucket must be resolved
+      // individually (same reasoning as updateOnlineBridgeTransactionStatus above).
+      const before = await ctx.db.get(update.transactionId);
+
       await ctx.db.patch(update.transactionId, {
         status: update.status,
         result: update.result,
         executedAt: update.executedAt,
         updatedAt: now,
       });
+
+      if (before) {
+        const oldBucket = bridgeStatusBucket(before.status);
+        const newBucket = bridgeStatusBucket(update.status);
+        if (oldBucket !== newBucket) {
+          await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+            userId: before.userId,
+            dayStart: getBridgeDayStart(before.createdAt),
+            successfulDelta: (newBucket === "successful" ? 1 : 0) - (oldBucket === "successful" ? 1 : 0),
+            failedDelta: (newBucket === "failed" ? 1 : 0) - (oldBucket === "failed" ? 1 : 0),
+            pendingDelta: (newBucket === "pending" ? 1 : 0) - (oldBucket === "pending" ? 1 : 0),
+          });
+        }
+      }
     }
 
     return { count: args.updates.length };

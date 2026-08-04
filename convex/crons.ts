@@ -11,13 +11,22 @@ crons.interval(
 
 crons.interval("Check subscription expiry", { seconds: 30 }, api.users.checkExpiry);
 
-// Delete mpesa messages older than 30 days - runs once per day at 2 AM
+// Delete mpesa messages older than 2 days - runs once per day at 2 AM, then self-reschedules
+// (see deleteOldMpesaMessages) until the whole backlog past the cutoff is drained.
 crons.daily(
   "Delete old mpesa messages",
   { hourUTC: 2, minuteUTC: 0 },
-  api.features.mpesaMessages.deleteOldMpesaMessages
+  internal.features.mpesaMessages.deleteOldMpesaMessages
 );
 
+
+// Delete bridge transactions older than 2 days - runs once per day at 5 AM UTC, then
+// self-reschedules (see deleteOldOnlineBridgeTransactions) until the whole backlog is drained.
+crons.daily(
+  "Delete old online bridge transactions",
+  { hourUTC: 5, minuteUTC: 0 },
+  internal.features.onlineBridge.deleteOldOnlineBridgeTransactions
+);
 
 // Prune app logs older than the 4h retention window — hourly, throttled, self-terminating.
 crons.interval(

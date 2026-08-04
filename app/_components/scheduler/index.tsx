@@ -383,6 +383,7 @@ const SchedularMain = ({ user }: SchedulerProps) => {
   const createScheduledEvent = useMutation(api.features.scheduled_events.createScheduledEvent);
   const updateScheduledEvent = useMutation(api.features.scheduled_events.updateScheduledEvent);
   const deleteScheduledEvent = useMutation(api.features.scheduled_events.deleteScheduledEvent);
+  const createPendingDeletion = useMutation(api.features.pendingDeletions.createPendingDeletion);
 
   const bundles = (useQuery(api.features.bundles.getAllBundles, { userId: user.userId }) ?? []) as Bundle[];
   const scheduledEvents = useQuery(api.features.scheduled_events.getScheduledEvents, { userId: user.userId });
@@ -479,7 +480,8 @@ const SchedularMain = ({ user }: SchedulerProps) => {
   const handleDelete = async (event: ScheduledEvent) => {
     setDeletingId(event._id.toString());
     try {
-      await deleteScheduledEvent({ id: event._id });
+      await deleteScheduledEvent({ id: event._id, userId: user.userId });
+      await createPendingDeletion({ userId: user.userId, type: "scheduled", convexId: event._id });
       toast.success("Schedule deleted");
     } catch {
       toast.error("Failed to delete schedule");

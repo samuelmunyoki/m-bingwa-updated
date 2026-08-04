@@ -1409,6 +1409,34 @@ export const migrateUserMessageStatsHttp = httpAction(async (ctx, request) => {
   }
 });
 
+export const migrateOnlineBridgeDailyCountsHttp = httpAction(async (ctx, request) => {
+  let body: { userId?: string; cursor?: string } = {};
+  try {
+    body = await request.json();
+  } catch {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, cursor } = body;
+  const clearFirst = !cursor;
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId in body");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.onlineBridge.migrateOnlineBridgeDailyCounts, {
+      userId,
+      cursor,
+      clearFirst,
+    });
+    return createResponse("success", result, null);
+  } catch (error: any) {
+    console.error("migrateOnlineBridgeDailyCounts error:", error?.message ?? error);
+    return createResponse("error", null, error?.message ?? "Migration failed");
+  }
+});
+
 export const getTodayPendingMessagesHttp = httpAction(async (ctx, request) => {
   const url = new URL(request.url);
   const userId = url.searchParams.get("userId");
@@ -2364,6 +2392,7 @@ export const deleteScheduledEvent = httpAction(async (ctx, request) => {
   try {
     const url = new URL(request.url);
     const id = url.searchParams.get("id");
+    const userId = url.searchParams.get("userId");
 
     if (!id) {
       return new Response(
@@ -2380,9 +2409,25 @@ export const deleteScheduledEvent = httpAction(async (ctx, request) => {
         }
       );
     }
+    if (!userId) {
+      return new Response(
+        JSON.stringify({
+          status: "error",
+          message: "userId parameter is required",
+        }),
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
+      );
+    }
 
     const result = await ctx.runMutation(api.features.scheduled_events.deleteScheduledEvent, {
       id: id as Id<"scheduled_events">,
+      userId,
     });
 
     console.log("Mutation result:", result);
@@ -2576,10 +2621,13 @@ export const deleteMpesaMessage = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  const { messageId } = body;
+  const { messageId, userId } = body;
 
   if (!messageId) {
     return createResponse("error", null, "Missing messageId parameter");
+  }
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
   }
 
   try {
@@ -2594,7 +2642,8 @@ export const deleteMpesaMessage = httpAction(async (ctx, request) => {
 
     // Delete the message
     await ctx.runMutation(api.features.mpesaMessages.deleteMpesaMessage, {
-      messageId
+      messageId,
+      userId
     });
 
     return createResponse("success", {
@@ -4985,13 +5034,13 @@ export const updateOnlineBridgeTransactionStatus = httpAction(
 
 /**
  * DELETE /api/online-bridge/transactions/delete/
- * Delete (soft delete) Online Bridge transaction
+ * Delete Online Bridge transaction — hard delete, actually removes the row.
  */
 export const deleteOnlineBridgeTransaction = httpAction(
   async (ctx, request) => {
     try {
       const body = await request.json();
-      const { transactionId } = body;
+      const { transactionId, userId } = body;
 
       if (!transactionId) {
         return new Response(
@@ -4999,10 +5048,16 @@ export const deleteOnlineBridgeTransaction = httpAction(
           { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
+      if (!userId) {
+        return new Response(
+          JSON.stringify({ error: "Missing userId" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
 
       await ctx.runMutation(
         api.features.onlineBridge.deleteOnlineBridgeTransaction,
-        { transactionId: transactionId as Id<"onlineBridgeTransactions"> }
+        { transactionId: transactionId as Id<"onlineBridgeTransactions">, userId }
       );
 
       return new Response(
@@ -6772,6 +6827,36 @@ export const acknowledgeSkipHttp = httpAction(async (ctx, request) => {
   if (!skipId) return createResponse("error", null, "Missing skipId");
   try {
     const result = await ctx.runMutation(api.features.skips.acknowledgeSkip, { skipId });
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Get pending website-initiated transaction deletions for Android to apply locally — see
+// pendingDeletions.ts. Same live-push mechanism as getPendingSkipsHttp above.
+export const getPendingDeletionsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "GET") return createResponse("error", null, "Method not allowed");
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+  if (!userId) return createResponse("error", null, "Missing userId");
+  try {
+    const deletions = await ctx.runQuery(api.features.pendingDeletions.getPendingDeletions, { userId });
+    return createResponse("success", { deletions });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Android calls this once it has removed the record from its local database.
+export const acknowledgeDeletionHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { deletionId } = body ?? {};
+  if (!deletionId) return createResponse("error", null, "Missing deletionId");
+  try {
+    const result = await ctx.runMutation(api.features.pendingDeletions.acknowledgeDeletion, { deletionId });
     return createResponse("success", result);
   } catch (e: any) {
     return createResponse("error", null, `Failed: ${e.message}`);

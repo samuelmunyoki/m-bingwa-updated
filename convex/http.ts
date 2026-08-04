@@ -133,6 +133,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   removeFromBlacklistHttp,
   getPendingSkipsHttp,
   acknowledgeSkipHttp,
+  getPendingDeletionsHttp,
+  acknowledgeDeletionHttp,
   getPendingStoreMpesaMessagesHttp,
   markStoreMessageAndroidProcessedHttp,
   getPendingWebRetriesHttp,
@@ -157,6 +159,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getMpesaMessageByTransactionIdHttp,
   getTodayPendingMessagesHttp,
   migrateUserMessageStatsHttp,
+  migrateOnlineBridgeDailyCountsHttp,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -379,6 +382,18 @@ http.route({
   pathPrefix: "/api/store-skips/acknowledge/",
   method: "PATCH",
   handler: acknowledgeSkipHttp,
+});
+
+http.route({
+  pathPrefix: "/api/pending-deletions/pending/",
+  method: "GET",
+  handler: getPendingDeletionsHttp,
+});
+
+http.route({
+  pathPrefix: "/api/pending-deletions/acknowledge/",
+  method: "PATCH",
+  handler: acknowledgeDeletionHttp,
 });
 
 http.route({
@@ -1448,6 +1463,12 @@ http.route({
   pathPrefix: "/api/stats/migrate-user/",
   method: "POST",
   handler: migrateUserMessageStatsHttp,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/migrate-daily-counts/",
+  method: "POST",
+  handler: migrateOnlineBridgeDailyCountsHttp,
 });
 
 export default http;
