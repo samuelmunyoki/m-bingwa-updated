@@ -376,6 +376,170 @@ export const createBundle = httpAction(async (ctx, request) => {
   }
 })
 
+// HTTP action to get a store owner's custom offers
+export const getCustomOffers = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const customOffers = await ctx.runQuery(api.features.customOffers.getCustomOffersByUserId, { userId });
+    return createResponse("success", { customOffers }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch custom offers");
+  }
+});
+
+// HTTP Action for custom offer creation
+export const createCustomOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { userId, offerName, offerType, price, status = "available" } = body;
+
+  if (!userId || !offerName || !offerType || price === undefined) {
+    return createResponse("error", null, "Missing required fields: userId, offerName, offerType, price");
+  }
+
+  if (typeof price !== "number") {
+    return createResponse("error", null, "Price must be a number");
+  }
+
+  const validOfferTypes = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"];
+  if (!validOfferTypes.includes(offerType)) {
+    return createResponse("error", null, "Invalid offerType. Must be one of: Data, SMS, Minutes, Airtime, Bundles, Other");
+  }
+
+  if (status !== "available" && status !== "disabled") {
+    return createResponse("error", null, "Invalid status. Must be 'available' or 'disabled'");
+  }
+
+  try {
+    const newCustomOfferId = await ctx.runMutation(api.features.customOffers.createCustomOfferFromAPI, {
+      userId,
+      offerName,
+      offerType,
+      price,
+      status,
+    });
+    return createResponse("success", { customOfferId: newCustomOfferId }, "Custom offer created successfully");
+  } catch (error: any) {
+    console.error("Error creating custom offer:", error);
+    return createResponse("error", null, error.message ?? "An error occurred while creating the custom offer. Please try again later.");
+  }
+});
+
+// HTTP Action for custom offer update
+export const updateCustomOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const { id, userId, offerName, offerType, price, status } = body;
+
+  if (!id || !userId) {
+    return createResponse("error", null, "Missing required fields: id, userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.customOffers.updateCustomOfferFromAPI, {
+      id,
+      userId,
+      offerName,
+      offerType,
+      price,
+      status,
+    });
+
+    if (result.status === "error") {
+      return createResponse("error", null, result.message);
+    }
+    return createResponse("success", { message: result.message }, null);
+  } catch (error) {
+    console.error(error);
+    return createResponse("error", null, "Failed to update custom offer");
+  }
+});
+
+// HTTP Action for deleting a custom offer
+export const deleteCustomOffer = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.customOfferId || !body.userId) {
+    return createResponse("error", null, "Missing customOfferId or userId in request body");
+  }
+
+  try {
+    const { customOfferId, userId } = body;
+    await ctx.runMutation(api.features.customOffers.deleteCustomOfferFromAPI, {
+      id: customOfferId,
+      userId,
+    });
+    return createResponse("success", null, "Custom offer deleted successfully");
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
+// HTTP Action for toggling custom offer status
+export const toggleCustomOfferStatus = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.customOfferId || !body.userId) {
+    return createResponse("error", null, "Missing customOfferId or userId in request body");
+  }
+
+  try {
+    const { customOfferId, userId } = body;
+    const result = await ctx.runMutation(api.features.customOffers.toggleCustomOfferStatusFromAPI, {
+      id: customOfferId,
+      userId,
+    });
+    return createResponse("success", { newStatus: result.newStatus }, result.message);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
 // HTTP Action for Bundle update
 export const updateBundle = httpAction(async (ctx, request) => {
   if (request.method !== "PATCH") {

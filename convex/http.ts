@@ -5,6 +5,7 @@ import {
   postStKPushCallback,
 } from "./http_handlers";
 import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBundle, toggleBundleStatus,
+  getCustomOffers, createCustomOffer, updateCustomOffer, deleteCustomOffer, toggleCustomOfferStatus,
   verifyOtpCode, getAllUsers, getStoreOwnerTransactions, createStoreOwnerTransaction, updateStoreOwnerTransaction,
   deleteAllStoreOwnerTransactions, getStoreOwnerTransactionCount, createStore, getStoreByStoreName, updateStore, deleteStore,
   getStoreByUserId, createUserIfNotExists, getUserIdByPhone, getUserByPhoneNormalized, createMpesaMessage,
@@ -215,6 +216,41 @@ http.route({
   pathPrefix: "/api/bundles/toggleBundleStatus/",
   method: "PATCH",
   handler: toggleBundleStatus,
+});
+
+// API Route to get a store owner's custom offers
+http.route({
+  pathPrefix: "/api/custom-offers/",
+  method: "GET",
+  handler: getCustomOffers,
+});
+
+// API Route to create a custom offer
+http.route({
+  pathPrefix: "/api/custom-offers/create/",
+  method: "POST",
+  handler: createCustomOffer,
+});
+
+// API Route to update a custom offer
+http.route({
+  pathPrefix: "/api/custom-offers/update/",
+  method: "PATCH",
+  handler: updateCustomOffer,
+});
+
+// API Route to delete a custom offer
+http.route({
+  pathPrefix: "/api/custom-offers/delete/",
+  method: "DELETE",
+  handler: deleteCustomOffer,
+});
+
+// API Route to toggle custom offer active status
+http.route({
+  pathPrefix: "/api/custom-offers/toggleCustomOfferStatus/",
+  method: "PATCH",
+  handler: toggleCustomOfferStatus,
 });
 
 // API Route to get all users

@@ -23,14 +23,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Info, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 const OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
 
@@ -69,6 +62,7 @@ type Bundle = {
   autoReschedule?: string;
   isSimpleUSSD?: boolean;
   responseValidatorText?: string;
+  isPatternOffer?: boolean;
 };
 
 type EditBundleModalProps = {
@@ -85,8 +79,10 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
   const [status, setStatus] = useState(bundle.status);
   const [dialingSIM, setDialingSIM] = useState(bundle.dialingSIM);
   const [offerType, setOfferType] = useState(bundle.offerType ?? "Data");
-  const [isMultiSession, setIsMultiSession] = useState(bundle.isMultiSession);
-  const [isSimpleUSSD, setIsSimpleUSSD] = useState(bundle.isSimpleUSSD ?? false);
+  // Mode can no longer be changed from the edit screen — only the Settings bulk-flip on the
+  // phone changes an offer's mode now. Always send back what's already stored, unchanged.
+  const isMultiSession = bundle.isMultiSession;
+  const isSimpleUSSD = bundle.isSimpleUSSD ?? false;
   const [autoReschedule, setAutoReschedule] = useState(bundle.autoReschedule ?? "");
 
   const existingParts = bundle.responseValidatorText?.split(",") ?? [];
@@ -103,18 +99,6 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
   const clearError = useCallback(() => {
     if (error) setError(null);
   }, [error]);
-
-  const handleMultiSessionChange = (checked: boolean) => {
-    setIsMultiSession(checked);
-    if (checked) setIsSimpleUSSD(false);
-    clearError();
-  };
-
-  const handleSimpleUSSDChange = (checked: boolean) => {
-    setIsSimpleUSSD(checked);
-    if (checked) setIsMultiSession(false);
-    clearError();
-  };
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -254,53 +238,14 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
               id="bundlesUSSD"
               value={bundlesUSSD}
               onChange={(e) => { setBundlesUSSD(e.target.value); clearError(); }}
+              disabled={bundle.isPatternOffer}
               required
             />
-          </div>
-
-          {/* Processing Type */}
-          <div className="space-y-2">
-            <Label>Processing Type</Label>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="isMultiSession"
-                checked={isMultiSession}
-                onCheckedChange={(c) => handleMultiSessionChange(c === true)}
-              />
-              <div className="flex items-center gap-1">
-                <Label htmlFor="isMultiSession" className="cursor-pointer font-normal">Multi-Session</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      Multi-step USSD automation that navigates through multiple dialog screens.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="isSimpleUSSD"
-                checked={isSimpleUSSD}
-                onCheckedChange={(c) => handleSimpleUSSDChange(c === true)}
-              />
-              <div className="flex items-center gap-1">
-                <Label htmlFor="isSimpleUSSD" className="cursor-pointer font-normal">Simple USSD</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      Single-step USSD execution with no session management.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-            </div>
+            {bundle.isPatternOffer && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Pattern offer — USSD code is locked here
+              </p>
+            )}
           </div>
 
           {/* Response Validator — only when Multi-Session */}

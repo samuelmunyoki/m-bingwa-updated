@@ -23,14 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast, Toaster } from "sonner";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Info, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 const OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
 
@@ -63,8 +56,6 @@ export function AddBundleModal({ userId }: { userId: string }) {
   const [status, setStatus] = useState("available");
   const [dialingSIM, setDialingSIM] = useState("SIM1");
   const [offerType, setOfferType] = useState("Data");
-  const [isMultiSession, setIsMultiSession] = useState(false);
-  const [isSimpleUSSD, setIsSimpleUSSD] = useState(false);
   const [validatorStep, setValidatorStep] = useState("");
   const [validatorText, setValidatorText] = useState("");
   const [autoReschedule, setAutoReschedule] = useState("");
@@ -75,6 +66,12 @@ export function AddBundleModal({ userId }: { userId: string }) {
 
   const createBundle = useMutation(api.features.bundles.createBundleFromAPI);
   const existingBundles = useQuery(api.features.bundles.getAllBundles, { userId });
+  // No mode toggle on the website — new offers mirror whatever mode is currently on in the
+  // phone's Settings screen (read-only, synced via the app). "Simple" is retired and folds
+  // into Advanced, same as everywhere else.
+  const modeSettings = useQuery(api.features.userModeSettings.getUserModeSettings, { userId });
+  const isMultiSession = modeSettings?.isAdvancedMode || modeSettings?.isSimpleMode || false;
+  const isSimpleUSSD = false;
 
   const clearError = useCallback(() => {
     if (error) setError(null);
@@ -89,26 +86,12 @@ export function AddBundleModal({ userId }: { userId: string }) {
     setStatus("available");
     setDialingSIM("SIM1");
     setOfferType("Data");
-    setIsMultiSession(false);
-    setIsSimpleUSSD(false);
     setValidatorStep("");
     setValidatorText("");
     setAutoReschedule("");
     setError(null);
     setIsSubmitting(false);
   }, []);
-
-  const handleMultiSessionChange = (checked: boolean) => {
-    setIsMultiSession(checked);
-    if (checked) setIsSimpleUSSD(false);
-    clearError();
-  };
-
-  const handleSimpleUSSDChange = (checked: boolean) => {
-    setIsSimpleUSSD(checked);
-    if (checked) setIsMultiSession(false);
-    clearError();
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,51 +246,6 @@ export function AddBundleModal({ userId }: { userId: string }) {
                 placeholder="*180*5*2*NUMBER*1*1#"
                 required
               />
-            </div>
-
-            {/* Processing Type */}
-            <div className="space-y-2">
-              <Label>Processing Type</Label>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="isMultiSession"
-                  checked={isMultiSession}
-                  onCheckedChange={(c) => handleMultiSessionChange(c === true)}
-                />
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="isMultiSession" className="cursor-pointer font-normal">Multi-Session</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Multi-step USSD automation that navigates through multiple dialog screens.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="isSimpleUSSD"
-                  checked={isSimpleUSSD}
-                  onCheckedChange={(c) => handleSimpleUSSDChange(c === true)}
-                />
-                <div className="flex items-center gap-1">
-                  <Label htmlFor="isSimpleUSSD" className="cursor-pointer font-normal">Simple USSD</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        Single-step USSD execution with no session management.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
             </div>
 
             {/* Response Validator — only when Multi-Session */}

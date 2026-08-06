@@ -48,6 +48,25 @@ export default defineSchema({
     isPatternOffer: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
 
+  // Store-only offers, created from the app's Store screen. Deliberately separate from `bundles`
+  // above: never shown in the app's Offers screen, never matched by auto-buy — only ever displayed
+  // on the owner's storefront. Post-payment fulfillment for these isn't built yet (bridged to
+  // another device, planned separately) — see project_custom_store_offers memory.
+  customOffers: defineTable({
+    userId: v.string(), // the store owner; one store per user, so this alone scopes "which store"
+    offerName: v.string(),
+    offerType: v.union(
+      v.literal("Data"),
+      v.literal("SMS"),
+      v.literal("Minutes"),
+      v.literal("Airtime"),
+      v.literal("Bundles"),
+      v.literal("Other")
+    ),
+    price: v.number(),
+    status: v.union(v.literal("available"), v.literal("disabled")),
+  }).index("by_user", ["userId"]),
+
   // Per-bundle USSD menu-navigation recipe for pattern/smart offers. One row per step.
   // Mirrors the app's local pattern_offer_steps Room table so a bundle's recipe survives
   // the user clearing the app's local data.
