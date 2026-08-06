@@ -58,6 +58,7 @@ type Bundle = {
   autoReschedule?: string;
   isSimpleUSSD?: boolean;
   responseValidatorText?: string;
+  isPatternOffer?: boolean;
 };
 
 const offerTypeConfig: Record<string, { icon: React.ReactNode; className: string }> = {

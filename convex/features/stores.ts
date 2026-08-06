@@ -26,6 +26,14 @@ async function getBundlesByUserId(ctx: { db: any }, args: { userId: string }): P
     .collect();
 }
 
+// Internal helper to fetch a store owner's custom offers — store-only, never shown app-wide.
+async function getCustomOffersByUserId(ctx: { db: any }, args: { userId: string }) {
+  return await ctx.db
+    .query("customOffers")
+    .withIndex("by_user", (q: any) => q.eq("userId", args.userId))
+    .collect();
+}
+
 //getStoreByStoreName query
 export const getStoreByStoreName = query({
   args: { storeName: v.string() },
@@ -45,10 +53,16 @@ export const getStoreByStoreName = query({
       userId: store.storeOwnerId,
     });
 
-    // Return both the store data and the associated bundles
+    // Store-only offers — displayed alongside bundles, never elsewhere in the app/website.
+    const customOffers = await getCustomOffersByUserId(ctx, {
+      userId: store.storeOwnerId,
+    });
+
+    // Return the store data, its regular bundles, and its custom offers
     return {
       store,
       bundles,
+      customOffers,
     };
   },
 });

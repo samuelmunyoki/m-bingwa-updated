@@ -29,6 +29,7 @@ import type * as features_bridge from "../features/bridge.js";
 import type * as features_bridgeAutoTopup from "../features/bridgeAutoTopup.js";
 import type * as features_bundles from "../features/bundles.js";
 import type * as features_cooldown from "../features/cooldown.js";
+import type * as features_customOffers from "../features/customOffers.js";
 import type * as features_emailTokens from "../features/emailTokens.js";
 import type * as features_helpContent from "../features/helpContent.js";
 import type * as features_messageDailyStats from "../features/messageDailyStats.js";
@@ -97,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   "features/bridgeAutoTopup": typeof features_bridgeAutoTopup;
   "features/bundles": typeof features_bundles;
   "features/cooldown": typeof features_cooldown;
+  "features/customOffers": typeof features_customOffers;
   "features/emailTokens": typeof features_emailTokens;
   "features/helpContent": typeof features_helpContent;
   "features/messageDailyStats": typeof features_messageDailyStats;

@@ -87,11 +87,18 @@ function StoreNamePage() {
     return <StoreNotFound />;
   }
 
-  const { store, bundles } = storeData;
+  const { store, bundles, customOffers } = storeData;
 
-  const availableBundles = bundles.filter(
-    (bundle) => bundle.status === "available"
-  );
+  // Custom offers are shown alongside regular bundles on the storefront but never have a
+  // `duration` — normalized here so BundleGrid can treat both uniformly.
+  const availableOffers = [
+    ...bundles
+      .filter((bundle) => bundle.status === "available")
+      .map((bundle) => ({ ...bundle, isCustomOffer: false })),
+    ...customOffers
+      .filter((offer) => offer.status === "available")
+      .map((offer) => ({ ...offer, duration: undefined, isCustomOffer: true })),
+  ];
 
   const isNewOffer = (creationTime: number) => {
     const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
@@ -112,10 +119,10 @@ function StoreNamePage() {
             </h2>
             <AlternativePaymentMethod store={store} />
             <ScrollArea className="flex-grow w-full">
-              {availableBundles.length > 0 ? (
+              {availableOffers.length > 0 ? (
                 <BundleGrid
                   store={store}
-                  bundles={availableBundles}
+                  bundles={availableOffers}
                   isNewOffer={isNewOffer}
                 />
               ) : (
@@ -328,12 +335,14 @@ function BundleGrid({
               </div>
             </CardHeader>
             <CardContent className="pb-2 pt-4">
-              <div className="flex items-center mb-2">
-                <Clock className="h-4 w-4 mr-2 text-green-600" />
-                <span className="text-sm font-medium">
-                  Validity: {bundle.duration}
-                </span>
-              </div>
+              {bundle.duration && (
+                <div className="flex items-center mb-2">
+                  <Clock className="h-4 w-4 mr-2 text-green-600" />
+                  <span className="text-sm font-medium">
+                    Validity: {bundle.duration}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center">
                 <CreditCard className="h-4 w-4 mr-2 text-green-600" />
                 <span className="text-sm font-medium">KES</span>
@@ -384,13 +393,15 @@ function BundleGrid({
               ) : (
                 <>
                   <div className="p-4 w-full">
-                    <div className="items-center gap-4 my-3 w-full">
-                      <h3 className="w-full text-center flex justify-center items-center">
-                        <Clock className="h-4 w-4 mr-2 text-green-600" />{" "}
-                        Duration:{" "}
-                        <span className="ml-2"> {selectedBundle.duration}</span>
-                      </h3>
-                    </div>
+                    {selectedBundle.duration && (
+                      <div className="items-center gap-4 my-3 w-full">
+                        <h3 className="w-full text-center flex justify-center items-center">
+                          <Clock className="h-4 w-4 mr-2 text-green-600" />{" "}
+                          Duration:{" "}
+                          <span className="ml-2"> {selectedBundle.duration}</span>
+                        </h3>
+                      </div>
+                    )}
                     <div className="items-center gap-4 w-full  my-3 ">
                       <h3 className="w-full text-center flex justify-center items-center">
                         <CreditCard className="h-4 w-4 mr-2 text-green-600" />{" "}
