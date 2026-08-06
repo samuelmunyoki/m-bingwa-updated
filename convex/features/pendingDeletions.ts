@@ -35,7 +35,7 @@ export const getPendingDeletions = query({
       .withIndex("by_userId_status", (q) =>
         q.eq("userId", args.userId).eq("status", "pending")
       )
-      .collect();
+      .take(500);
   },
 });
 
