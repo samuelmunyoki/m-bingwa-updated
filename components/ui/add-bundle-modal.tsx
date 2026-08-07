@@ -25,7 +25,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast, Toaster } from "sonner";
 import { Clock } from "lucide-react";
 
-const OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
+// Matches the app's own list exactly (OfferBundleUtils.getOfferTypes()) — the app has no UI for
+// Airtime/Bundles/Other, so offers created here with those types would be unreachable there.
+const OFFER_TYPES = ["Data", "SMS", "Minutes"] as const;
 
 function formatTimeTo12h(time24: string): string {
   const [hStr, mStr] = time24.split(":");
@@ -49,7 +51,6 @@ function formatTimeTo24h(time12: string): string {
 export function AddBundleModal({ userId }: { userId: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const [offerName, setOfferName] = useState("");
-  const [duration, setDuration] = useState("");
   const [bundlesUSSD, setBundlesUSSD] = useState("");
   const [price, setPrice] = useState("");
   const [commission, setCommission] = useState("");
@@ -79,7 +80,6 @@ export function AddBundleModal({ userId }: { userId: string }) {
 
   const resetForm = useCallback(() => {
     setOfferName("");
-    setDuration("");
     setPrice("");
     setCommission("");
     setBundlesUSSD("");
@@ -115,7 +115,7 @@ export function AddBundleModal({ userId }: { userId: string }) {
       const res = await createBundle({
         userId,
         offerName,
-        duration,
+        duration: "N/A",
         price: priceNum,
         commission: commission ? parseFloat(commission) : undefined,
         status: status as "available" | "disabled",
@@ -125,7 +125,7 @@ export function AddBundleModal({ userId }: { userId: string }) {
         responseValidatorText,
         autoReschedule,
         dialingSIM: dialingSIM as "SIM1" | "SIM2",
-        offerType: offerType as "Data" | "SMS" | "Minutes" | "Airtime" | "Bundles" | "Other",
+        offerType: offerType as "Data" | "SMS" | "Minutes",
       });
 
       setIsSubmitting(false);
@@ -190,18 +190,6 @@ export function AddBundleModal({ userId }: { userId: string }) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            {/* Duration */}
-            <div>
-              <Label htmlFor="duration">Duration <span className="text-red-500">*</span></Label>
-              <Input
-                id="duration"
-                value={duration}
-                onChange={(e) => { setDuration(e.target.value); clearError(); }}
-                placeholder="e.g., 24 Hours"
-                required
-              />
             </div>
 
             {/* Price + Commission */}
