@@ -716,7 +716,8 @@ export const updateBundle = httpAction(async (ctx, request) => {
       }
     }
 
-    await ctx.runMutation(api.features.bundles.updateBundle, {
+    console.log(`[MODE_DEBUG] httpAction updateBundle — id=${id} raw body.isMultiSession=${isMultiSession} raw body.isSimpleUSSD=${isSimpleUSSD} finalIsMultiSession=${finalIsMultiSession} finalIsSimpleUSSD=${finalIsSimpleUSSD}`);
+    const mutationResult = await ctx.runMutation(api.features.bundles.updateBundle, {
       id: id as Id<"bundles">,
       userId: userId,
       bundlesUSSD: bundlesUSSD,
@@ -734,6 +735,13 @@ export const updateBundle = httpAction(async (ctx, request) => {
       isPatternOffer: isPatternOffer,
       patternSteps: patternSteps
     })
+
+    // The mutation can fail internally (e.g. a schema validation error) and return
+    // status:"error" without throwing — this used to be silently discarded, always reporting
+    // "success" to the caller regardless of what actually happened in the database.
+    if (mutationResult?.status !== "success") {
+      return createResponse("error", null, mutationResult?.message ?? "Failed to update bundle.")
+    }
 
     return createResponse("success", null, "Bundle updated successfully")
   } catch (error) {
@@ -7021,6 +7029,24 @@ export const acknowledgeDeletionHttp = httpAction(async (ctx, request) => {
   if (!deletionId) return createResponse("error", null, "Missing deletionId");
   try {
     const result = await ctx.runMutation(api.features.pendingDeletions.acknowledgeDeletion, { deletionId });
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+// Batch version — acknowledges a whole fetched page of deletions in one call instead of one
+// HTTP round-trip per item. See acknowledgeDeletions in pendingDeletions.ts for why.
+export const acknowledgeDeletionsHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") return createResponse("error", null, "Method not allowed");
+  let body;
+  try { body = await request.json(); } catch { return createResponse("error", null, "Invalid JSON"); }
+  const { deletionIds } = body ?? {};
+  if (!Array.isArray(deletionIds) || deletionIds.length === 0) {
+    return createResponse("error", null, "Missing or empty deletionIds");
+  }
+  try {
+    const result = await ctx.runMutation(api.features.pendingDeletions.acknowledgeDeletions, { deletionIds });
     return createResponse("success", result);
   } catch (e: any) {
     return createResponse("error", null, `Failed: ${e.message}`);

@@ -55,3 +55,27 @@ export const acknowledgeDeletion = mutation({
     return { status: "acknowledged" };
   },
 });
+
+// Batch version of acknowledgeDeletion — one mutation for a whole fetched page instead of one
+// mutation per item. Added 2026-08-07: acknowledging one-at-a-time meant every single ack
+// invalidated+recomputed the live getPendingDeletions subscription for whoever's watching it,
+// so draining a large backlog (one per item) was causing one full subscription recompute PER
+// ITEM instead of per batch — this is what was pegging server CPU. Same idempotent semantics
+// as the single version, just looped inside one mutation so the recompute happens once per
+// call instead of once per row.
+export const acknowledgeDeletions = mutation({
+  args: { deletionIds: v.array(v.id("pendingDeletions")) },
+  handler: async (ctx, args) => {
+    let acknowledgedCount = 0;
+    for (const deletionId of args.deletionIds) {
+      const entry = await ctx.db.get(deletionId);
+      if (!entry || entry.status !== "pending") continue;
+      await ctx.db.patch(deletionId, {
+        status: "acknowledged",
+        acknowledgedAt: Date.now(),
+      });
+      acknowledgedCount++;
+    }
+    return { acknowledgedCount };
+  },
+});

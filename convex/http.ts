@@ -136,6 +136,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   acknowledgeSkipHttp,
   getPendingDeletionsHttp,
   acknowledgeDeletionHttp,
+  acknowledgeDeletionsHttp,
   getPendingStoreMpesaMessagesHttp,
   markStoreMessageAndroidProcessedHttp,
   getPendingWebRetriesHttp,
@@ -430,6 +431,12 @@ http.route({
   pathPrefix: "/api/pending-deletions/acknowledge/",
   method: "PATCH",
   handler: acknowledgeDeletionHttp,
+});
+
+http.route({
+  pathPrefix: "/api/pending-deletions/acknowledge-batch/",
+  method: "PATCH",
+  handler: acknowledgeDeletionsHttp,
 });
 
 http.route({

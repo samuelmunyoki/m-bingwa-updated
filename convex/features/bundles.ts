@@ -273,29 +273,34 @@ export const updateBundle = mutation({
       }
     }
 
+    console.log(`[MODE_DEBUG] updateBundle mutation received — id=${id} args.isMultiSession=${isMultiSession} args.isSimpleUSSD=${isSimpleUSSD} existingBundle.isMultiSession=${existingBundle.isMultiSession} finalIsMultiSession=${finalIsMultiSession} finalIsSimpleUSSD=${finalIsSimpleUSSD}`);
     try {
-      // isPatternOffer is intentionally excluded unless the caller explicitly sent it: Convex's
-      // patch() clears a field entirely when it's given the value `undefined`, and most callers of
-      // this mutation (ordinary bundle edits — price/name/status changes) don't know about pattern
-      // offers at all and never set this arg. Including it unconditionally would silently unset
-      // isPatternOffer on every unrelated edit to a pattern-offer bundle.
+      // Every field here is included only if the caller actually sent it — same reasoning as the
+      // isPatternOffer guard below, generalized: offerName/price/duration/etc are REQUIRED
+      // (non-optional) in the bundles table schema, so patch()-ing them with `undefined` (e.g. a
+      // caller like the mode-toggle bulk update, which only ever sends isMultiSession/isSimpleUSSD)
+      // throws "missing required field" and the whole write is rejected — silently, from the
+      // caller's point of view, since nothing here used to check for that (see the httpAction fix).
       await ctx.db.patch(id, {
-        offerName,
-        price,
+        ...(offerName !== undefined ? { offerName } : {}),
+        ...(price !== undefined ? { price } : {}),
         isMultiSession: finalIsMultiSession,
         isSimpleUSSD: finalIsSimpleUSSD,
         responseValidatorText: finalResponseValidatorText,
-        ...updates,
+        ...Object.fromEntries(Object.entries(updates).filter(([, v]) => v !== undefined)),
         ...(isPatternOffer !== undefined ? { isPatternOffer } : {}),
       });
       if (patternSteps !== undefined) {
         await replaceBundleSteps(ctx, id.toString(), userId, patternSteps);
       }
+      const afterPatch = await ctx.db.get(id);
+      console.log(`[MODE_DEBUG] updateBundle AFTER patch — id=${id} stored isMultiSession=${afterPatch?.isMultiSession} stored isSimpleUSSD=${afterPatch?.isSimpleUSSD}`);
       return {
         status: "success",
         message: `Bundle updated successfully.`,
       } as BackendResponse;
     } catch (error) {
+      console.log(`[MODE_DEBUG] updateBundle EXCEPTION — id=${id} error=${error}`);
       return {
         status: "error",
         message:
