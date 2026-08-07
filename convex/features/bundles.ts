@@ -432,6 +432,83 @@ export const getBundleByUserAndNameOrPrice = query({
   },
 });
 
+const BUNDLE_OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
+
+// Copies (or re-copies, if already added) a Smart Offers catalog entry into the caller's own
+// bundles — the web equivalent of SmartUssdViewModel.addOrReplaceOffer() on Android. Matches
+// the existing bundle by price, same as the app: offer prices are unique in the catalog, so
+// price is a safe identity key here (confirmed — offers can't share a price).
+export const addOrReplaceFromCatalog = mutation({
+  args: {
+    userId: v.string(),
+    offerId: v.id("serverPatternOffers"),
+  },
+  handler: async (ctx, args) => {
+    const { userId, offerId } = args;
+
+    const offer = await ctx.db.get(offerId);
+    if (!offer || !offer.isActive) {
+      return {
+        status: "error",
+        message: "Offer not found or no longer available.",
+      } as BackendResponse;
+    }
+
+    const existing = await ctx.db
+      .query("bundles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("price"), offer.price))
+      .first();
+    const wasReplaced = existing !== null;
+
+    // The catalog's offerType is free text (e.g. PatternOffersMain also allows "Custom"),
+    // but bundles.offerType is a closed union — fall back to "Other" for anything that
+    // doesn't match, rather than letting the mutation throw on an unrecognized value.
+    const offerType = (BUNDLE_OFFER_TYPES as readonly string[]).includes(offer.offerType)
+      ? (offer.offerType as (typeof BUNDLE_OFFER_TYPES)[number])
+      : "Other";
+
+    const bundleFields = {
+      userId,
+      offerName: offer.name,
+      duration: existing?.duration ?? "N/A",
+      bundlesUSSD: offer.ussdBaseCode,
+      price: offer.price,
+      commission: existing?.commission ?? 0,
+      status: "available" as const,
+      isMultiSession: true,
+      isSimpleUSSD: false,
+      responseValidatorText: "",
+      autoReschedule: existing?.autoReschedule ?? "",
+      dialingSIM: existing?.dialingSIM ?? ("SIM1" as const),
+      offerType,
+      isPatternOffer: true,
+    };
+
+    const bundleId = existing ? existing._id : await ctx.db.insert("bundles", bundleFields);
+    if (existing) {
+      await ctx.db.patch(existing._id, bundleFields);
+    }
+
+    await replaceBundleSteps(
+      ctx,
+      bundleId.toString(),
+      userId,
+      offer.steps.map(({ stepIndex, inputKey, inputValue, pattern, type, inputMode }) => ({
+        stepIndex, inputKey, inputValue, pattern, type, inputMode,
+      }))
+    );
+
+    return {
+      status: "success",
+      message: wasReplaced ? `'${offer.name}' replaced in your offers.` : `'${offer.name}' added to your offers.`,
+      bundleId: bundleId.toString(),
+      offerName: offer.name,
+      wasReplaced,
+    };
+  },
+});
+
 export const getDuplicateBundle = query({
   args: {
     userId: v.string(),

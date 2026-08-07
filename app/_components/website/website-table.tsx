@@ -193,18 +193,12 @@ export function BundlesTable({ userId }: { userId: string }) {
       id: "processingType",
       header: "Processing",
       cell: ({ row }) => {
+        // Simple is retired — legacy isSimpleUSSD offers display as Advanced too, same engine.
         const { isMultiSession, isSimpleUSSD } = row.original;
-        if (isMultiSession) {
+        if (isMultiSession || isSimpleUSSD) {
           return (
             <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
-              Multi-Session
-            </span>
-          );
-        }
-        if (isSimpleUSSD) {
-          return (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
-              Simple USSD
+              Advanced
             </span>
           );
         }
