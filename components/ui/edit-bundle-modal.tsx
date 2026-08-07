@@ -25,7 +25,8 @@ import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 import { Clock } from "lucide-react";
 
-const OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
+// Matches the app's own list exactly (OfferBundleUtils.getOfferTypes()).
+const OFFER_TYPES = ["Data", "SMS", "Minutes"] as const;
 
 function formatTimeTo12h(time24: string): string {
   const [hStr, mStr] = time24.split(":");
@@ -72,7 +73,6 @@ type EditBundleModalProps = {
 
 export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
   const [offerName, setOfferName] = useState(bundle.offerName);
-  const [duration, setDuration] = useState(bundle.duration);
   const [bundlesUSSD, setBundlesUSSD] = useState(bundle.bundlesUSSD);
   const [price, setPrice] = useState(bundle.price.toString());
   const [commission, setCommission] = useState(bundle.commission?.toString() ?? "");
@@ -116,7 +116,7 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
           id: bundle._id,
           userId: bundle.userId,
           offerName,
-          duration,
+          duration: bundle.duration,
           bundlesUSSD,
           price: parseFloat(price),
           commission: commission ? parseFloat(commission) : undefined,
@@ -126,7 +126,7 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
           responseValidatorText,
           autoReschedule,
           dialingSIM,
-          offerType: offerType as "Data" | "SMS" | "Minutes" | "Airtime" | "Bundles" | "Other",
+          offerType: offerType as "Data" | "SMS" | "Minutes",
         });
 
         setIsSubmitting(false);
@@ -143,8 +143,8 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
       }
     },
     [
-      updateBundle, bundle._id, bundle.userId,
-      offerName, duration, bundlesUSSD, price, commission,
+      updateBundle, bundle._id, bundle.userId, bundle.duration,
+      offerName, bundlesUSSD, price, commission,
       status, isMultiSession, isSimpleUSSD, validatorStep, validatorText,
       autoReschedule, dialingSIM, offerType, onClose,
     ]
@@ -187,17 +187,6 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          {/* Duration */}
-          <div>
-            <Label htmlFor="duration">Duration <span className="text-red-500">*</span></Label>
-            <Input
-              id="duration"
-              value={duration}
-              onChange={(e) => { setDuration(e.target.value); clearError(); }}
-              required
-            />
           </div>
 
           {/* Price + Commission */}
