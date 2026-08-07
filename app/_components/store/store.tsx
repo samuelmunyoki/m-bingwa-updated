@@ -1,5 +1,6 @@
 import React from "react";
 import { StoreDashboard } from "./store-table";
+import { CustomOffersTable } from "./custom-offers-table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Store } from "lucide-react";
 
@@ -13,7 +14,14 @@ const StoreMain = ({ userId }: { userId: string }) => {
         </div>
         <div className="border-b border-neutral-200 mb-2" />
         <ScrollArea className="flex-1">
-          <StoreDashboard userId={userId} />
+          <div className="flex flex-col md:flex-row gap-4 items-start">
+            <div className="w-full md:flex-1 md:min-w-0">
+              <StoreDashboard userId={userId} />
+            </div>
+            <div className="w-full md:flex-1 md:min-w-0">
+              <CustomOffersTable userId={userId} />
+            </div>
+          </div>
         </ScrollArea>
       </div>
     </div>

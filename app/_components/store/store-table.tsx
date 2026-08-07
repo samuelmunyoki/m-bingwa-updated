@@ -73,7 +73,7 @@ export function StoreDashboard({ userId }: { userId: string }) {
   const status = statusConfig[store.status as keyof typeof statusConfig] ?? statusConfig.available;
 
   return (
-    <div className="w-full max-w-2xl flex flex-col gap-5">
+    <div className="w-full flex flex-col gap-5">
 
       {/* Store Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
