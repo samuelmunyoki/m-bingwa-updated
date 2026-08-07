@@ -16,6 +16,7 @@ import {
   IconDeviceMobileMessage,
   IconChartBar,
   IconForbid,
+  IconSparkles,
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@clerk/nextjs";
@@ -47,6 +48,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { TransactionsMain } from "@/app/_components/transactions/transactions";
 import BalanceBar from "@/app/_components/balance/BalanceBar";
 import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
+import SmartOffersMain from "@/app/_components/smart_offers/SmartOffersMain";
 import RevenueMain from "@/app/_components/revenue/RevenueMain";
 import AppConfigMain from "@/app/_components/app_config/AppConfigMain";
 import { IconCurrencyDollar, IconAppWindow, IconHelpCircle } from "@tabler/icons-react";
@@ -297,6 +299,13 @@ export default function Dashboard() {
       ),
     },
     {
+      label: "Smart Offers",
+      href: "#",
+      icon: (
+        <IconSparkles className="text-fuchsia-500 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
       label: "Statistics",
       href: "#",
       icon: (
@@ -533,6 +542,7 @@ export default function Dashboard() {
         {navItem === "Store" && <StoreMain userId={activeProfileId} />}
         {navItem === "Transactions" && <TransactionsMain userId={activeProfileId} />}
         {navItem === "Offers" && <WebsiteMain userId={activeProfileId} />}
+        {navItem === "Smart Offers" && <SmartOffersMain userId={activeProfileId} />}
         {navItem === "Statistics" && <StatisticsMain userId={activeProfileId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
