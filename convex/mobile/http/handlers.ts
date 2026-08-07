@@ -417,9 +417,9 @@ export const createCustomOffer = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Price must be a number");
   }
 
-  const validOfferTypes = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"];
+  const validOfferTypes = ["Data", "SMS", "Minutes"];
   if (!validOfferTypes.includes(offerType)) {
-    return createResponse("error", null, "Invalid offerType. Must be one of: Data, SMS, Minutes, Airtime, Bundles, Other");
+    return createResponse("error", null, "Invalid offerType. Must be one of: Data, SMS, Minutes");
   }
 
   if (status !== "available" && status !== "disabled") {

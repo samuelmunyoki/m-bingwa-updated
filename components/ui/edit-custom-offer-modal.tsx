@@ -24,7 +24,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";
 
-const OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
+// Kept in sync with the app's OfferBundleUtils.getOfferTypes() — the app only recognizes these three.
+const OFFER_TYPES = ["Data", "SMS", "Minutes"] as const;
 
 type CustomOffer = {
   _id: Id<"customOffers">;
@@ -66,7 +67,7 @@ export function EditCustomOfferModal({ offer, onClose }: EditCustomOfferModalPro
           id: offer._id,
           userId: offer.userId,
           offerName: offerName.trim(),
-          offerType: offerType as "Data" | "SMS" | "Minutes" | "Airtime" | "Bundles" | "Other",
+          offerType: offerType as "Data" | "SMS" | "Minutes",
           price: parseFloat(price),
         });
 

@@ -24,7 +24,8 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 
-const OFFER_TYPES = ["Data", "SMS", "Minutes", "Airtime", "Bundles", "Other"] as const;
+// Kept in sync with the app's OfferBundleUtils.getOfferTypes() — the app only recognizes these three.
+const OFFER_TYPES = ["Data", "SMS", "Minutes"] as const;
 
 export function AddCustomOfferModal({ userId }: { userId: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -69,7 +70,7 @@ export function AddCustomOfferModal({ userId }: { userId: string }) {
       await createCustomOffer({
         userId,
         offerName: offerName.trim(),
-        offerType: offerType as "Data" | "SMS" | "Minutes" | "Airtime" | "Bundles" | "Other",
+        offerType: offerType as "Data" | "SMS" | "Minutes",
         price: parseFloat(price),
         status: "available",
       });
