@@ -58,10 +58,7 @@ export default defineSchema({
     offerType: v.union(
       v.literal("Data"),
       v.literal("SMS"),
-      v.literal("Minutes"),
-      v.literal("Airtime"),
-      v.literal("Bundles"),
-      v.literal("Other")
+      v.literal("Minutes")
     ),
     price: v.number(),
     status: v.union(v.literal("available"), v.literal("disabled")),

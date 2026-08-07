@@ -3,13 +3,11 @@ import { mutation } from "../functions";
 import { query } from "../_generated/server";
 import { BackendResponse } from "../../lib/custom_types";
 
+// Kept in sync with the app's OfferBundleUtils.getOfferTypes() — the app only recognizes these three.
 const offerTypeArg = v.union(
   v.literal("Data"),
   v.literal("SMS"),
-  v.literal("Minutes"),
-  v.literal("Airtime"),
-  v.literal("Bundles"),
-  v.literal("Other")
+  v.literal("Minutes")
 );
 
 export const getCustomOffersByUserId = query({
