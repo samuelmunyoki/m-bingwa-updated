@@ -349,6 +349,14 @@ export const updateMpesaMessage = mutation({
   handler: async (ctx, args) => {
     const { messageId, scheduledRetryAt, ...updates } = args;
 
+    // Check existence up front instead of letting patch() throw — the message can legitimately
+    // be gone by the time this update arrives (e.g. deleted from the website in the meantime),
+    // which isn't exceptional and shouldn't surface as an uncaught error (2026-08-08).
+    const currentMsg = await ctx.db.get(messageId);
+    if (!currentMsg) {
+      return { status: "not_found" as const };
+    }
+
     // Remove undefined values
     const cleanUpdates: Record<string, any> = Object.fromEntries(
       Object.entries(updates).filter(([_, value]) => value !== undefined)
@@ -366,9 +374,6 @@ export const updateMpesaMessage = mutation({
     } else if (scheduledRetryAt !== undefined) {
       cleanUpdates.scheduledRetryAt = scheduledRetryAt;
     }
-
-    // Read the current row BEFORE patching so we know the old status for the stats delta.
-    const currentMsg = args.processed !== undefined ? await ctx.db.get(messageId) : null;
 
     if (Object.keys(cleanUpdates).length > 0) {
       await ctx.db.patch(messageId, cleanUpdates);
