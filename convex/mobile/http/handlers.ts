@@ -4959,6 +4959,7 @@ export const createOnlineBridgeTransaction = httpAction(
         smsContent,
         ussdCode,
         status,
+        source,
       } = body;
 
       // Validate required fields
@@ -4990,6 +4991,7 @@ export const createOnlineBridgeTransaction = httpAction(
           smsContent,
           ussdCode,
           status,
+          source,
         }
       );
 

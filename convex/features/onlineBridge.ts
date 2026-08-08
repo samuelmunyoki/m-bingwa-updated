@@ -396,6 +396,7 @@ export const createOnlineBridgeTransaction = mutation({
     smsContent: v.string(),
     ussdCode: v.optional(v.string()),
     status: v.string(),
+    source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -419,6 +420,7 @@ export const createOnlineBridgeTransaction = mutation({
       createdAt: now,
       updatedAt: now,
       isDeleted: false,
+      source: args.source ?? "sms",
     });
 
     const bucket = bridgeStatusBucket(args.status);
@@ -948,6 +950,7 @@ export const batchCreateOnlineBridgeTransactions = mutation({
         smsContent: v.string(),
         ussdCode: v.optional(v.string()),
         status: v.string(),
+        source: v.optional(v.string()),
       })
     ),
   },
@@ -983,6 +986,7 @@ export const batchCreateOnlineBridgeTransactions = mutation({
         createdAt: now,
         updatedAt: now,
         isDeleted: false,
+        source: transaction.source ?? "sms",
       });
 
       const bucket = bridgeStatusBucket(transaction.status);

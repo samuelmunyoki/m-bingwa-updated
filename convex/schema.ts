@@ -498,6 +498,10 @@ export default defineSchema({
     createdAt: v.float64(),
     updatedAt: v.float64(),
     isDeleted: v.boolean(),
+    // "sms" (real M-Pesa message) vs "store" (store/custom-offer sale, no real SMS — smsContent
+    // instead holds "payingNumber|receivingNumber|transactionId"). Optional/absent on rows created
+    // before this field existed; the app treats absent as "sms". See project_custom_store_offers.
+    source: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_and_deleted", ["userId", "isDeleted"])
