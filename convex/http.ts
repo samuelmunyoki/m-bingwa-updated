@@ -162,6 +162,10 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getTodayPendingMessagesHttp,
   migrateUserMessageStatsHttp,
   migrateOnlineBridgeDailyCountsHttp,
+  getOfferTimeConfigs,
+  createOfferTimeConfig,
+  updateOfferTimeConfig,
+  deleteOfferTimeConfig,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -217,6 +221,32 @@ http.route({
   pathPrefix: "/api/bundles/toggleBundleStatus/",
   method: "PATCH",
   handler: toggleBundleStatus,
+});
+
+// Offer Time Configs — storage/cross-device sync only, no website UI. See
+// project_offer_time_config_feature memory (Android repo) / plan "enumerated-splashing-wadler".
+http.route({
+  pathPrefix: "/api/offer-time-configs/",
+  method: "GET",
+  handler: getOfferTimeConfigs,
+});
+
+http.route({
+  pathPrefix: "/api/offer-time-configs/create/",
+  method: "POST",
+  handler: createOfferTimeConfig,
+});
+
+http.route({
+  pathPrefix: "/api/offer-time-configs/update/",
+  method: "PATCH",
+  handler: updateOfferTimeConfig,
+});
+
+http.route({
+  pathPrefix: "/api/offer-time-configs/delete/",
+  method: "DELETE",
+  handler: deleteOfferTimeConfig,
 });
 
 // API Route to get a store owner's custom offers

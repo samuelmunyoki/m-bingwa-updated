@@ -37,6 +37,7 @@ import type * as features_migration from "../features/migration.js";
 import type * as features_mpesaMessages from "../features/mpesaMessages.js";
 import type * as features_mpesa_transactions from "../features/mpesa_transactions.js";
 import type * as features_notifications from "../features/notifications.js";
+import type * as features_offerTimeConfigs from "../features/offerTimeConfigs.js";
 import type * as features_onlineBridge from "../features/onlineBridge.js";
 import type * as features_otps from "../features/otps.js";
 import type * as features_pendingDeletions from "../features/pendingDeletions.js";
@@ -106,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   "features/mpesaMessages": typeof features_mpesaMessages;
   "features/mpesa_transactions": typeof features_mpesa_transactions;
   "features/notifications": typeof features_notifications;
+  "features/offerTimeConfigs": typeof features_offerTimeConfigs;
   "features/onlineBridge": typeof features_onlineBridge;
   "features/otps": typeof features_otps;
   "features/pendingDeletions": typeof features_pendingDeletions;
