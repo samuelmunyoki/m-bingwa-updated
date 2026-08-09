@@ -7375,3 +7375,97 @@ export const getTransactionCountsHttp = httpAction(async (ctx, request) => {
     return createResponse("error", null, `Failed: ${e.message}`);
   }
 });
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Offer Time Configs — storage/cross-device sync only (no website UI). See
+// project_offer_time_config_feature memory (Android repo) / plan "enumerated-splashing-wadler".
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+export const getOfferTimeConfigs = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const configs = await ctx.runQuery(api.features.offerTimeConfigs.getOfferTimeConfigs, { userId });
+    return createResponse("success", { configs }, null);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch offer time configs");
+  }
+});
+
+export const createOfferTimeConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.offerTimeConfigs.createOfferTimeConfigFromAPI, body);
+    return createResponse(result.status === "success" ? "success" : "error", result.data, result.message);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOfferTimeConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.id || !body.userId) {
+    return createResponse("error", null, "Missing id or userId in request body");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.offerTimeConfigs.updateOfferTimeConfigFromAPI, body);
+    return createResponse(result.status === "success" ? "success" : "error", result.data, result.message);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOfferTimeConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.id || !body.userId) {
+    return createResponse("error", null, "Missing id or userId in request body");
+  }
+
+  try {
+    const { id, userId } = body;
+    await ctx.runMutation(api.features.offerTimeConfigs.deleteOfferTimeConfigFromAPI, { id, userId });
+    return createResponse("success", null, "Time Config deleted successfully");
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});

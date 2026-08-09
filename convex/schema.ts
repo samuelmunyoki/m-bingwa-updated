@@ -48,6 +48,29 @@ export default defineSchema({
     isPatternOffer: v.optional(v.boolean()),
   }).index("by_user", ["userId"]),
 
+  // Pairs two offers sharing a price with daily time windows, so the Android app can
+  // auto-switch which one is "active" as Safaricom rotates offers by time of day (e.g. "Ksh 10"
+  // is a completely different USSD flow 00:00-14:00 vs 14:00-23:59). Storage/cross-device sync
+  // only — deliberately no website UI reads/writes this table. See
+  // project_offer_time_config_feature memory (Android repo) / plan "enumerated-splashing-wadler".
+  offerTimeConfigs: defineTable({
+    userId: v.string(),
+    price: v.number(),
+    isEnabled: v.boolean(),
+    variantAKind: v.union(v.literal("NORMAL"), v.literal("PATTERN")),
+    variantAStartTime: v.string(),   // "hh:mm am/pm"
+    variantAEndTime: v.string(),
+    variantABundleId: v.optional(v.string()),
+    variantAServerOfferId: v.optional(v.string()),
+    variantAPatternSnapshotJson: v.optional(v.string()),
+    variantBKind: v.union(v.literal("NORMAL"), v.literal("PATTERN")),
+    variantBStartTime: v.string(),
+    variantBEndTime: v.string(),
+    variantBBundleId: v.optional(v.string()),
+    variantBServerOfferId: v.optional(v.string()),
+    variantBPatternSnapshotJson: v.optional(v.string()),
+  }).index("by_user", ["userId"]),
+
   // Store-only offers, created from the app's Store screen. Deliberately separate from `bundles`
   // above: never shown in the app's Offers screen, never matched by auto-buy — only ever displayed
   // on the owner's storefront. Post-payment fulfillment for these isn't built yet (bridged to
