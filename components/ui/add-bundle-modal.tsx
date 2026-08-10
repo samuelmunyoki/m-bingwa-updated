@@ -66,7 +66,6 @@ export function AddBundleModal({ userId }: { userId: string }) {
   const timeInputRef = useRef<HTMLInputElement>(null);
 
   const createBundle = useMutation(api.features.bundles.createBundleFromAPI);
-  const existingBundles = useQuery(api.features.bundles.getAllBundles, { userId });
   // No mode toggle on the website — new offers mirror whatever mode is currently on in the
   // phone's Settings screen (read-only, synced via the app). "Simple" is retired and folds
   // into Advanced, same as everywhere else.
@@ -99,12 +98,8 @@ export function AddBundleModal({ userId }: { userId: string }) {
     setIsSubmitting(true);
 
     const priceNum = parseFloat(price);
-    const isDuplicate = existingBundles?.some((b) => b.price === priceNum);
-    if (isDuplicate) {
-      setError(`An offer with price KES ${priceNum.toFixed(2)} already exists.`);
-      setIsSubmitting(false);
-      return;
-    }
+    // No client-side price-duplicate block — createBundleFromAPI silently saves this offer as
+    // disabled instead when another active one already holds this price, same as the app.
 
     const responseValidatorText =
       isMultiSession && validatorStep && validatorText
