@@ -328,27 +328,20 @@ export const createBundle = httpAction(async (ctx, request) => {
   }
 
   try {
-    // Check for existing bundle with the same name or price for this user
+    // Only the name blocks here — a price conflict is never rejected, createBundleFromAPI
+    // silently saves this bundle as disabled instead when another active one shares the price.
     const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByUserAndNameOrPrice, {
       userId,
       offerName,
       price,
     })
 
-    if (existingBundle) {
-      if (existingBundle.offerName === offerName) {
-        return createResponse(
-          "error",
-          null,
-          `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-        )
-      } else {
-        return createResponse(
-          "error",
-          null,
-          `A bundle with the price ${price} already exists. Please choose a different price.`,
-        )
-      }
+    if (existingBundle && existingBundle.offerName === offerName) {
+      return createResponse(
+        "error",
+        null,
+        `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+      )
     }
 
     const newBundleId = await ctx.runMutation(api.features.bundles.createBundleFromAPI, {
@@ -691,28 +684,21 @@ export const updateBundle = httpAction(async (ctx, request) => {
       }
     }
     
-    if (offerName || price !== undefined) {
+    // Only the name blocks here — a price conflict is never rejected, the updateBundle mutation
+    // silently saves this bundle as disabled instead when another active one shares the price.
+    if (offerName) {
       const duplicateBundle = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
         userId,
         offerName,
-        price,
         excludeId: id as Id<"bundles">,
       })
 
       if (duplicateBundle) {
-        if (offerName && duplicateBundle.offerName === offerName) {
-          return createResponse(
-            "error",
-            null,
-            `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-          )
-        } else {
-          return createResponse(
-            "error",
-            null,
-            `A bundle with the price ${price} already exists. Please choose a different price.`,
-          )
-        }
+        return createResponse(
+          "error",
+          null,
+          `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+        )
       }
     }
 

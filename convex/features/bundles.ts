@@ -117,25 +117,36 @@ export const createBundleFromAPI = mutation({
         return null;
       }
     }
-    // Check for existing bundle with the same name or price for this user
-    const existingBundle = await ctx.db
+    // Name duplicates always block. Price duplicates only block if the existing bundle at that
+    // price is currently ACTIVE — a disabled one is fine to share a price with (this is what lets
+    // an Offer Time Config's inactive side sit disabled at the same price as its active sibling).
+    // Mirrors BundleRepository.doesOfferAmountExist on the Android side — see
+    // project_offer_time_config_feature memory.
+    const nameDuplicate = await ctx.db
+      .query("bundles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .filter((q) => q.eq(q.field("offerName"), offerName))
+      .first();
+
+    if (nameDuplicate) {
+      return null;
+    }
+
+    // Only check at all if THIS bundle is being saved as "available" — if it's being saved as
+    // "disabled" (exactly what the Android app does when it already detected this same conflict
+    // itself), there's nothing to reject: two bundles can share a price as long as at most one
+    // is active, and this one isn't.
+    const activePriceDuplicate = status !== "available" ? null : await ctx.db
       .query("bundles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .filter((q) =>
-        q.or(
-          q.eq(q.field("offerName"), offerName),
-          q.eq(q.field("price"), price)
-        )
+        q.and(q.eq(q.field("price"), price), q.eq(q.field("status"), "available"))
       )
       .first();
 
-    if (existingBundle) {
-      if (existingBundle.offerName === offerName) {
-        return null;
-      } else {
-        return null;
-      }
-    }
+    // Never reject on a price conflict — silently save this one as disabled instead, so the
+    // caller (app or website) doesn't need to pre-compute this itself.
+    const finalStatus = activePriceDuplicate ? "disabled" : status;
 
     try {
       const id = await ctx.db.insert("bundles", {
@@ -144,7 +155,7 @@ export const createBundleFromAPI = mutation({
         duration,
         price,
         commission,
-        status,
+        status: finalStatus,
         bundlesUSSD,
         isMultiSession,
         isSimpleUSSD,
@@ -242,33 +253,43 @@ export const updateBundle = mutation({
       }
     }
 
-    if (offerName || price !== undefined) {
-      // Check if the new offer name or price already exists for this user (excluding the current bundle)
-      const duplicateBundle = await ctx.db
+    if (offerName) {
+      const nameDuplicate = await ctx.db
         .query("bundles")
         .withIndex("by_user", (q) => q.eq("userId", userId))
-        .filter((q) =>
-          q.and(
-            q.neq(q.field("_id"), id),
-            q.or(
-              offerName ? q.eq(q.field("offerName"), offerName) : q.eq(1, 0),
-              price !== undefined ? q.eq(q.field("price"), price) : q.eq(1, 0)
-            )
-          )
-        )
+        .filter((q) => q.and(q.neq(q.field("_id"), id), q.eq(q.field("offerName"), offerName)))
         .first();
 
-      if (duplicateBundle) {
-        if (offerName && duplicateBundle.offerName === offerName) {
-          return {
-            status: "error",
-            message: `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-          } as BackendResponse;
-        } else {
-          return {
-            status: "error",
-            message: `A bundle with the price ${price} already exists. Please choose a different price.`,
-          } as BackendResponse;
+      if (nameDuplicate) {
+        return {
+          status: "error",
+          message: `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+        } as BackendResponse;
+      }
+    }
+
+    // Price duplicates never block — if this bundle is ending up "available" and another bundle
+    // at that price is also currently active, silently save THIS one as disabled instead. Two
+    // bundles can share a price as long as at most one is active. Mirrors
+    // BundleRepository.updateBundle's finalStatus logic on the Android side — see
+    // project_offer_time_config_feature memory.
+    if (price !== undefined) {
+      const effectiveStatus = updates.status ?? existingBundle.status;
+      if (effectiveStatus === "available") {
+        const activePriceDuplicate = await ctx.db
+          .query("bundles")
+          .withIndex("by_user", (q) => q.eq("userId", userId))
+          .filter((q) =>
+            q.and(
+              q.neq(q.field("_id"), id),
+              q.eq(q.field("price"), price),
+              q.eq(q.field("status"), "available")
+            )
+          )
+          .first();
+
+        if (activePriceDuplicate) {
+          updates.status = "disabled";
         }
       }
     }
