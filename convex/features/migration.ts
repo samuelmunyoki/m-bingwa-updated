@@ -27,7 +27,18 @@ export const downloadAllData = mutation(
     const allData: Partial<AllTablesData> = {};
 
     for (const table of tables) {
-      const tableData = await db.query(table).collect();
+      // Paginated instead of a single unbounded collect() — a table past Convex's 8192-row
+      // cap would otherwise make this whole backup fail outright. Same full contents returned
+      // per table either way, just fetched in bounded pages instead of one grab (2026-08-11).
+      const tableData: Doc<typeof table>[] = [];
+      let cursor: string | null = null;
+      let isDone = false;
+      while (!isDone) {
+        const result = await db.query(table).paginate({ numItems: 200, cursor });
+        tableData.push(...result.page);
+        isDone = result.isDone;
+        cursor = result.continueCursor;
+      }
       (allData[table] as Doc<typeof table>[]) = tableData;
     }
 
@@ -67,9 +78,17 @@ async function deleteAllData(db: any) {
   ];
 
   for (const table of tables) {
-    const allRecords = await db.query(table).collect();
-    for (const record of allRecords) {
-      await db.delete(record._id);
+    // Repeatedly take a bounded batch and delete it, instead of collecting the whole table
+    // first — same 8192-row cap reasoning as downloadAllData above. Taking with no cursor each
+    // time (rather than paginating) sidesteps any question of cursor validity after deletion:
+    // each pass just asks for "whatever's left," up to 200 rows, until nothing remains
+    // (2026-08-11).
+    while (true) {
+      const batch = await db.query(table).take(200);
+      if (batch.length === 0) break;
+      for (const record of batch) {
+        await db.delete(record._id);
+      }
     }
   }
 }

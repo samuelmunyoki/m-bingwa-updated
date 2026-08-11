@@ -16,10 +16,22 @@ export default defineSchema({
     subscriptionId: v.optional(v.string()),
     phoneNumber: v.optional(v.string()),
     webSessionToken: v.optional(v.string()),
+    // Cleaned-up copy of phoneNumber (formatting stripped, Kenyan-number rules applied — see
+    // normalizePhoneNumber in users.ts), kept in sync at every phoneNumber write site. Lets
+    // getUserByPhoneNormalized do a direct indexed lookup instead of scanning+normalizing every
+    // user. Backfilled once for pre-existing users via backfillNormalizedPhoneNumbers (2026-08-11).
+    normalizedPhoneNumber: v.optional(v.string()),
   })
     .index("by_user_id", ["userId"])
     .index("by_checkoutRequestID", ["subscriptionId"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    // Lets checkExpiry (crons.ts, runs every 30s) find subscribed users directly instead of
+    // scanning the whole table — added 2026-08-11, see checkExpiry in users.ts.
+    .index("by_isSubscribed", ["isSubscribed"])
+    .index("by_normalizedPhoneNumber", ["normalizedPhoneNumber"])
+    // Exact-match raw phoneNumber lookup — used by getUserIdByPhone (2026-08-11). Separate from
+    // by_normalizedPhoneNumber above since this one matches the raw stored string as-is.
+    .index("by_phoneNumber", ["phoneNumber"]),
 
   bundles: defineTable({
     userId: v.string(),

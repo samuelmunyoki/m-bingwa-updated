@@ -56,7 +56,6 @@ export const createMpesaMessage = mutation({
           processedUSSD: args.processedUSSD ?? row.processedUSSD,
           scheduledRetryAt: nextRetry,
         });
-        console.log(`[DEDUP-MERGE] _id=${row._id} processed=${nextProcessed} scheduledRetryAt=${nextRetry}`);
 
         // Count this sale into the daily tally (Total Sales / Top Bundles). This is the
         // "merge door": on a busy device the final status usually arrives as a POST that
@@ -89,7 +88,6 @@ export const createMpesaMessage = mutation({
         )
         .first();
       if (existing) {
-        console.log(`[DEDUP] Returning existing mpesaMessage for transactionId=${args.transactionId} _id=${existing._id}`);
         return await resolveDup(existing);
       }
     } else {
@@ -106,7 +104,6 @@ export const createMpesaMessage = mutation({
         (m) => m.phoneNumber === args.phoneNumber && m.amount === args.amount
       );
       if (dup) {
-        console.log(`[DEDUP-NATURAL] Returning existing mpesaMessage (no txId) for userId+time+phone+amount _id=${dup._id}`);
         return await resolveDup(dup);
       }
     }
@@ -266,65 +263,7 @@ export const getMpesaMessageById = query({
       mpesaDate: message.mpesaDate ?? null
     };
 
-    // Debug: Log the message to see what fields are present
-    console.log("getMpesaMessageById result:", JSON.stringify(messageWithAllFields, null, 2));
-
     return messageWithAllFields;
-  },
-});
-
-// Debug query to check if processed field exists in messages
-export const debugMpesaMessages = query({
-  args: { userId: v.optional(v.string()) },
-  handler: async (ctx, args) => {
-    let query = ctx.db.query("mpesaMessages");
-
-    if (args.userId) {
-      query = query.filter((q) => q.eq(q.field("userId"), args.userId));
-    }
-
-    const messages = await query.take(5); // Get first 5 messages
-
-    console.log("Debug - Sample messages:", JSON.stringify(messages, null, 2));
-
-    return messages.map(msg => ({
-      _id: msg._id,
-      userId: msg.userId,
-      name: msg.name,
-      processed: msg.processed,
-      hasProcessedField: msg.processed !== undefined
-    }));
-  },
-});
-
-// Debug query to see phone numbers in messages for a specific user
-export const debugPhoneNumbersForUser = query({
-  args: { userId: v.string() },
-  handler: async (ctx, args) => {
-    const messages = await ctx.db
-      .query("mpesaMessages")
-      .filter((q) => q.eq(q.field("userId"), args.userId))
-      .collect();
-
-    console.log(`Found ${messages.length} messages for userId ${args.userId}`);
-
-    // Get unique phone numbers
-    const phoneNumbers = [...new Set(messages.map(m => m.phoneNumber))];
-
-    console.log("Unique phone numbers:", phoneNumbers);
-
-    return {
-      totalMessages: messages.length,
-      uniquePhoneNumbers: phoneNumbers,
-      sampleMessages: messages.slice(0, 3).map(m => ({
-        _id: m._id,
-        phoneNumber: m.phoneNumber,
-        name: m.name,
-        amount: m.amount,
-        senderId: m.senderId,
-        time: m.time
-      }))
-    };
   },
 });
 

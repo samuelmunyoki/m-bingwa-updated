@@ -205,6 +205,7 @@ export const updateAgentNumber = mutation({
         // Update existing user
         await ctx.db.patch(existingUser._id, {
           phoneNumber,
+          normalizedPhoneNumber: normalizePhoneNumber(phoneNumber),
         });
 
         // Verify the update
@@ -310,10 +311,13 @@ export const changePhoneNumber = mutation({
       }
 
       // Dormant account holding the number — free it up.
-      await ctx.db.patch(conflict._id, { phoneNumber: undefined });
+      await ctx.db.patch(conflict._id, { phoneNumber: undefined, normalizedPhoneNumber: undefined });
     }
 
-    await ctx.db.patch(existingUser._id, { phoneNumber: newPhoneNumber });
+    await ctx.db.patch(existingUser._id, {
+      phoneNumber: newPhoneNumber,
+      normalizedPhoneNumber: normalizePhoneNumber(newPhoneNumber),
+    });
 
     // Re-key this account's own phone-indexed records so nothing goes silently stale.
     if (oldPhoneNumber) {
@@ -446,12 +450,16 @@ export const deActivateSubscription = mutation({
   },
 });
 
+// NOTE: unbounded — returns every subscribed user in one shot, so this would still hit Convex's
+// 8192-array cap if ever called with a very large subscribed-user count. Currently has no
+// caller (checkExpiry below does its own paginated query directly instead) — if this gets a
+// real caller in the future, paginate it the same way checkExpiry does rather than assuming it
+// can safely return everything (2026-08-11).
 export const getAllSubscribedUsers = query({
   handler: async (ctx) => {
     return await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("isSubscribed"), true))
-
+      .withIndex("by_isSubscribed", (q) => q.eq("isSubscribed", true))
       .collect();
   },
 });
@@ -461,75 +469,92 @@ export const checkExpiry = mutation({
   handler: async (ctx) => {
     const now = Math.floor(Date.now() / 1000);
     const oneDayInSeconds = 24 * 60 * 60;
-    const users = await ctx.runQuery(api.users.getAllSubscribedUsers);
 
-    for (const user of users) {
-      if (user.subscriptionEnds && user.subscriptionId && user.isSubscribed) {
-        const timeUntilExpiry = user.subscriptionEnds - now;
+    // Paginated instead of a single unbounded collect() — this used to scan the WHOLE users
+    // table via an unindexed filter() every 30 seconds (the cron interval), and would have
+    // hard-crashed outright once subscribed users passed Convex's 8192-array cap. Same per-user
+    // logic as before, unchanged — just fed in bounded pages via the by_isSubscribed index so
+    // every subscribed user is still covered, without ever holding more than one page in memory
+    // at a time (2026-08-11).
+    let cursor: string | null = null;
+    let isDone = false;
+    while (!isDone) {
+      const result = await ctx.db
+        .query("users")
+        .withIndex("by_isSubscribed", (q) => q.eq("isSubscribed", true))
+        .paginate({ numItems: 200, cursor });
 
-        // Handle notification when subscription is about to expire
-        if (
-          timeUntilExpiry > 0 &&
-          timeUntilExpiry < oneDayInSeconds &&
-          user.phoneNumber &&
-          (user.isSubscriptionEndingSMSsent === false ||
-            user.isSubscriptionEndingSMSsent === undefined)
-        ) {
-          const formattedDate = new Date(
-            user.subscriptionEnds * 1000
-          ).toLocaleString("en-US", {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-          });
+      for (const user of result.page) {
+        if (user.subscriptionEnds && user.subscriptionId && user.isSubscribed) {
+          const timeUntilExpiry = user.subscriptionEnds - now;
 
-          const smsContent = `Dear ${user.name}, your M-Bingwa subscription expires on ${formattedDate}. Renew to avoid service interruption.`;
-
-          try {
-            await ctx.scheduler.runAfter(
-              0,
-              api.actions.notifications.sendNotificationSMS,
-              {
-                smsContent,
-                smsNumber: user.phoneNumber,
-                userId: user.userId,
-              }
-            );
-
-            await ctx.db.patch(user._id, {
-              isSubscriptionEndingSMSsent: true,
+          // Handle notification when subscription is about to expire
+          if (
+            timeUntilExpiry > 0 &&
+            timeUntilExpiry < oneDayInSeconds &&
+            user.phoneNumber &&
+            (user.isSubscriptionEndingSMSsent === false ||
+              user.isSubscriptionEndingSMSsent === undefined)
+          ) {
+            const formattedDate = new Date(
+              user.subscriptionEnds * 1000
+            ).toLocaleString("en-US", {
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: true,
             });
-          } catch (error) {
-            console.error(
-              `Failed to send SMS or update user ${user.userId}:`,
-              error
-            );
+
+            const smsContent = `Dear ${user.name}, your M-Bingwa subscription expires on ${formattedDate}. Renew to avoid service interruption.`;
+
+            try {
+              await ctx.scheduler.runAfter(
+                0,
+                api.actions.notifications.sendNotificationSMS,
+                {
+                  smsContent,
+                  smsNumber: user.phoneNumber,
+                  userId: user.userId,
+                }
+              );
+
+              await ctx.db.patch(user._id, {
+                isSubscriptionEndingSMSsent: true,
+              });
+            } catch (error) {
+              console.error(
+                `Failed to send SMS or update user ${user.userId}:`,
+                error
+              );
+            }
           }
-        }
 
-        // Handle subscription deactivation only when it has actually expired
-        if (timeUntilExpiry <= 0 && user.isSubscribed) {
-          try {
-            await ctx.runMutation(api.users.deActivateSubscription, {
-              checkoutRequestID: user.subscriptionId,
-            });
+          // Handle subscription deactivation only when it has actually expired
+          if (timeUntilExpiry <= 0 && user.isSubscribed) {
+            try {
+              await ctx.runMutation(api.users.deActivateSubscription, {
+                checkoutRequestID: user.subscriptionId,
+              });
 
-            await ctx.db.patch(user._id, {
-              isSubscriptionEndingSMSsent: false,
-            });
-            console.log(`Deactivated subscription for user ${user.userId}`);
-          } catch (error) {
-            console.error(
-              `Failed to deactivate subscription for user ${user.userId}:`,
-              error
-            );
+              await ctx.db.patch(user._id, {
+                isSubscriptionEndingSMSsent: false,
+              });
+              console.log(`Deactivated subscription for user ${user.userId}`);
+            } catch (error) {
+              console.error(
+                `Failed to deactivate subscription for user ${user.userId}:`,
+                error
+              );
+            }
           }
         }
       }
+
+      isDone = result.isDone;
+      cursor = result.continueCursor;
     }
   },
 });
@@ -669,7 +694,7 @@ export const createUserIfNotExists = mutation({
           if (phoneConflict && phoneConflict._id !== byUserId._id) {
             return { status: "phone_taken", message: "This phone number is already registered to another account.", userId: null, isNewUser: false };
           }
-          await ctx.db.patch(byUserId._id, { phoneNumber });
+          await ctx.db.patch(byUserId._id, { phoneNumber, normalizedPhoneNumber: normalizePhoneNumber(phoneNumber) });
         }
         return { status: "success", message: "User already exists", userId: byUserId.userId, isNewUser: false };
       }
@@ -696,6 +721,7 @@ export const createUserIfNotExists = mutation({
       await ctx.db.insert("users", {
         userId,
         phoneNumber,
+        normalizedPhoneNumber: normalizePhoneNumber(phoneNumber),
         name: name || "",
         email: email || "",
         isAdmin: false,
@@ -711,46 +737,7 @@ export const createUserIfNotExists = mutation({
   },
 });
 
-// DEBUG FUNCTION: Add this to test the specific phone number
-export const debugPhoneNumber0706021479 = query({
-  args: {},
-  handler: async (ctx) => {
-    const targetPhone = "0706021479";
-    console.log("=== DEBUGGING PHONE NUMBER", targetPhone, "===");
-    
-    const allUsers = await ctx.db.query("users").collect();
-    console.log("Total users:", allUsers.length);
-    
-    const targetUser = allUsers.find(u => u.phoneNumber === targetPhone) || null;
-    
-    if (targetUser) {
-      console.log("✅ Found target user:");
-      console.log("_id:", targetUser._id);
-      console.log("userId:", targetUser.userId);
-      console.log("phoneNumber:", targetUser.phoneNumber);
-      console.log("name:", targetUser.name);
-      
-      return {
-        found: true,
-        user: {
-          _id: targetUser._id,
-          userId: targetUser.userId,
-          phoneNumber: targetUser.phoneNumber,
-          name: targetUser.name,
-          email: targetUser.email
-        }
-      };
-    } else {
-      console.log("❌ Target user not found");
-      return {
-        found: false,
-        allPhoneNumbers: allUsers.map(u => u.phoneNumber)
-      };
-    }
-  },
-});
-
-// Get userId by phone number for creating stores 
+// Get userId by phone number for creating stores
 // and bundles from app side (for login after OTP verification)
 // Helper function to normalize phone numbers for comparison
 // Handles formats like: +254712345678, 254712345678, 0712345678, 712345678
@@ -782,150 +769,110 @@ export const getUserIdByPhone = query({
     phoneNumber: v.string(),
   },
   handler: async (ctx, { phoneNumber }) => {
-    console.log("🔍 getUserIdByPhone QUERY called in users.ts");
-    console.log("phoneNumber:", phoneNumber);
-    console.log("phoneNumber type:", typeof phoneNumber);
-    console.log("phoneNumber length:", phoneNumber.length);
-
-    // Debug: Let's see all users first
-    const allUsers = await ctx.db.query("users").collect();
-    console.log("=== ALL USERS DEBUG ===");
-    console.log("Total users in database:", allUsers.length);
-    allUsers.forEach((u, index) => {
-      console.log(`User ${index + 1}:`);
-      console.log(`  _id: ${u._id}`);
-      console.log(`  userId: ${u.userId}`);
-      console.log(`  phoneNumber: "${u.phoneNumber}"`);
-      console.log(`  phoneNumber type: ${typeof u.phoneNumber}`);
-      console.log(`  phoneNumber === "${phoneNumber}": ${u.phoneNumber === phoneNumber}`);
-      console.log(`  name: ${u.name}`);
-    });
-    console.log("=== END DEBUG ===");
-
-    // Try the query
-    const user = await ctx.db
+    // Fast path: direct indexed exact-match lookup.
+    let user = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .withIndex("by_phoneNumber", (q) => q.eq("phoneNumber", phoneNumber))
       .first();
 
-    console.log("=== DATABASE QUERY RESULT ===");
-    console.log("User found by query:", !!user);
+    // Fallback — only reached if the fast path finds nothing. Covers a phone number stored
+    // with stray leading/trailing whitespace (an exact-match index lookup can't catch that,
+    // since the stored string differs from the trimmed one). Same trimmed comparison this
+    // function always fell back to, so behavior can never regress below what it did before
+    // this change — only get faster for the common case. (The old "manual fallback search"
+    // step is gone: it re-did the exact same equality check the indexed query above already
+    // does, over the same data, so it could never have found anything the fast path missed —
+    // dead code, not a behavior change to remove it.) (2026-08-11)
+    if (!user) {
+      const allUsers = await ctx.db.query("users").collect();
+      user = allUsers.find(u => u.phoneNumber?.trim() === phoneNumber.trim()) ?? null;
+    }
 
     if (user) {
-      console.log("✅ FOUND USER:");
-      console.log("user._id:", user._id);
-      console.log("user.userId:", user.userId);
-      console.log("user.name:", user.name);
-      console.log("user.email:", user.email);
-      console.log("user.phoneNumber:", user.phoneNumber);
-      console.log("typeof user.userId:", typeof user.userId);
-      console.log("userId is null?:", user.userId === null);
-      console.log("userId is undefined?:", user.userId === undefined);
-      console.log("userId is empty string?:", user.userId === "");
-
-      const successResponse = {
+      return {
         status: "success" as const,
         userId: user.userId,
         name: user.name,
         email: user.email,
         phoneNumber: user.phoneNumber
       };
-
-      console.log("=== QUERY SUCCESS RESPONSE ===");
-      console.log("Response object:", successResponse);
-      console.log("Response userId:", successResponse.userId);
-      console.log("=== END QUERY RESPONSE ===");
-
-      return successResponse;
-    } else {
-      console.log("❌ No user found by query");
-
-      // Manual fallback search
-      console.log("🔧 Trying manual search...");
-      const manualMatch = allUsers.find(u => u.phoneNumber === phoneNumber) || null;
-
-      if (manualMatch) {
-        console.log("🎯 MANUAL SEARCH FOUND USER!");
-        console.log("This means there's a query issue, but user exists");
-        console.log("Manual match userId:", manualMatch.userId);
-
-        const successResponse = {
-          status: "success" as const,
-          userId: manualMatch.userId,
-          name: manualMatch.name,
-          email: manualMatch.email,
-          phoneNumber: manualMatch.phoneNumber
-        };
-
-        console.log("Returning manual search result:", successResponse);
-        return successResponse;
-      }
-
-      // Also try trimmed search
-      const trimmedMatch = allUsers.find(u => u.phoneNumber?.trim() === phoneNumber.trim()) || null;
-      if (trimmedMatch) {
-        console.log("🎯 TRIMMED SEARCH FOUND USER!");
-        return {
-          status: "success" as const,
-          userId: trimmedMatch.userId,
-          name: trimmedMatch.name,
-          email: trimmedMatch.email,
-          phoneNumber: trimmedMatch.phoneNumber
-        };
-      }
-
-      console.log("❌ User truly not found");
-
-      const errorResponse = {
-        status: "error" as const,
-        message: "User not found",
-        userId: null,
-        name: null,
-        email: null,
-        phoneNumber: null
-      };
-
-      console.log("❌ Returning error response:", errorResponse);
-      return errorResponse;
     }
+
+    return {
+      status: "error" as const,
+      message: "User not found",
+      userId: null,
+      name: null,
+      email: null,
+      phoneNumber: null
+    };
   },
 });
 
 
-// New query to get user by phone number with normalization (handles any format)
+// One-time backfill: computes normalizedPhoneNumber for users who don't have it yet (everyone
+// created before 2026-08-11, plus a safety net for any write site that might get missed).
+// Idempotent — safe to re-run, only touches rows whose stored value is missing or stale.
+// Paginated so it can never hit Convex's 8192-row cap regardless of table size. NOT called
+// automatically — run this once manually (Convex dashboard/CLI) after deploying this change.
+export const backfillNormalizedPhoneNumbers = mutation({
+  args: {},
+  handler: async (ctx) => {
+    let cursor: string | null = null;
+    let isDone = false;
+    let updated = 0;
+    let skipped = 0;
+    while (!isDone) {
+      const result = await ctx.db.query("users").paginate({ numItems: 200, cursor });
+      for (const user of result.page) {
+        if (!user.phoneNumber) {
+          skipped++;
+          continue;
+        }
+        const expected = normalizePhoneNumber(user.phoneNumber);
+        if (user.normalizedPhoneNumber !== expected) {
+          await ctx.db.patch(user._id, { normalizedPhoneNumber: expected });
+          updated++;
+        } else {
+          skipped++;
+        }
+      }
+      isDone = result.isDone;
+      cursor = result.continueCursor;
+    }
+    return { status: "success" as const, updated, skipped };
+  },
+});
+
+// Query to get user by phone number with normalization (handles any format: +254712345678,
+// 254712345678, 0712345678, 712345678, or any of those with stray spaces/dashes).
 export const getUserByPhoneNormalized = query({
   args: {
     phoneNumber: v.string(),
   },
   handler: async (ctx, { phoneNumber }) => {
-    console.log("📱 getUserByPhoneNormalized called");
-    console.log("Original phoneNumber:", phoneNumber);
-
-    // Normalize the input phone number
     const normalizedInput = normalizePhoneNumber(phoneNumber);
-    console.log("Normalized input:", normalizedInput);
 
-    // Get all users and normalize their phone numbers for comparison
-    const allUsers = await ctx.db.query("users").collect();
+    // Fast path: direct indexed lookup via the pre-computed normalizedPhoneNumber column.
+    let matchedUser = await ctx.db
+      .query("users")
+      .withIndex("by_normalizedPhoneNumber", (q) => q.eq("normalizedPhoneNumber", normalizedInput))
+      .first();
 
-    console.log(`Searching through ${allUsers.length} users`);
-
-    // Find user by normalized phone number
-    const matchedUser = allUsers.find(user => {
-      if (!user.phoneNumber) return false;
-      const normalizedUserPhone = normalizePhoneNumber(user.phoneNumber);
-      console.log(`Comparing: ${normalizedUserPhone} === ${normalizedInput}`);
-      return normalizedUserPhone === normalizedInput;
-    });
+    // Fallback — only reached if the fast path finds nothing. Covers any user whose
+    // normalizedPhoneNumber is missing or stale (e.g. backfill hasn't been run yet, or some
+    // write site was missed). Identical to the full-scan-and-compare this function always used,
+    // so behavior can never regress below what it did before this change — only get faster
+    // for the common case (2026-08-11).
+    if (!matchedUser) {
+      const allUsers = await ctx.db.query("users").collect();
+      matchedUser = allUsers.find(user => {
+        if (!user.phoneNumber) return false;
+        return normalizePhoneNumber(user.phoneNumber) === normalizedInput;
+      }) ?? null;
+    }
 
     if (matchedUser) {
-      console.log("✅ User found!");
-      console.log("User details:", {
-        userId: matchedUser.userId,
-        name: matchedUser.name,
-        phoneNumber: matchedUser.phoneNumber
-      });
-
       return {
         status: "success" as const,
         userId: matchedUser.userId,
@@ -938,7 +885,6 @@ export const getUserByPhoneNormalized = query({
       };
     }
 
-    console.log("❌ No user found with phone number:", phoneNumber);
     return {
       status: "error" as const,
       message: "User not found",
@@ -1040,7 +986,6 @@ export const validateDeviceSession = mutation({
       .first();
 
     if (!activeSession) {
-      console.log(`❌ No active session found for phone: ${phoneNumber}`);
       return {
         isValid: false,
         reason: "no_session_found",
@@ -1049,7 +994,6 @@ export const validateDeviceSession = mutation({
     }
 
     if (activeSession.deviceId !== deviceId) {
-      console.log(`❌ Device mismatch: active=${activeSession.deviceId}, received=${deviceId}`);
       return {
         isValid: false,
         reason: "logged_in_from_another_device",
@@ -1072,7 +1016,6 @@ export const validateDeviceSession = mutation({
       phoneNumber,
     });
     if (!allowed) {
-      console.log(`🚧 Access temporarily limited for phone: ${phoneNumber}`);
       return {
         isValid: false,
         reason: "access_temporarily_limited",
@@ -1080,7 +1023,6 @@ export const validateDeviceSession = mutation({
       };
     }
 
-    console.log(`✅ Session validated for device: ${deviceId}`);
     return {
       isValid: true,
       message: "Session is active",
@@ -1287,7 +1229,7 @@ export const deleteUserByPhone = mutation({
 
     const user = await ctx.db
       .query("users")
-      .filter((q) => q.eq(q.field("phoneNumber"), phoneNumber))
+      .withIndex("by_phoneNumber", (q) => q.eq("phoneNumber", phoneNumber))
       .first();
 
     if (!user) {

@@ -13,7 +13,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateSubscription, getUserSubscription, getUserSubscriptionByPhone, handleSubscriptionOptions,
   createScheduledEvent, getScheduledEvents, updateScheduledEvent, getPendingScheduledEvents, getScheduledEventsByMessageID,
   updateEventStatus, checkScheduledEvents, deleteScheduledEvent,
-  debugPhoneTest, createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,deleteMpesaMessage,
+  createOrUpdateUserSenderRelation, getUserSenderRelationsByUserId,deleteMpesaMessage,
   updateLastUpdateTimeStamp, deleteUserSenderRelation, deleteAllMpesaMessages, deleteMpesaMessagesByPhoneNumber,
   migrateMpesaMessages, 
   createPromoCode,
@@ -596,12 +596,6 @@ http.route({
   pathPrefix: "/api/scheduled-events/delete/",
   method: "DELETE",
   handler: deleteScheduledEvent,
-});
-
-http.route({
-  pathPrefix: "/api/debug/phone-test/",
-  method: "GET",
-  handler: debugPhoneTest,
 });
 
 // API Route to create or update user-sender relation
