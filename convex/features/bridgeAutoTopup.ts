@@ -66,7 +66,11 @@ export const deleteWatch = mutation({
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .collect();
     const entry = entries.find((e) => e._id.toString() === args.id);
-    if (!entry) throw new Error("Watch entry not found");
+    if (!entry) {
+      // Already gone (e.g. already deleted, or cleaned up elsewhere) — harmless no-op instead
+      // of throwing. Deleting something that's already gone shouldn't be an error (2026-08-11).
+      return { success: true, alreadyGone: true };
+    }
     await ctx.db.delete(entry._id);
     return { success: true };
   },

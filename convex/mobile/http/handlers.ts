@@ -1850,8 +1850,6 @@ export const updateSubscription = httpAction(async (ctx, request) => {
 });
 
 export const getUserSubscription = httpAction(async (ctx, request) => {
-  console.log("🔍 getUserSubscription HTTP ACTION called");
-
   const url = new URL(request.url);
   const pathParts = url.pathname.split('/');
   
@@ -1867,34 +1865,16 @@ export const getUserSubscription = httpAction(async (ctx, request) => {
     userId = url.searchParams.get('userId');
   }
 
-  console.log("Request URL:", request.url);
-  console.log("Extracted userId:", userId);
-
   if (!userId) {
-    console.log("❌ Missing userId parameter");
     return createResponse("error", null, "Missing userId parameter");
   }
 
   try {
-    console.log("📊 Calling ctx.runAction for subscription status");
-    
-    // CHANGED: Use runAction instead of runQuery to call your action function
     const result = await ctx.runAction(api.actions.subscriptions.getUserSubscriptionStatusAction, {
       userId
     });
 
-    console.log("=== SUBSCRIPTION ACTION RESULT ===");
-    console.log("Raw result:", JSON.stringify(result, null, 2));
-    console.log("Result status:", result?.status);
-    console.log("Result data:", result?.data);
-    console.log("=== END SUBSCRIPTION RESULT ===");
-    
     if (result && result.status === "success") {
-      console.log("✅ Success result from subscription action");
-      console.log("- isSubscribed:", result.data?.isSubscribed);
-      console.log("- subscriptionEnds:", result.data?.subscriptionEnds);
-      console.log("- remainingDays:", result.data?.remainingDays);
-
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: {
@@ -1905,9 +1885,6 @@ export const getUserSubscription = httpAction(async (ctx, request) => {
         }
       });
     } else {
-      console.log("❌ Action returned error status");
-      console.log("Error message:", result?.error);
-      
       return new Response(JSON.stringify(result), {
         status: 200, // Still return 200 OK for application-level errors
         headers: {
@@ -1926,44 +1903,24 @@ export const getUserSubscription = httpAction(async (ctx, request) => {
 
 // HTTP action to get user subscription by phone number (alternative method)
 export const getUserSubscriptionByPhone = httpAction(async (ctx, request) => {
-  console.log("📱 getUserSubscriptionByPhone HTTP ACTION called");
-
   const url = new URL(request.url);
   const phoneNumber = url.searchParams.get("phoneNumber");
 
-  console.log("Request URL:", request.url);
-  console.log("Extracted phoneNumber:", phoneNumber);
-
   if (!phoneNumber) {
-    console.log("❌ Missing phoneNumber parameter");
     return createResponse("error", null, "Missing phoneNumber parameter");
   }
 
   // Validate phone number format
   if (typeof phoneNumber !== "string" || phoneNumber.trim().length === 0) {
-    console.log("❌ Invalid phoneNumber format");
     return createResponse("error", null, "Invalid phoneNumber format");
   }
 
   try {
-    console.log("📞 Calling ctx.runAction for subscription by phone");
-    
-    // CHANGED: Use runAction instead of runQuery to call your action function
     const result = await ctx.runAction(api.actions.subscriptions.getUserSubscriptionByPhoneAction, {
       phoneNumber
     });
 
-    console.log("=== SUBSCRIPTION BY PHONE ACTION RESULT ===");
-    console.log("Raw result:", JSON.stringify(result, null, 2));
-    console.log("Result status:", result?.status);
-    console.log("Result data:", result?.data);
-    console.log("=== END SUBSCRIPTION BY PHONE RESULT ===");
-    
     if (result && result.status === "success") {
-      console.log("✅ Success result from subscription by phone action");
-      console.log("- isSubscribed:", result.data?.isSubscribed);
-      console.log("- userId:", result.data?.userId);
-
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: {
@@ -1974,9 +1931,6 @@ export const getUserSubscriptionByPhone = httpAction(async (ctx, request) => {
         }
       });
     } else {
-      console.log("❌ Action returned error status");
-      console.log("Error message:", result?.error);
-      
       return new Response(JSON.stringify(result), {
         status: 200,
         headers: {
@@ -2616,22 +2570,6 @@ export const deleteScheduledEvent = httpAction(async (ctx, request) => {
         },
       }
     );
-  }
-});
-
-// HTTP action for debugging phone number
-export const debugPhoneTest = httpAction(async (ctx, request) => {
-  console.log("🐛 Debug phone test called");
-  
-  try {
-    const result = await ctx.runQuery(api.users.debugPhoneNumber0706021479);
-    
-    console.log("Debug result:", result);
-    
-    return createResponse("success", result, null);
-  } catch (error) {
-    console.error("Debug error:", error);
-    return createResponse("error", null, "Debug failed");
   }
 });
 
