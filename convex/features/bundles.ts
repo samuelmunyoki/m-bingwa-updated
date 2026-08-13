@@ -357,12 +357,16 @@ export const deleteBundleFromAPI = mutation({
       .filter((q) => q.eq(q.field("_id"), id))
       .first();
     if (!existingBundle) {
-      throw new Error("Bundle not found");
+      // Already gone (e.g. already deleted elsewhere) — harmless no-op instead of throwing,
+      // same pattern as deleteWatch in autoTopup.ts/bridgeAutoTopup.ts (2026-08-12).
+      return { success: true, alreadyGone: true };
     }
     if (existingBundle.userId !== userId) {
+      // Genuine authorization failure — keep throwing, this is not a "already gone" case.
       throw new Error("Permission denied");
     }
     await ctx.db.delete(existingBundle._id);
+    return { success: true };
   },
 });
 
