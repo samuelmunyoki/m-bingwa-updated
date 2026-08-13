@@ -11,18 +11,20 @@ import { BackendResponse } from "../../lib/custom_types";
 // conventions, including the local-UUID-then-reconcile-to-Convex-id pattern
 // (PatternOfferDao.updateOfferId's Android-side counterpart).
 
-const variantKindArgs = v.union(v.literal("NORMAL"), v.literal("PATTERN"));
+const variantAKindArgs = v.union(v.literal("NORMAL"), v.literal("PATTERN"));
+// Variant B only — "NONE" means a single-offer schedule with no partner to switch to.
+const variantBKindArgs = v.union(v.literal("NORMAL"), v.literal("PATTERN"), v.literal("NONE"));
 
 const variantFields = {
   price: v.number(),
   isEnabled: v.boolean(),
-  variantAKind: variantKindArgs,
+  variantAKind: variantAKindArgs,
   variantAStartTime: v.string(),
   variantAEndTime: v.string(),
   variantABundleId: v.optional(v.string()),
   variantAServerOfferId: v.optional(v.string()),
   variantAPatternSnapshotJson: v.optional(v.string()),
-  variantBKind: variantKindArgs,
+  variantBKind: variantBKindArgs,
   variantBStartTime: v.string(),
   variantBEndTime: v.string(),
   variantBBundleId: v.optional(v.string()),
