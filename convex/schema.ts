@@ -75,7 +75,8 @@ export default defineSchema({
     variantABundleId: v.optional(v.string()),
     variantAServerOfferId: v.optional(v.string()),
     variantAPatternSnapshotJson: v.optional(v.string()),
-    variantBKind: v.union(v.literal("NORMAL"), v.literal("PATTERN")),
+    // "NONE" = single-offer schedule, no partner variant to switch to.
+    variantBKind: v.union(v.literal("NORMAL"), v.literal("PATTERN"), v.literal("NONE")),
     variantBStartTime: v.string(),
     variantBEndTime: v.string(),
     variantBBundleId: v.optional(v.string()),
