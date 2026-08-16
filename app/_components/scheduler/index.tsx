@@ -329,7 +329,7 @@ function EventCard({
           <Clock className="w-3 h-3 flex-shrink-0" />
           <span>
             {event.scheduledTimeStamp
-              ? new Date(event.scheduledTimeStamp * 1000).toLocaleString()
+              ? new Date(event.scheduledTimeStamp * 1000).toLocaleString("en-KE", { timeZone: "Africa/Nairobi" })
               : "Immediate"}
           </span>
         </div>
