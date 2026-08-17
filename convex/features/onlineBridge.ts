@@ -486,9 +486,9 @@ export const updateOnlineBridgeTransactionStatus = mutation({
 /**
  * Delete Online Bridge transaction — hard delete, actually removes the row. App-initiated,
  * no pendingDeletions signal needed here (single-device-per-account, no other device to notify;
- * the app already cleans up its own local copy in the same call) — see
- * convex/features/pendingDeletions.ts for where "bridge" signals actually come from (the
- * scheduled cleanup cron, which deletes rows the phone doesn't already know about).
+ * the app already cleans up its own local copy in the same call). The scheduled cleanup cron
+ * (deleteOldOnlineBridgeTransactions) also doesn't signal — users keep their local bridge copies
+ * on the phone even after the cron trims Convex. See project_cron_deletions_no_app_signal memory.
  */
 export const deleteOnlineBridgeTransaction = mutation({
   args: {
@@ -886,16 +886,12 @@ export const deleteOldOnlineBridgeTransactions = internalMutation({
         }
       }
 
-      // Signal the app so its local copy gets cleaned up too — bridge notes only ever come from
-      // this cron (see pendingDeletions.ts; app-initiated bridge deletes don't self-signal since
-      // there's only ever one device per account).
-      await ctx.db.insert("pendingDeletions", {
-        userId: t.userId,
-        type: "bridge",
-        convexId: t._id,
-        status: "pending",
-        createdAt: Date.now(),
-      });
+      // Deliberately NOT signaling pendingDeletions here — users want to keep their local bridge
+      // transaction copies on the phone for their own record even after this cron trims them
+      // from Convex. This was the only source of "bridge" type pendingDeletions entries
+      // (app-initiated bridge deletes never signaled either — see deleteOnlineBridgeTransaction
+      // above), so that type simply won't be created anymore. See
+      // project_cron_deletions_no_app_signal memory.
     }
 
     // A full-size batch means there may be more still waiting — reschedule to keep draining the

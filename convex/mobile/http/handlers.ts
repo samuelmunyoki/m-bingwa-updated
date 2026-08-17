@@ -1669,8 +1669,8 @@ export const updateMpesaMessage = httpAction(async (ctx, request) => {
   }
 
   // Validate processed field if provided
-  if (processed && !["pending", "successful", "failed", "not-viable", "disabled"].includes(processed)) {
-    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', 'not-viable', or 'disabled'");
+  if (processed && !["pending", "successful", "failed", "not-viable", "disabled", "bridged"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', 'not-viable', 'disabled', or 'bridged'");
   }
 
   // Validate optional string fields
@@ -1742,8 +1742,8 @@ export const updateMpesaMessageProcessedStatus = httpAction(async (ctx, request)
     return createResponse("error", null, "Missing messageId parameter");
   }
 
-  if (!processed || !["pending", "successful", "failed", "not-viable", "disabled"].includes(processed)) {
-    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', 'not-viable', or 'disabled'");
+  if (!processed || !["pending", "successful", "failed", "not-viable", "disabled", "bridged"].includes(processed)) {
+    return createResponse("error", null, "Invalid processed status. Must be 'pending', 'successful', 'failed', 'not-viable', 'disabled', or 'bridged'");
   }
 
   try {

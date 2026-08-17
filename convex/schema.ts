@@ -320,7 +320,8 @@ export default defineSchema({
     v.literal("successful"),
     v.literal("failed"),
     v.literal("not-viable"),
-    v.literal("disabled")
+    v.literal("disabled"),
+    v.literal("bridged")
   )),
   fullMessage: v.optional(v.string()),
   processResponse: v.optional(v.string()),
