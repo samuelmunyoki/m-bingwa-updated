@@ -4,11 +4,12 @@ import { mutation, query } from "../_generated/server";
 // For sms/dialer/scheduled: created only from the website's own delete handlers (transactions
 // page, scheduler page) — never from the shared deleteMpesaMessage/deleteUSSDHistory/
 // deleteScheduledEvent mutations, since those are also called by the app's own delete flow via
-// the mobile HTTP handler, and app-initiated deletes must not signal themselves.
-// For bridge: only ever created by the scheduled cleanup cron (deleteOldOnlineBridgeTransactions
-// in onlineBridge.ts, TODO) — deleteOnlineBridgeTransaction itself does NOT signal, since
-// bridge deletes are app-initiated only (single device per account) and the app already cleans
-// up its own local copy in the same call.
+// the mobile HTTP handler, and app-initiated deletes must not signal themselves. Also never from
+// the scheduled cleanup crons (deleteOldMpesaMessages, deleteOldOnlineBridgeTransactions) — users
+// want to keep their local copies on the phone even after those crons trim Convex, so cron
+// deletions are deliberately silent. See project_cron_deletions_no_app_signal memory.
+// "bridge" type: currently unused — bridge deletes are always app-initiated (single device per
+// account, no website UI for it) and never signaled either way.
 export const createPendingDeletion = mutation({
   args: {
     userId: v.string(),

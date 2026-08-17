@@ -276,7 +276,7 @@ export const updateMpesaMessage = mutation({
     phoneNumber: v.optional(v.string()),
     senderId: v.optional(v.string()),
     time: v.optional(v.number()),
-    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled"))),
+    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled"), v.literal("bridged"))),
     fullMessage: v.optional(v.string()),
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
@@ -441,7 +441,7 @@ export const getMpesaMessagesBySenderId = query({
 // Query to get mpesa messages by processed status
 export const getMpesaMessagesByProcessedStatus = query({
   args: { 
-    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled")),
+    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled"), v.literal("bridged")),
     userId: v.optional(v.string())
   },
   handler: async (ctx, args) => {
@@ -477,7 +477,7 @@ export const getMpesaMessagesByProcessedStatus = query({
 export const updateMpesaMessageProcessedStatus = mutation({
   args: {
     messageId: v.id("mpesaMessages"),
-    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled")),
+    processed: v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled"), v.literal("bridged")),
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
     processedUSSD: v.optional(v.string()),
@@ -941,15 +941,10 @@ export const deleteOldMpesaMessages = internalMutation({
         for (const message of batch) {
           try {
             await ctx.db.delete(message._id);
-            // Signal the app so its local copy of this message gets cleaned up too — same
-            // pendingDeletions mechanism the website's own UI deletes use (see pendingDeletions.ts).
-            await ctx.db.insert("pendingDeletions", {
-              userId: message.userId,
-              type: "sms",
-              convexId: message._id,
-              status: "pending",
-              createdAt: Date.now(),
-            });
+            // Deliberately NOT signaling pendingDeletions here — users want to keep their local
+            // copies on the phone for their own record even after this cron trims them from
+            // Convex; only manual website deletes (transactions.tsx) should tell the app to
+            // delete its local copy too. See project_cron_deletions_no_app_signal memory.
             deletedCount++;
           } catch (error) {
             failedCount++;

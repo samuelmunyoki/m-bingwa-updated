@@ -39,12 +39,13 @@ import {
   MinusCircle,
   AlertCircle,
   RefreshCw,
+  ArrowRightLeft,
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TxType = "sms" | "dialer" | "scheduled";
-type TxStatus = "successful" | "failed" | "pending" | "unavailable" | "cancelled" | "disabled";
+type TxStatus = "successful" | "failed" | "pending" | "unavailable" | "cancelled" | "disabled" | "bridged";
 type PeriodFilter = "all" | "today" | "yesterday" | "last7" | "last30";
 
 interface UnifiedTransaction {
@@ -66,6 +67,7 @@ function parseSmsStatus(processed: string | undefined | null): TxStatus {
     case "failed": return "failed";
     case "not-viable": return "unavailable";
     case "disabled": return "disabled";
+    case "bridged": return "bridged";
     default: return "pending";
   }
 }
@@ -146,6 +148,7 @@ const STATUS_CONFIG: Record<TxStatus, { label: string; className: string; icon: 
   unavailable:{ label: "Unavailable",className: "bg-neutral-100 text-neutral-500 border-neutral-200",icon: <MinusCircle className="w-3.5 h-3.5 text-neutral-400" /> },
   cancelled:  { label: "Cancelled",  className: "bg-neutral-100 text-neutral-500 border-neutral-200",icon: <MinusCircle className="w-3.5 h-3.5 text-neutral-400" /> },
   disabled:   { label: "Disabled",   className: "bg-orange-50 text-orange-600 border-orange-200",    icon: <AlertCircle className="w-3.5 h-3.5 text-orange-500" /> },
+  bridged:    { label: "Bridged",    className: "bg-blue-50 text-blue-700 border-blue-200",           icon: <ArrowRightLeft className="w-3.5 h-3.5 text-blue-600" /> },
 };
 
 // ─── Detail Dialog ────────────────────────────────────────────────────────────
@@ -1038,7 +1041,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
               <div>
                 <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Status</p>
                 <div className="flex flex-wrap gap-2">
-                  {([["all", "All"], ["successful", "Successful"], ["failed", "Failed"], ["pending", "Pending"], ["unavailable", "Unavailable"], ["disabled", "Disabled"]] as const).map(([val, label]) => (
+                  {([["all", "All"], ["successful", "Successful"], ["failed", "Failed"], ["pending", "Pending"], ["unavailable", "Unavailable"], ["disabled", "Disabled"], ["bridged", "Bridged"]] as const).map(([val, label]) => (
                     <FilterChip key={val} label={label} active={statusFilter === val} onClick={() => setStatusFilter(val)} />
                   ))}
                 </div>
