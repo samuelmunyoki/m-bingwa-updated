@@ -953,6 +953,15 @@ export const batchCreateOnlineBridgeTransactions = mutation({
   handler: async (ctx, args) => {
     const now = Date.now();
     const transactionIds: Id<"onlineBridgeTransactions">[] = [];
+    // Deltas are aggregated per user+day and flushed as ONE scheduled call each (below), instead
+    // of one call per transaction — a batch with several transactions for the same user used to
+    // schedule that many independent same-tick mutations all racing to patch the same
+    // onlineBridgeDailyCounts row, which under load exhausted Convex's OCC retries (burning CPU
+    // on every failed retry) and silently dropped the count.
+    const dailyDeltas = new Map<
+      string,
+      { userId: string; dayStart: number; successfulDelta: number; failedDelta: number; pendingDelta: number }
+    >();
 
     for (const transaction of args.transactions) {
       // Idempotent: skip re-creating one that already exists (same user + M-Pesa message) — the
@@ -987,16 +996,26 @@ export const batchCreateOnlineBridgeTransactions = mutation({
 
       const bucket = bridgeStatusBucket(transaction.status);
       if (bucket) {
-        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+        const dayStart = getBridgeDayStart(now);
+        const key = `${transaction.userId}|${dayStart}`;
+        const delta = dailyDeltas.get(key) ?? {
           userId: transaction.userId,
-          dayStart: getBridgeDayStart(now),
-          successfulDelta: bucket === "successful" ? 1 : 0,
-          failedDelta: bucket === "failed" ? 1 : 0,
-          pendingDelta: bucket === "pending" ? 1 : 0,
-        });
+          dayStart,
+          successfulDelta: 0,
+          failedDelta: 0,
+          pendingDelta: 0,
+        };
+        if (bucket === "successful") delta.successfulDelta += 1;
+        if (bucket === "failed") delta.failedDelta += 1;
+        if (bucket === "pending") delta.pendingDelta += 1;
+        dailyDeltas.set(key, delta);
       }
 
       transactionIds.push(transactionId);
+    }
+
+    for (const delta of dailyDeltas.values()) {
+      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, delta);
     }
 
     return { transactionIds, count: transactionIds.length };
@@ -1019,6 +1038,13 @@ export const batchUpdateOnlineBridgeTransactionStatuses = mutation({
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    // Same aggregation as batchCreateOnlineBridgeTransactions above — one scheduled delta call
+    // per user+day for the whole batch, instead of one per update, so a batch touching many
+    // transactions for the same user can't race itself on the same onlineBridgeDailyCounts row.
+    const dailyDeltas = new Map<
+      string,
+      { userId: string; dayStart: number; successfulDelta: number; failedDelta: number; pendingDelta: number }
+    >();
 
     for (const update of args.updates) {
       // Fetched before patching — updates has no userId per item, and different items in the
@@ -1037,14 +1063,26 @@ export const batchUpdateOnlineBridgeTransactionStatuses = mutation({
         const oldBucket = bridgeStatusBucket(before.status);
         const newBucket = bridgeStatusBucket(update.status);
         if (oldBucket !== newBucket) {
-          await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+          const dayStart = getBridgeDayStart(before.createdAt);
+          const key = `${before.userId}|${dayStart}`;
+          const delta = dailyDeltas.get(key) ?? {
             userId: before.userId,
-            dayStart: getBridgeDayStart(before.createdAt),
-            successfulDelta: (newBucket === "successful" ? 1 : 0) - (oldBucket === "successful" ? 1 : 0),
-            failedDelta: (newBucket === "failed" ? 1 : 0) - (oldBucket === "failed" ? 1 : 0),
-            pendingDelta: (newBucket === "pending" ? 1 : 0) - (oldBucket === "pending" ? 1 : 0),
-          });
+            dayStart,
+            successfulDelta: 0,
+            failedDelta: 0,
+            pendingDelta: 0,
+          };
+          delta.successfulDelta += (newBucket === "successful" ? 1 : 0) - (oldBucket === "successful" ? 1 : 0);
+          delta.failedDelta += (newBucket === "failed" ? 1 : 0) - (oldBucket === "failed" ? 1 : 0);
+          delta.pendingDelta += (newBucket === "pending" ? 1 : 0) - (oldBucket === "pending" ? 1 : 0);
+          dailyDeltas.set(key, delta);
         }
+      }
+    }
+
+    for (const delta of dailyDeltas.values()) {
+      if (delta.successfulDelta !== 0 || delta.failedDelta !== 0 || delta.pendingDelta !== 0) {
+        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, delta);
       }
     }
 
