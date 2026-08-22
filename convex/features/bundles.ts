@@ -36,27 +36,43 @@ async function replaceBundleSteps(
 export const getAllBundles = query({
   args: { userId: v.string() },
   handler: async (ctx, args) => {
-    const bundles = await ctx.db
-      .query("bundles")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
-      .collect();
+    // Two bounded queries total, regardless of how many bundles this user has — was previously
+    // one query for the bundles PLUS one extra query per individual bundle (N+1), which is what
+    // caused this to hang/time out for accounts with enough bundles. patternOfferSteps already
+    // has a by_user index (see replaceBundleSteps above for the by_bundleId sibling), so all of
+    // this user's steps can be fetched in one shot and grouped by bundleId in memory instead.
+    const [bundles, allSteps] = await Promise.all([
+      ctx.db
+        .query("bundles")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .collect(),
+      ctx.db
+        .query("patternOfferSteps")
+        .withIndex("by_user", (q) => q.eq("userId", args.userId))
+        .collect(),
+    ]);
 
-    return await Promise.all(
-      bundles.map(async (bundle) => {
-        const steps = await ctx.db
-          .query("patternOfferSteps")
-          .withIndex("by_bundleId", (q) => q.eq("bundleId", bundle._id.toString()))
-          .collect();
-        return {
-          ...bundle,
-          patternSteps: steps
-            .sort((a, b) => a.stepIndex - b.stepIndex)
-            .map(({ stepIndex, inputKey, inputValue, pattern, type, inputMode }) => ({
-              stepIndex, inputKey, inputValue, pattern, type, inputMode,
-            })),
-        };
-      })
-    );
+    const stepsByBundleId = new Map<string, typeof allSteps>();
+    for (const step of allSteps) {
+      const existing = stepsByBundleId.get(step.bundleId);
+      if (existing) {
+        existing.push(step);
+      } else {
+        stepsByBundleId.set(step.bundleId, [step]);
+      }
+    }
+
+    return bundles.map((bundle) => {
+      const steps = stepsByBundleId.get(bundle._id.toString()) ?? [];
+      return {
+        ...bundle,
+        patternSteps: steps
+          .sort((a, b) => a.stepIndex - b.stepIndex)
+          .map(({ stepIndex, inputKey, inputValue, pattern, type, inputMode }) => ({
+            stepIndex, inputKey, inputValue, pattern, type, inputMode,
+          })),
+      };
+    });
   },
 });
 

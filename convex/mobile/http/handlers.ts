@@ -4975,6 +4975,44 @@ export const getOnlineBridgeTransactions = httpAction(
 );
 
 /**
+ * GET /api/online-bridge/transactions/by-device/?deviceId=X
+ * Get Online Bridge transactions for one device (bounded — uses the by_device index, never scans
+ * a user's whole history). See getOnlineBridgeTransactions above for the unbounded, full-account
+ * version this exists to avoid on the frequent per-device fetch paths.
+ */
+export const getOnlineBridgeTransactionsByDevice = httpAction(
+  async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const deviceId = url.searchParams.get("deviceId");
+
+      if (!deviceId) {
+        return new Response(JSON.stringify({ error: "Missing deviceId" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const transactions = await ctx.runQuery(
+        api.features.onlineBridge.getOnlineBridgeTransactionsByDevice,
+        { deviceId }
+      );
+
+      return new Response(JSON.stringify({ transactions }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      console.error("getOnlineBridgeTransactionsByDeviceHandler error:", error);
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+);
+
+/**
  * POST /api/online-bridge/transactions/by-ids/   body: { ids: string[] }
  * Returns the current state of just the given transactions (bounded fetch — no full-history scan).
  */

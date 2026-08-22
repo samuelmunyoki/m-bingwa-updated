@@ -72,6 +72,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   deleteTotalCommission,
   createOnlineBridgeTransaction,
   getOnlineBridgeTransactions,
+  getOnlineBridgeTransactionsByDevice,
   getOnlineBridgeTransactionsByIds,
   getOnlineBridgeTransactionsBySmsContents,
   getPendingOnlineBridgeTransactions,
@@ -1019,6 +1020,16 @@ http.route({
   path: "/api/online-bridge/transactions/",
   method: "GET",
   handler: getOnlineBridgeTransactions,
+});
+
+/**
+ * GET /api/online-bridge/transactions/by-device/?deviceId=X
+ * Get Online Bridge transactions for one device (bounded fetch by device index)
+ */
+http.route({
+  path: "/api/online-bridge/transactions/by-device/",
+  method: "GET",
+  handler: getOnlineBridgeTransactionsByDevice,
 });
 
 /**
