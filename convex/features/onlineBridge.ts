@@ -868,6 +868,14 @@ export const deleteOldOnlineBridgeTransactions = internalMutation({
       .withIndex("by_createdat", (q) => q.lt("createdAt", twoDaysAgo))
       .take(BRIDGE_DELETE_FETCH_LIMIT);
 
+    // Same aggregation as batchUpdateOnlineBridgeTransactionStatuses above — one scheduled delta
+    // call per user+day for the whole batch, instead of one per deleted row, so a batch touching
+    // many transactions for the same user can't race itself on the same onlineBridgeDailyCounts row.
+    const dailyDeltas = new Map<
+      string,
+      { userId: string; dayStart: number; successfulDelta: number; failedDelta: number; pendingDelta: number }
+    >();
+
     for (const t of oldTransactions) {
       await ctx.db.delete(t._id);
 
@@ -876,13 +884,19 @@ export const deleteOldOnlineBridgeTransactions = internalMutation({
       if (!t.isDeleted) {
         const bucket = bridgeStatusBucket(t.status);
         if (bucket) {
-          await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+          const dayStart = getBridgeDayStart(t.createdAt);
+          const key = `${t.userId}|${dayStart}`;
+          const delta = dailyDeltas.get(key) ?? {
             userId: t.userId,
-            dayStart: getBridgeDayStart(t.createdAt),
-            successfulDelta: bucket === "successful" ? -1 : 0,
-            failedDelta: bucket === "failed" ? -1 : 0,
-            pendingDelta: bucket === "pending" ? -1 : 0,
-          });
+            dayStart,
+            successfulDelta: 0,
+            failedDelta: 0,
+            pendingDelta: 0,
+          };
+          delta.successfulDelta += bucket === "successful" ? -1 : 0;
+          delta.failedDelta += bucket === "failed" ? -1 : 0;
+          delta.pendingDelta += bucket === "pending" ? -1 : 0;
+          dailyDeltas.set(key, delta);
         }
       }
 
@@ -892,6 +906,12 @@ export const deleteOldOnlineBridgeTransactions = internalMutation({
       // (app-initiated bridge deletes never signaled either — see deleteOnlineBridgeTransaction
       // above), so that type simply won't be created anymore. See
       // project_cron_deletions_no_app_signal memory.
+    }
+
+    for (const delta of dailyDeltas.values()) {
+      if (delta.successfulDelta !== 0 || delta.failedDelta !== 0 || delta.pendingDelta !== 0) {
+        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, delta);
+      }
     }
 
     // A full-size batch means there may be more still waiting — reschedule to keep draining the
