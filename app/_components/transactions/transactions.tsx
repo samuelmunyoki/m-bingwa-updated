@@ -666,7 +666,9 @@ function TransactionsMainInner({ userId }: { userId: string }) {
       const last = scheduledResults[scheduledResults.length - 1] as unknown as { scheduledTimeStamp?: number };
       boundaries.push((last.scheduledTimeStamp ?? 0) * 1000);
     }
-    return boundaries.length > 0 ? Math.min(...boundaries) : -Infinity;
+    // The most RECENT of the three "oldest loaded" points — not the oldest — since that's the
+    // source lagging furthest behind; anything older than it isn't guaranteed complete yet.
+    return boundaries.length > 0 ? Math.max(...boundaries) : -Infinity;
   }, [isSearching, smsResults, smsLoadStatus, dialerResults, dialerLoadStatus, scheduledResults, scheduledLoadStatus]);
 
   // Merge all sources — all three paginated 50-at-a-time, capped to the safe boundary above.
