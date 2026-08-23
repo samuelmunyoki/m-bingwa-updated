@@ -217,9 +217,11 @@ export const getUSSDHistoryPaginated = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
+    // Sort by the actual dial timestamp (not insertion order) — the Transactions page merges
+    // this with M-Pesa/Scheduled pages by timestamp, so pages must be chronologically contiguous.
     return await ctx.db
       .query("ussdHistory")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user_and_timestamp", (q) => q.eq("userId", args.userId))
       .order("desc")
       .paginate(args.paginationOpts);
   },

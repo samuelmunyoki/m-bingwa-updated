@@ -610,9 +610,21 @@ function TransactionsMainInner({ userId }: { userId: string }) {
     isSearching ? { userId, query: search.trim() } : "skip"
   );
 
-  // ── Small datasets — fully loaded ──────────────────────────────────────────
-  const dialerData = useQuery(api.features.ussdHistory.getUSSDHistory, { userId });
-  const scheduledData = useQuery(api.features.scheduled_events.getScheduledEvents, { userId });
+  // ── Paginated Dialer & Scheduled — loaded 50-at-a-time, same as M-Pesa. They used to be fully
+  //    loaded (whole history in one shot), which meant once the M-Pesa page ran out, the merged
+  //    list below would show a long unbroken stretch of Dialer/Scheduled with no M-Pesa mixed in —
+  //    not because there wasn't any, but because it simply hadn't been fetched yet. Paginating all
+  //    three the same way (plus the mergeBoundaryMs cutoff below) fixes that. ──
+  const { results: dialerResults, loadMore: loadMoreDialer, status: dialerLoadStatus } = usePaginatedQuery(
+    api.features.ussdHistory.getUSSDHistoryPaginated,
+    { userId },
+    { initialNumItems: 50 }
+  );
+  const { results: scheduledResults, loadMore: loadMoreScheduled, status: scheduledLoadStatus } = usePaginatedQuery(
+    api.features.scheduled_events.getScheduledEventsPaginated,
+    { userId },
+    { initialNumItems: 50 }
+  );
   const bundlesData = useQuery(api.features.bundles.getAllBundles, { userId });
 
   // ── Today counts — server-side, no limit, resets at midnight ───────────────
@@ -634,9 +646,30 @@ function TransactionsMainInner({ userId }: { userId: string }) {
   const [bulkRetrying, setBulkRetrying] = React.useState(false);
   const [cardActionId, setCardActionId] = React.useState<string | null>(null);
 
-  const loading = (isSearching ? mpesaSearchResults === undefined : smsLoadStatus === "LoadingFirstPage") || dialerData === undefined || scheduledData === undefined;
+  const loading = (isSearching ? mpesaSearchResults === undefined : smsLoadStatus === "LoadingFirstPage")
+    || dialerLoadStatus === "LoadingFirstPage" || scheduledLoadStatus === "LoadingFirstPage";
 
-  // Merge all sources — M-Pesa is paginated (server-filtered), dialer/scheduled fully loaded
+  // ── Safe merge boundary — the oldest timestamp that's guaranteed complete across ALL THREE
+  //    paginated sources. Below this point, a source that still has more pages might hold rows
+  //    that belong here but haven't been fetched yet — rendering past it would look like a gap
+  //    (e.g. a run of Dialer rows with no M-Pesa mixed in, even though matching M-Pesa rows exist).
+  //    "Load More" advances all three sources together, which pushes this boundary further back. ──
+  const mergeBoundaryMs = React.useMemo(() => {
+    const boundaries: number[] = [];
+    if (!isSearching && smsLoadStatus !== "Exhausted" && (smsResults?.length ?? 0) > 0) {
+      boundaries.push(smsResults[smsResults.length - 1].time);
+    }
+    if (dialerLoadStatus !== "Exhausted" && dialerResults.length > 0) {
+      boundaries.push(parseDialerTimestamp(dialerResults[dialerResults.length - 1].timeStamp));
+    }
+    if (scheduledLoadStatus !== "Exhausted" && scheduledResults.length > 0) {
+      const last = scheduledResults[scheduledResults.length - 1] as unknown as { scheduledTimeStamp?: number };
+      boundaries.push((last.scheduledTimeStamp ?? 0) * 1000);
+    }
+    return boundaries.length > 0 ? Math.min(...boundaries) : -Infinity;
+  }, [isSearching, smsResults, smsLoadStatus, dialerResults, dialerLoadStatus, scheduledResults, scheduledLoadStatus]);
+
+  // Merge all sources — all three paginated 50-at-a-time, capped to the safe boundary above.
   const allTransactions = React.useMemo<UnifiedTransaction[]>(() => {
     const result: UnifiedTransaction[] = [];
 
@@ -667,7 +700,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
       });
     });
 
-    (typeFilter === "all" || typeFilter === "dialer" ? dialerData ?? [] : []).forEach((d) => {
+    (typeFilter === "all" || typeFilter === "dialer" ? dialerResults ?? [] : []).forEach((d) => {
       result.push({
         id: `dialer_${d._id}`,
         type: "dialer",
@@ -680,7 +713,7 @@ function TransactionsMainInner({ userId }: { userId: string }) {
       });
     });
 
-    (typeFilter === "all" || typeFilter === "scheduled" ? scheduledData ?? [] : []).forEach((s) => {
+    (typeFilter === "all" || typeFilter === "scheduled" ? scheduledResults ?? [] : []).forEach((s) => {
       result.push({
         id: `scheduled_${s._id}`,
         type: "scheduled",
@@ -693,8 +726,12 @@ function TransactionsMainInner({ userId }: { userId: string }) {
       });
     });
 
-    return result.sort((a, b) => b.timestampMs - a.timestampMs);
-  }, [smsResults, mpesaSearchResults, isSearching, dialerData, scheduledData, typeFilter]);
+    // Cap to the safe boundary so we never render a stretch that looks complete but is
+    // secretly missing not-yet-loaded rows from a source that's still paginating.
+    return result
+      .filter((tx) => tx.timestampMs >= mergeBoundaryMs)
+      .sort((a, b) => b.timestampMs - a.timestampMs);
+  }, [smsResults, mpesaSearchResults, isSearching, dialerResults, scheduledResults, typeFilter, mergeBoundaryMs]);
 
   // All offer names from bundles (not from transactions)
   const offerNames = React.useMemo(() => {
@@ -1162,17 +1199,23 @@ function TransactionsMainInner({ userId }: { userId: string }) {
                   actionLoading={cardActionId === tx.id}
                 />
               ))}
-              {/* Load More — only shown when M-Pesa has more pages */}
-              {!isSearching && (typeFilter === "all" || typeFilter === "sms") && smsLoadStatus !== "Exhausted" && (
+              {/* Load More — one button, advances all three paginated sources together so the
+                  safe merge boundary above keeps moving back in time as a single unit. Hidden
+                  once all three are exhausted (or while searching, which loads M-Pesa in full). */}
+              {!isSearching && (smsLoadStatus !== "Exhausted" || dialerLoadStatus !== "Exhausted" || scheduledLoadStatus !== "Exhausted") && (
                 <div className="flex justify-center pt-2 pb-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => loadMoreSms(50)}
-                    disabled={smsLoadStatus === "LoadingMore"}
+                    onClick={() => {
+                      if (smsLoadStatus === "CanLoadMore") loadMoreSms(50);
+                      if (dialerLoadStatus === "CanLoadMore") loadMoreDialer(50);
+                      if (scheduledLoadStatus === "CanLoadMore") loadMoreScheduled(50);
+                    }}
+                    disabled={smsLoadStatus === "LoadingMore" || dialerLoadStatus === "LoadingMore" || scheduledLoadStatus === "LoadingMore"}
                     className="text-xs px-6"
                   >
-                    {smsLoadStatus === "LoadingMore" ? "Loading..." : "Load More"}
+                    {smsLoadStatus === "LoadingMore" || dialerLoadStatus === "LoadingMore" || scheduledLoadStatus === "LoadingMore" ? "Loading..." : "Load More"}
                   </Button>
                 </div>
               )}
