@@ -666,7 +666,9 @@ function TransactionsMainInner({ userId }: { userId: string }) {
       const last = scheduledResults[scheduledResults.length - 1] as unknown as { scheduledTimeStamp?: number };
       boundaries.push((last.scheduledTimeStamp ?? 0) * 1000);
     }
-    return boundaries.length > 0 ? Math.min(...boundaries) : -Infinity;
+    // The most RECENT of the three "oldest loaded" points — not the oldest — since that's the
+    // source lagging furthest behind; anything older than it isn't guaranteed complete yet.
+    return boundaries.length > 0 ? Math.max(...boundaries) : -Infinity;
   }, [isSearching, smsResults, smsLoadStatus, dialerResults, dialerLoadStatus, scheduledResults, scheduledLoadStatus]);
 
   // Merge all sources — all three paginated 50-at-a-time, capped to the safe boundary above.
@@ -732,6 +734,30 @@ function TransactionsMainInner({ userId }: { userId: string }) {
       .filter((tx) => tx.timestampMs >= mergeBoundaryMs)
       .sort((a, b) => b.timestampMs - a.timestampMs);
   }, [smsResults, mpesaSearchResults, isSearching, dialerResults, scheduledResults, typeFilter, mergeBoundaryMs]);
+
+  // ── Auto-continue the initial load — Dialer fires far more often than M-Pesa, so Dialer's
+  //    first 50-item page covers a much shorter time span than M-Pesa's. Since mergeBoundaryMs
+  //    caps the WHOLE list to the shortest source's page, that alone would crop the default view
+  //    down to just Dialer's narrow window. So: if the safe/renderable list is still short after
+  //    a page, silently fetch another round from whichever sources aren't exhausted yet — same
+  //    as clicking "Load More", just automatic — until there's a reasonable amount to show or
+  //    every source is exhausted. A round cap guards against runaway fetching on a narrow filter
+  //    with very few real matches.
+  const AUTO_CONTINUE_TARGET = 50;
+  const AUTO_CONTINUE_MAX_ROUNDS = 20;
+  const autoContinueRounds = React.useRef(0);
+  React.useEffect(() => {
+    if (isSearching || loading) return;
+    if (allTransactions.length >= AUTO_CONTINUE_TARGET) { autoContinueRounds.current = 0; return; }
+    if (autoContinueRounds.current >= AUTO_CONTINUE_MAX_ROUNDS) return;
+    if (smsLoadStatus === "LoadingMore" || dialerLoadStatus === "LoadingMore" || scheduledLoadStatus === "LoadingMore") return;
+    const anyCanLoadMore = smsLoadStatus === "CanLoadMore" || dialerLoadStatus === "CanLoadMore" || scheduledLoadStatus === "CanLoadMore";
+    if (!anyCanLoadMore) return;
+    autoContinueRounds.current += 1;
+    if (smsLoadStatus === "CanLoadMore") loadMoreSms(50);
+    if (dialerLoadStatus === "CanLoadMore") loadMoreDialer(50);
+    if (scheduledLoadStatus === "CanLoadMore") loadMoreScheduled(50);
+  }, [isSearching, loading, allTransactions.length, smsLoadStatus, dialerLoadStatus, scheduledLoadStatus, loadMoreSms, loadMoreDialer, loadMoreScheduled]);
 
   // All offer names from bundles (not from transactions)
   const offerNames = React.useMemo(() => {
