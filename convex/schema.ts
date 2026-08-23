@@ -191,7 +191,8 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_messageId", ["messageId"])
-    .index("by_localId", ["localId", "userId"]),
+    .index("by_localId", ["localId", "userId"])
+    .index("by_userId_scheduledTimeStamp", ["userId", "scheduledTimeStamp"]),
 
   stores: defineTable({
     storeName: v.string(),

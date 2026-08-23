@@ -439,9 +439,11 @@ export const getScheduledEventsPaginated = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
+    // Sort by scheduledTimeStamp (not insertion order) — the Transactions page merges this with
+    // M-Pesa/Dialer pages by timestamp, so pages must be chronologically contiguous.
     return await ctx.db
       .query("scheduled_events")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .withIndex("by_userId_scheduledTimeStamp", (q) => q.eq("userId", args.userId))
       .order("desc")
       .paginate(args.paginationOpts);
   },
