@@ -101,6 +101,12 @@ export const createBundleFromAPI = mutation({
     ),
     isPatternOffer: v.optional(v.boolean()),
     patternSteps: v.optional(v.array(patternStepArgs)),
+    // Set by the app's Smart Offers "Add" flow only (see addOrReplaceOffer /
+    // queueNewBundleCreate on the Android side) — relaxes the name-duplicate rule below so a
+    // catalog offer can be re-added at its original price after the user manually edited an
+    // earlier copy's price away. Manual "Add Bundle" never sends this, so it keeps blocking on
+    // name alone.
+    source: v.optional(v.literal("smart_offer")),
   },
   handler: async (ctx, args) => {
     const {
@@ -118,7 +124,8 @@ export const createBundleFromAPI = mutation({
       dialingSIM,
       offerType,
       isPatternOffer = false,
-      patternSteps
+      patternSteps,
+      source
     } = args;
 
     // Validation: Ensure only one of isMultiSession or isSimpleUSSD is true
@@ -133,10 +140,13 @@ export const createBundleFromAPI = mutation({
         return null;
       }
     }
-    // Name duplicates always block. Price duplicates only block if the existing bundle at that
-    // price is currently ACTIVE — a disabled one is fine to share a price with (this is what lets
-    // an Offer Time Config's inactive side sit disabled at the same price as its active sibling).
-    // Mirrors BundleRepository.doesOfferAmountExist on the Android side — see
+    // Name duplicates always block, UNLESS this is a Smart Offers re-add (source="smart_offer")
+    // AND the existing same-named bundle is at a different price — that's a genuine second offer
+    // (e.g. the user edited the first copy's price away, then re-added the catalog original), not
+    // an accidental duplicate. Price duplicates only block if the existing bundle at that price is
+    // currently ACTIVE — a disabled one is fine to share a price with (this is what lets an Offer
+    // Time Config's inactive side sit disabled at the same price as its active sibling). Mirrors
+    // BundleRepository.doesOfferAmountExist on the Android side — see
     // project_offer_time_config_feature memory.
     const nameDuplicate = await ctx.db
       .query("bundles")
@@ -145,7 +155,11 @@ export const createBundleFromAPI = mutation({
       .first();
 
     if (nameDuplicate) {
-      return null;
+      const isExactDuplicate = nameDuplicate.price === price;
+      const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
+      if (!allowedSmartOfferVariant) {
+        return null;
+      }
     }
 
     // Only check at all if THIS bundle is being saved as "available" — if it's being saved as

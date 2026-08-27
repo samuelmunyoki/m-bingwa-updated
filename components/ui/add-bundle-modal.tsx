@@ -57,8 +57,10 @@ export function AddBundleModal({ userId }: { userId: string }) {
   const [status, setStatus] = useState("available");
   const [dialingSIM, setDialingSIM] = useState("SIM1");
   const [offerType, setOfferType] = useState("Data");
-  const [validatorStep, setValidatorStep] = useState("");
-  const [validatorText, setValidatorText] = useState("");
+  // Response Validator — no longer wired to anything (USSDProcessor.kt ignores it, superseded by
+  // Pattern offers); UI removed, state/payload kept commented for an easy revert if ever needed.
+  // const [validatorStep, setValidatorStep] = useState("");
+  // const [validatorText, setValidatorText] = useState("");
   const [autoReschedule, setAutoReschedule] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -85,8 +87,8 @@ export function AddBundleModal({ userId }: { userId: string }) {
     setStatus("available");
     setDialingSIM("SIM1");
     setOfferType("Data");
-    setValidatorStep("");
-    setValidatorText("");
+    // setValidatorStep("");
+    // setValidatorText("");
     setAutoReschedule("");
     setError(null);
     setIsSubmitting(false);
@@ -101,10 +103,8 @@ export function AddBundleModal({ userId }: { userId: string }) {
     // No client-side price-duplicate block — createBundleFromAPI silently saves this offer as
     // disabled instead when another active one already holds this price, same as the app.
 
-    const responseValidatorText =
-      isMultiSession && validatorStep && validatorText
-        ? `${validatorStep},${validatorText}`
-        : "";
+    // Response Validator removed from the UI — no longer wired to anything on the app side.
+    const responseValidatorText = "";
 
     try {
       const res = await createBundle({
@@ -231,36 +231,9 @@ export function AddBundleModal({ userId }: { userId: string }) {
               />
             </div>
 
-            {/* Response Validator — only when Multi-Session */}
-            {isMultiSession && (
-              <div className="space-y-2 rounded-md border p-3 bg-muted/30">
-                <Label className="text-sm font-medium">Response Validator</Label>
-                <p className="text-xs text-muted-foreground">
-                  The step number and expected text in the USSD response to confirm success.
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <Label htmlFor="validatorStep" className="text-xs">Step</Label>
-                    <Input
-                      id="validatorStep"
-                      type="number"
-                      value={validatorStep}
-                      onChange={(e) => { setValidatorStep(e.target.value); clearError(); }}
-                      placeholder="3"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="validatorText" className="text-xs">Expected Text</Label>
-                    <Input
-                      id="validatorText"
-                      value={validatorText}
-                      onChange={(e) => { setValidatorText(e.target.value); clearError(); }}
-                      placeholder="250Mbs for 24 hours"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Response Validator removed — no longer wired to anything (see state declaration
+                above for why). Was here, gated on {isMultiSession && (...)}, with Step/Expected
+                Text inputs bound to validatorStep/validatorText. */}
 
             {/* Auto Reschedule */}
             <div>
