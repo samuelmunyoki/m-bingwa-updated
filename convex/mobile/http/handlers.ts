@@ -574,11 +574,16 @@ export const updateBundle = httpAction(async (ctx, request) => {
     dialingSIM,
     offerType,
     isPatternOffer,
-    patternSteps
+    patternSteps,
+    source
   } = body
 
   if (!id || !userId) {
     return createResponse("error", null, "Missing required fields: id and userId")
+  }
+
+  if (source !== undefined && source !== "smart_offer") {
+    return createResponse("error", null, "Invalid source. Must be 'smart_offer' if provided")
   }
 
   if (patternSteps !== undefined && !Array.isArray(patternSteps)) {
@@ -698,6 +703,8 @@ export const updateBundle = httpAction(async (ctx, request) => {
     
     // Only the name blocks here — a price conflict is never rejected, the updateBundle mutation
     // silently saves this bundle as disabled instead when another active one shares the price.
+    // Exception: a Smart Offers Replace (source="smart_offer") is allowed through even on a name
+    // match, as long as it's not also an exact price match — see the updateBundle mutation for why.
     if (offerName) {
       const duplicateBundle = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
         userId,
@@ -706,11 +713,16 @@ export const updateBundle = httpAction(async (ctx, request) => {
       })
 
       if (duplicateBundle) {
-        return createResponse(
-          "error",
-          null,
-          `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-        )
+        const effectivePrice = price !== undefined ? price : existingBundle.price;
+        const isExactDuplicate = duplicateBundle.price === effectivePrice;
+        const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
+        if (!allowedSmartOfferVariant) {
+          return createResponse(
+            "error",
+            null,
+            `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+          )
+        }
       }
     }
 
@@ -731,7 +743,8 @@ export const updateBundle = httpAction(async (ctx, request) => {
       dialingSIM: dialingSIM,
       offerType: offerType,
       isPatternOffer: isPatternOffer,
-      patternSteps: patternSteps
+      patternSteps: patternSteps,
+      source: source
     })
 
     // The mutation can fail internally (e.g. a schema validation error) and return

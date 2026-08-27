@@ -232,9 +232,14 @@ export const updateBundle = mutation({
     )),
     isPatternOffer: v.optional(v.boolean()),
     patternSteps: v.optional(v.array(patternStepArgs)),
+    // Same meaning as createBundleFromAPI's source arg — set only by the app's Smart Offers
+    // Replace path (BundleRepository.syncPendingSyncItems, when the bundle's local
+    // pendingSyncSource=="smart_offer"). Must be destructured out below so it never leaks into
+    // `updates` and gets patched onto the document — "source" isn't a bundles table field.
+    source: v.optional(v.literal("smart_offer")),
   },
   handler: async (ctx, args) => {
-    const { id, userId, offerName, price, isMultiSession, isSimpleUSSD, responseValidatorText, patternSteps, isPatternOffer, ...updates } = args;
+    const { id, userId, offerName, price, isMultiSession, isSimpleUSSD, responseValidatorText, patternSteps, isPatternOffer, source, ...updates } = args;
 
     const existingBundle = await ctx.db.get(id);
     if (!existingBundle || existingBundle.userId !== userId) {
@@ -291,10 +296,17 @@ export const updateBundle = mutation({
         .first();
 
       if (nameDuplicate) {
-        return {
-          status: "error",
-          message: `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-        } as BackendResponse;
+        // Same relaxation as createBundleFromAPI: a Smart Offers Replace is let through even on a
+        // name match, as long as it's not also an exact price match with the colliding bundle.
+        const effectivePrice = price !== undefined ? price : existingBundle.price;
+        const isExactDuplicate = nameDuplicate.price === effectivePrice;
+        const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
+        if (!allowedSmartOfferVariant) {
+          return {
+            status: "error",
+            message: `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+          } as BackendResponse;
+        }
       }
     }
 
