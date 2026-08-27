@@ -221,7 +221,8 @@ export const createBundle = httpAction(async (ctx, request) => {
     dialingSIM,
     offerType = "Data",
     isPatternOffer = false,
-    patternSteps
+    patternSteps,
+    source
   } = body
 
   if (
@@ -237,6 +238,10 @@ export const createBundle = httpAction(async (ctx, request) => {
     !offerType
   ) {
     return createResponse("error", null, "Missing required fields in request body")
+  }
+
+  if (source !== undefined && source !== "smart_offer") {
+    return createResponse("error", null, "Invalid source. Must be 'smart_offer' if provided")
   }
 
   if (patternSteps !== undefined && !Array.isArray(patternSteps)) {
@@ -330,6 +335,8 @@ export const createBundle = httpAction(async (ctx, request) => {
   try {
     // Only the name blocks here — a price conflict is never rejected, createBundleFromAPI
     // silently saves this bundle as disabled instead when another active one shares the price.
+    // Exception: a Smart Offers re-add (source="smart_offer") is allowed through even on a name
+    // match, as long as it's not also an exact price match — see createBundleFromAPI for why.
     const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByUserAndNameOrPrice, {
       userId,
       offerName,
@@ -337,11 +344,15 @@ export const createBundle = httpAction(async (ctx, request) => {
     })
 
     if (existingBundle && existingBundle.offerName === offerName) {
-      return createResponse(
-        "error",
-        null,
-        `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
-      )
+      const isExactDuplicate = existingBundle.price === price;
+      const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
+      if (!allowedSmartOfferVariant) {
+        return createResponse(
+          "error",
+          null,
+          `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+        )
+      }
     }
 
     const newBundleId = await ctx.runMutation(api.features.bundles.createBundleFromAPI, {
@@ -359,7 +370,8 @@ export const createBundle = httpAction(async (ctx, request) => {
       dialingSIM,
       offerType,
       isPatternOffer,
-      patternSteps
+      patternSteps,
+      source
     })
 
     return createResponse("success", { bundleId: newBundleId }, "Bundle created successfully")
