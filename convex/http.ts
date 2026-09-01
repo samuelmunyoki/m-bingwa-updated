@@ -84,6 +84,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getServiceStatus,
   getMultipleServiceStatuses,
   updateDeviceHeartbeat,
+  updateHeartbeatAndValidateSession,
   getBatchDeviceOnlineStatus,
   setDeviceHeartbeatTestHandler,
   updateOnlineServiceStatus,
@@ -156,6 +157,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getPhoneProfileByPhone,
   getServerPatternOffersHttp,
   getTransactionCountsHttp,
+  getDistinctUserCountTodayHttp,
   getAppConfigHttp,
   checkAccessHttp,
   getAutoScheduledMessagesHttp,
@@ -167,6 +169,10 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   createOfferTimeConfig,
   updateOfferTimeConfig,
   deleteOfferTimeConfig,
+  getOfferFallbackConfigs,
+  createOfferFallbackConfig,
+  updateOfferFallbackConfig,
+  deleteOfferFallbackConfig,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -248,6 +254,32 @@ http.route({
   pathPrefix: "/api/offer-time-configs/delete/",
   method: "DELETE",
   handler: deleteOfferTimeConfig,
+});
+
+// Offer Fallback Configs — storage/cross-device sync only, no website UI. See the Android repo's
+// OfferFallbackConfigEntity for the full design.
+http.route({
+  pathPrefix: "/api/offer-fallback-configs/",
+  method: "GET",
+  handler: getOfferFallbackConfigs,
+});
+
+http.route({
+  pathPrefix: "/api/offer-fallback-configs/create/",
+  method: "POST",
+  handler: createOfferFallbackConfig,
+});
+
+http.route({
+  pathPrefix: "/api/offer-fallback-configs/update/",
+  method: "PATCH",
+  handler: updateOfferFallbackConfig,
+});
+
+http.route({
+  pathPrefix: "/api/offer-fallback-configs/delete/",
+  method: "DELETE",
+  handler: deleteOfferFallbackConfig,
 });
 
 // API Route to get a store owner's custom offers
@@ -1134,6 +1166,12 @@ http.route({
 });
 
 http.route({
+  pathPrefix: "/api/device-heartbeat-and-validate/",
+  method: "POST",
+  handler: updateHeartbeatAndValidateSession,
+});
+
+http.route({
   pathPrefix: "/api/device-online-status/batch/",
   method: "POST",
   handler: getBatchDeviceOnlineStatus,
@@ -1505,6 +1543,13 @@ http.route({
   pathPrefix: "/api/transactions/counts/",
   method: "GET",
   handler: getTransactionCountsHttp,
+});
+
+// GET distinct userIds with a transaction today (Africa/Nairobi day boundary)
+http.route({
+  path: "/api/mpesa-messages/distinct-users-today/",
+  method: "GET",
+  handler: getDistinctUserCountTodayHttp,
 });
 
 http.route({

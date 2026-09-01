@@ -84,6 +84,24 @@ export default defineSchema({
     variantBPatternSnapshotJson: v.optional(v.string()),
   }).index("by_user", ["userId"]),
 
+  // Pairs a "main" offer with a "secondary" offer. When the main offer's USSD dial comes back
+  // "Already Recommended", the Android app dials the secondary offer for that same customer
+  // instead of the usual repeat-purchase/reschedule/watch/bot handling — and if the secondary
+  // offer's own dial is ALSO "Already Recommended", the app checks whether the secondary is
+  // itself the "main" of another config and keeps following that chain. Directional
+  // (main -> secondary), unlike offerTimeConfigs' symmetric A/B pairing — no time dimension, no
+  // price-matching requirement between the two offers. Storage/cross-device sync only —
+  // deliberately no website UI reads/writes this table. See the Android repo's
+  // OfferFallbackConfigEntity for the full design.
+  offerFallbackConfigs: defineTable({
+    userId: v.string(),
+    isEnabled: v.boolean(),
+    mainKind: v.union(v.literal("NORMAL"), v.literal("PATTERN")),
+    mainBundleId: v.string(),
+    secondaryKind: v.union(v.literal("NORMAL"), v.literal("PATTERN")),
+    secondaryBundleId: v.string(),
+  }).index("by_user", ["userId"]),
+
   // Store-only offers, created from the app's Store screen. Deliberately separate from `bundles`
   // above: never shown in the app's Offers screen, never matched by auto-buy — only ever displayed
   // on the owner's storefront. Post-payment fulfillment for these isn't built yet (bridged to

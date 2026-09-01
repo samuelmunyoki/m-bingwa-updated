@@ -3548,6 +3548,68 @@ export const validateDeviceSession = httpAction(async (ctx, request) => {
   }
 });
 
+// Combined heartbeat + session-validate — one HTTP round trip and one
+// mutation invocation instead of two, called by the app's 15s heartbeat loop.
+export const updateHeartbeatAndValidateSession = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Method not allowed" }),
+      { status: 405, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ status: "error", error: "Invalid JSON body" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const { phoneNumber, userId, deviceId, batteryLevel } = body;
+
+  if (!phoneNumber || !userId || !deviceId) {
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: "Missing required fields: phoneNumber, userId, deviceId",
+      }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.users.updateHeartbeatAndValidateSession,
+      {
+        phoneNumber,
+        userId,
+        deviceId,
+        ...(typeof batteryLevel === "number" ? { batteryLevel } : {}),
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (error: any) {
+    console.error("Error in updateHeartbeatAndValidateSession:", error);
+    return new Response(
+      JSON.stringify({
+        status: "error",
+        error: error.message || "Failed to update heartbeat and validate session",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+});
+
 /**
  * HTTP ACTION 3: Logout Device
  * POST /api/logout-device
@@ -7363,6 +7425,15 @@ export const getTransactionCountsHttp = httpAction(async (ctx, request) => {
   }
 });
 
+export const getDistinctUserCountTodayHttp = httpAction(async (ctx) => {
+  try {
+    const result = await ctx.runQuery(api.features.mpesaMessages.getDistinctUserCountForToday, {});
+    return createResponse("success", result);
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
 // ─────────────────────────────────────────────────────────────────────────────────────────────
 // Offer Time Configs — storage/cross-device sync only (no website UI). See
 // project_offer_time_config_feature memory (Android repo) / plan "enumerated-splashing-wadler".
@@ -7451,6 +7522,100 @@ export const deleteOfferTimeConfig = httpAction(async (ctx, request) => {
     const { id, userId } = body;
     await ctx.runMutation(api.features.offerTimeConfigs.deleteOfferTimeConfigFromAPI, { id, userId });
     return createResponse("success", null, "Time Config deleted successfully");
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// Offer Fallback Configs — storage/cross-device sync only (no website UI). See the Android
+// repo's OfferFallbackConfigEntity for the full design.
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+
+export const getOfferFallbackConfigs = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const configs = await ctx.runQuery(api.features.offerFallbackConfigs.getOfferFallbackConfigs, { userId });
+    return createResponse("success", { configs }, null);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, "Failed to fetch offer fallback configs");
+  }
+});
+
+export const createOfferFallbackConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.offerFallbackConfigs.createOfferFallbackConfigFromAPI, body);
+    return createResponse(result.status === "success" ? "success" : "error", result.data, result.message);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOfferFallbackConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.id || !body.userId) {
+    return createResponse("error", null, "Missing id or userId in request body");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.features.offerFallbackConfigs.updateOfferFallbackConfigFromAPI, body);
+    return createResponse(result.status === "success" ? "success" : "error", result.data, result.message);
+  } catch (error: any) {
+    console.error(error);
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOfferFallbackConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.id || !body.userId) {
+    return createResponse("error", null, "Missing id or userId in request body");
+  }
+
+  try {
+    const { id, userId } = body;
+    await ctx.runMutation(api.features.offerFallbackConfigs.deleteOfferFallbackConfigFromAPI, { id, userId });
+    return createResponse("success", null, "Fallback Config deleted successfully");
   } catch (error: any) {
     console.error(error);
     return createResponse("error", null, error.message);
