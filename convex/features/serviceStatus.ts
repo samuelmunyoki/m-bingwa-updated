@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query } from "../_generated/server";
+import { mutation, query, MutationCtx } from "../_generated/server";
 
 /**
  * Update or create service status for a phone number
@@ -86,6 +86,49 @@ export const getMultipleServiceStatuses = query({
   },
 });
 
+// Shared handler body, reused by updateDeviceHeartbeat and by the combined
+// heartbeat+session-validate mutation in users.ts (one isolate invocation
+// instead of two — see HEARTBEAT_INTERVAL history in HeartbeatService.kt).
+export async function performHeartbeatUpdate(
+  ctx: MutationCtx,
+  args: { phoneNumber: string; userId: string; batteryLevel?: number }
+) {
+  const now = Date.now();
+
+  // Dedupe by userId (the account), NOT phoneNumber. Phone numbers can be reassigned between
+  // accounts over time (see the phone-number-change feature elsewhere in this project). Deduping
+  // by phoneNumber caused a real cross-account bug: a number that used to belong to a different,
+  // now-dormant account still had a leftover row here, and a NEW account that later took over
+  // that same number kept silently patching the OLD account's row with its own fresh battery/
+  // timestamp data — while its own row (created earlier, before the number was assigned) sat
+  // frozen forever. Matching on userId instead means each account always finds/updates its own
+  // row, regardless of what phone number is currently attached to it.
+  const existing = await ctx.db
+    .query("deviceHeartbeats")
+    .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+    .first();
+
+  if (existing) {
+    // Also correct phoneNumber here in case it drifted (e.g. this account's number changed) —
+    // keeps the row's phoneNumber field truthful without needing a separate migration.
+    await ctx.db.patch(existing._id, {
+      phoneNumber: args.phoneNumber,
+      lastSeenTimestamp: now,
+      ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
+    });
+    return existing._id;
+  } else {
+    // Create new
+    const id = await ctx.db.insert("deviceHeartbeats", {
+      phoneNumber: args.phoneNumber,
+      userId: args.userId,
+      lastSeenTimestamp: now,
+      ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
+    });
+    return id;
+  }
+}
+
 // Mutation to update heartbeat
 export const updateDeviceHeartbeat = mutation({
   args: {
@@ -93,42 +136,7 @@ export const updateDeviceHeartbeat = mutation({
     userId: v.string(),
     batteryLevel: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
-    const now = Date.now();
-
-    // Dedupe by userId (the account), NOT phoneNumber. Phone numbers can be reassigned between
-    // accounts over time (see the phone-number-change feature elsewhere in this project). Deduping
-    // by phoneNumber caused a real cross-account bug: a number that used to belong to a different,
-    // now-dormant account still had a leftover row here, and a NEW account that later took over
-    // that same number kept silently patching the OLD account's row with its own fresh battery/
-    // timestamp data — while its own row (created earlier, before the number was assigned) sat
-    // frozen forever. Matching on userId instead means each account always finds/updates its own
-    // row, regardless of what phone number is currently attached to it.
-    const existing = await ctx.db
-      .query("deviceHeartbeats")
-      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
-      .first();
-
-    if (existing) {
-      // Also correct phoneNumber here in case it drifted (e.g. this account's number changed) —
-      // keeps the row's phoneNumber field truthful without needing a separate migration.
-      await ctx.db.patch(existing._id, {
-        phoneNumber: args.phoneNumber,
-        lastSeenTimestamp: now,
-        ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
-      });
-      return existing._id;
-    } else {
-      // Create new
-      const id = await ctx.db.insert("deviceHeartbeats", {
-        phoneNumber: args.phoneNumber,
-        userId: args.userId,
-        lastSeenTimestamp: now,
-        ...(args.batteryLevel !== undefined ? { batteryLevel: args.batteryLevel } : {}),
-      });
-      return id;
-    }
-  },
+  handler: async (ctx, args) => performHeartbeatUpdate(ctx, args),
 });
 
 // Query to get a device's latest heartbeat (battery level + last-seen) for one user

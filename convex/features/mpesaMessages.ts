@@ -1182,6 +1182,22 @@ export const getCountsByUserId = query({
   },
 });
 
+// Distinct users with at least one transaction "today" (Africa/Nairobi day boundary,
+// same convention as eatDayStart/messageDailyStats.getDayStart).
+export const getDistinctUserCountForToday = query({
+  args: {},
+  handler: async (ctx) => {
+    const dayStart = eatDayStart(Date.now());
+    const dayEnd = dayStart + 86_400_000;
+    const todayMessages = await ctx.db
+      .query("mpesaMessages")
+      .withIndex("by_time", (q) => q.gte("time", dayStart).lt("time", dayEnd))
+      .collect();
+    const distinctUserIds = new Set(todayMessages.map((m) => m.userId));
+    return { count: distinctUserIds.size, dayStart, dayEnd };
+  },
+});
+
 // ── Paginated M-Pesa messages with server-side filters ─────────────────────
 export const getMpesaMessagesPaginated = query({
   args: {

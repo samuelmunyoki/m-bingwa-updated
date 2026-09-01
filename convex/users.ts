@@ -1,11 +1,13 @@
 import { addPhoneNumber } from "./features/blacklist";
 import { isAccessAllowed } from "./features/appConfig";
+import { performHeartbeatUpdate } from "./features/serviceStatus";
 import { v } from "convex/values";
 import {
   internalMutation,
   internalQuery,
   mutation,
   query,
+  MutationCtx,
 } from "./_generated/server";
 import { BackendResponse } from "../lib/custom_types";
 import { api } from "./_generated/api";
@@ -972,62 +974,96 @@ export const registerDeviceSession = mutation({
 });
 
 
+// Shared handler body, reused by validateDeviceSession and by the combined
+// heartbeat+session-validate mutation below (one isolate invocation instead
+// of two — see HEARTBEAT_INTERVAL history in HeartbeatService.kt).
+export async function performSessionValidation(
+  ctx: MutationCtx,
+  { phoneNumber, deviceId }: { phoneNumber: string; deviceId: string }
+) {
+  // Get the current active session for this phone number
+  const activeSession = await ctx.db
+    .query("deviceSessions")
+    .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
+    .filter((q) => q.eq(q.field("isActive"), true))
+    .first();
+
+  if (!activeSession) {
+    return {
+      isValid: false,
+      reason: "no_session_found",
+      message: "No active session found. Please login again.",
+    };
+  }
+
+  if (activeSession.deviceId !== deviceId) {
+    return {
+      isValid: false,
+      reason: "logged_in_from_another_device",
+      currentDevice: activeSession.deviceModel,
+      loginTimestamp: activeSession.loginTimestamp,
+      message: `You logged in from another device: ${activeSession.deviceModel}`,
+    };
+  }
+
+  // This device is the active one — update timestamp
+  await ctx.db.patch(activeSession._id, {
+    lastActiveTimestamp: Date.now(),
+  });
+
+  // Temporary access limiting — checked on every heartbeat so an
+  // already-logged-in user gets blocked within a couple seconds of
+  // being removed from the allowlist, not just at next login.
+  const allowed = await isAccessAllowed(ctx, {
+    userId: activeSession.userId,
+    phoneNumber,
+  });
+  if (!allowed) {
+    return {
+      isValid: false,
+      reason: "access_temporarily_limited",
+      message: "Access is temporarily limited while we resolve a few issues.",
+    };
+  }
+
+  return {
+    isValid: true,
+    message: "Session is active",
+    userId: activeSession.userId,
+  };
+}
+
 export const validateDeviceSession = mutation({
   args: {
     phoneNumber: v.string(),
     deviceId: v.string(),
   },
-  handler: async (ctx, { phoneNumber, deviceId }) => {
-    // Get the current active session for this phone number
-    const activeSession = await ctx.db
-      .query("deviceSessions")
-      .withIndex("by_phone", (q) => q.eq("phoneNumber", phoneNumber))
-      .filter((q) => q.eq(q.field("isActive"), true))
-      .first();
+  handler: async (ctx, args) => performSessionValidation(ctx, args),
+});
 
-    if (!activeSession) {
-      return {
-        isValid: false,
-        reason: "no_session_found",
-        message: "No active session found. Please login again.",
-      };
-    }
-
-    if (activeSession.deviceId !== deviceId) {
-      return {
-        isValid: false,
-        reason: "logged_in_from_another_device",
-        currentDevice: activeSession.deviceModel,
-        loginTimestamp: activeSession.loginTimestamp,
-        message: `You logged in from another device: ${activeSession.deviceModel}`,
-      };
-    }
-
-    // This device is the active one — update timestamp
-    await ctx.db.patch(activeSession._id, {
-      lastActiveTimestamp: Date.now(),
+// Combined heartbeat + session-validate — used by the app's 15s heartbeat
+// loop so each tick costs one isolate invocation instead of two. Return
+// shape matches validateDeviceSession's (what the app already parses);
+// the heartbeat write is fire-and-forget from the caller's perspective —
+// if it throws, the whole mutation throws and the app's existing catch
+// block handles it exactly like a failed heartbeat does today.
+export const updateHeartbeatAndValidateSession = mutation({
+  args: {
+    phoneNumber: v.string(),
+    userId: v.string(),
+    deviceId: v.string(),
+    batteryLevel: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await performHeartbeatUpdate(ctx, {
+      phoneNumber: args.phoneNumber,
+      userId: args.userId,
+      batteryLevel: args.batteryLevel,
     });
-
-    // Temporary access limiting — checked on every heartbeat so an
-    // already-logged-in user gets blocked within a couple seconds of
-    // being removed from the allowlist, not just at next login.
-    const allowed = await isAccessAllowed(ctx, {
-      userId: activeSession.userId,
-      phoneNumber,
+    return performSessionValidation(ctx, {
+      phoneNumber: args.phoneNumber,
+      deviceId: args.deviceId,
     });
-    if (!allowed) {
-      return {
-        isValid: false,
-        reason: "access_temporarily_limited",
-        message: "Access is temporarily limited while we resolve a few issues.",
-      };
-    }
-
-    return {
-      isValid: true,
-      message: "Session is active",
-      userId: activeSession.userId,
-    };
   },
 });
 
