@@ -369,6 +369,22 @@ export default defineSchema({
     .searchIndex("search_phone", { searchField: "phoneNumber", filterFields: ["userId"] })
     .searchIndex("search_txid", { searchField: "transactionId", filterFields: ["userId"] }),
 
+  // One row per user per day they sent at least one M-Pesa message — lets
+  // getDistinctUserCountForToday answer "how many distinct users today" by reading this small,
+  // presence-only table instead of collect()-ing every message row for the whole day (that
+  // used to work but started exceeding Convex's 16MB single-execution read limit as daily
+  // message volume grew — 2026-09-01, [[project_distinct_users_today_endpoint]]). Written by
+  // markUserActiveToday (mpesaMessages.ts), called from createMpesaMessage/createStoreMpesaMessage.
+  // A rare double-insert race for the same user+day (harmless — just a duplicate presence row,
+  // deduped via Set when read) is acceptable; no queue/cron needed unlike the bridge fix, since
+  // nothing here is a shared counter being incremented.
+  activeUsersToday: defineTable({
+    userId: v.string(),
+    dayStart: v.number(),
+  })
+    .index("by_user_day", ["userId", "dayStart"])
+    .index("by_day", ["dayStart"]),
+
   userSenderRelations: defineTable({
     userId: v.string(),
     senderId: v.string(),
@@ -593,6 +609,20 @@ export default defineSchema({
     pending: v.number(),
   })
     .index("by_user_day", ["userId", "dayStart"]),
+
+  // Write-ahead queue for onlineBridgeDailyCounts deltas — every create/status-change/delete
+  // inserts here instead of patching the daily row directly. Inserts never collide with each
+  // other (unlike patches to a shared row), so this absorbs unlimited concurrent bridge activity
+  // with zero OCC contention. A cron (drainOnlineBridgeDeltaQueue, every 5s) is the ONLY thing
+  // that ever writes to onlineBridgeDailyCounts, aggregating all pending rows per user+day into
+  // one patch each — see 2026-09-01 freeze investigation, [[project_onlinebridge_dailycounts_occ_storm]].
+  onlineBridgeDeltaQueue: defineTable({
+    userId: v.string(),
+    dayStart: v.number(),
+    successfulDelta: v.number(),
+    failedDelta: v.number(),
+    pendingDelta: v.number(),
+  }),
 
   serviceStatus: defineTable({
     phoneNumber: v.string(),

@@ -4,6 +4,15 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { toast, Toaster } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type CatalogStep = {
   stepIndex: number;
@@ -71,11 +80,15 @@ export default function SmartOffersMain({ userId }: { userId: string }) {
   const addOrReplace = useMutation(api.features.bundles.addOrReplaceFromCatalog);
 
   const [pendingId, setPendingId] = useState<string | null>(null);
+  // Set only when "Add to Offers" (NotAdded state) is clicked — "Replace" (NeedsUpdate) skips
+  // this dialog and calls addOrReplace directly at the offer's existing price, since it's just
+  // refreshing steps on something already added, not a fresh add that needs a price choice.
+  const [priceDialogOffer, setPriceDialogOffer] = useState<CatalogOffer | null>(null);
 
-  const handleAdd = async (offer: CatalogOffer) => {
+  const handleAdd = async (offer: CatalogOffer, targetPrice?: number) => {
     setPendingId(offer._id);
     try {
-      const res = await addOrReplace({ userId, offerId: offer._id });
+      const res = await addOrReplace({ userId, offerId: offer._id, targetPrice });
       if (res.status === "success") {
         toast.success(res.message);
       } else {
@@ -127,7 +140,11 @@ export default function SmartOffersMain({ userId }: { userId: string }) {
                   </span>
                 ) : (
                   <button
-                    onClick={() => handleAdd(offer as CatalogOffer)}
+                    onClick={() =>
+                      state === "NeedsUpdate"
+                        ? handleAdd(offer as CatalogOffer)
+                        : setPriceDialogOffer(offer as CatalogOffer)
+                    }
                     disabled={isPending}
                     className={`text-xs px-3 py-1.5 rounded-md font-medium text-white disabled:opacity-50 ${
                       state === "NeedsUpdate" ? "bg-amber-500 hover:bg-amber-600" : "bg-blue-600 hover:bg-blue-700"
@@ -141,7 +158,69 @@ export default function SmartOffersMain({ userId }: { userId: string }) {
           })}
         </div>
       </div>
+      {priceDialogOffer && (
+        <PriceConfirmationDialog
+          offer={priceDialogOffer}
+          onConfirm={(price) => {
+            handleAdd(priceDialogOffer, price);
+            setPriceDialogOffer(null);
+          }}
+          onDismiss={() => setPriceDialogOffer(null)}
+        />
+      )}
       <Toaster />
     </div>
+  );
+}
+
+// Shown only for "Add to Offers" (NotAdded state) — lets the user park this catalog offer at a
+// different price than its own before it's added, instead of always taking the catalog's price.
+// Same overwrite-by-price rule applies to whatever price is confirmed here as already applies to
+// the default price (see the addOrReplaceFromCatalog mutation's doc comment; mirrors the
+// Android app's SmartUssdViewModel.addOrReplaceOffer(targetPrice)).
+function PriceConfirmationDialog({
+  offer,
+  onConfirm,
+  onDismiss,
+}: {
+  offer: CatalogOffer;
+  onConfirm: (price: number) => void;
+  onDismiss: () => void;
+}) {
+  const [priceText, setPriceText] = useState(String(offer.price));
+  const parsedPrice = Number(priceText);
+  const isValid = priceText.trim() !== "" && !Number.isNaN(parsedPrice) && parsedPrice > 0;
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open) onDismiss(); }}>
+      <DialogContent className="rounded-md">
+        <DialogHeader>
+          <DialogTitle>Add &apos;{offer.name}&apos;</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-neutral-400">
+            Normally KES {offer.price}. Change the price below if you want this added at a
+            different one, or keep it as is.
+          </p>
+          <div>
+            <Label htmlFor="smart-offer-price">Price (KES)</Label>
+            <Input
+              id="smart-offer-price"
+              type="number"
+              step="0.01"
+              value={priceText}
+              onChange={(e) => setPriceText(e.target.value)}
+            />
+            {!isValid && (
+              <p className="text-xs text-red-500 mt-1">Enter a valid price</p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onDismiss}>Cancel</Button>
+            <Button disabled={!isValid} onClick={() => onConfirm(parsedPrice)}>Add</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

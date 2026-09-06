@@ -43,4 +43,15 @@ crons.interval(
   internal.features.skips.releaseStaleSkips
 );
 
+// Drains onlineBridgeDeltaQueue into onlineBridgeDailyCounts — the ONLY writer of that table now.
+// Every bridge create/status-change/delete just inserts a delta row (never collides); this cron
+// is what actually applies them, one patch per user+day per tick, eliminating the OCC-collision
+// storm multiple concurrent writers used to cause on the same row. See 2026-09-01 investigation,
+// [[project_onlinebridge_dailycounts_occ_storm]].
+crons.interval(
+  "Drain online bridge daily-count deltas",
+  { seconds: 5 },
+  internal.features.onlineBridge.drainOnlineBridgeDeltaQueue
+);
+
 export default crons;

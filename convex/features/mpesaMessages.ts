@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "../_generated/server";
+import { query, mutation, internalMutation, MutationCtx } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { paginationOptsValidator } from "convex/server";
 
@@ -22,7 +22,7 @@ export const createMpesaMessage = mutation({
     senderId: v.string(),
     time: v.number(),
     transactionId: v.optional(v.union(v.string(), v.null())),
-    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"))),
+    processed: v.optional(v.union(v.literal("pending"), v.literal("successful"), v.literal("failed"), v.literal("not-viable"), v.literal("disabled"), v.literal("bridged"))),
     fullMessage: v.optional(v.string()),
     processResponse: v.optional(v.string()),
     offerName: v.optional(v.string()),
@@ -38,7 +38,7 @@ export const createMpesaMessage = mutation({
     // cloud row stuck at "pending" while the phone shows the final status. Never downgrades a
     // final status back to "pending".
     const isFinalStatus = (p?: string) =>
-      p === "successful" || p === "failed" || p === "not-viable";
+      p === "successful" || p === "failed" || p === "not-viable" || p === "disabled" || p === "bridged";
     const resolveDup = async (row: any) => {
       // Only refine a not-yet-final row (never downgrade a final status back to pending).
       // Upgrade to a final status when the POST carries one, AND fill in scheduledRetryAt /
@@ -125,6 +125,8 @@ export const createMpesaMessage = mutation({
       // Only a 'pending' row keeps a retry time (a fresh insert is normally pending).
       scheduledRetryAt: (args.processed ?? "pending") === "pending" ? (args.scheduledRetryAt ?? undefined) : undefined,
     });
+
+    await markUserActiveToday(ctx, args.userId, args.time);
 
     // Count this sale if it was inserted already-final (a brand-new row created directly
     // with successful/failed and no prior pending row — the "create-insert door"). Same
@@ -1139,6 +1141,7 @@ export const createStoreMpesaMessage = mutation({
       source: "store",
       androidProcessed: false,
     });
+    await markUserActiveToday(ctx, args.userId, args.time);
     return await ctx.db.get(messageId);
   },
 });
@@ -1184,16 +1187,30 @@ export const getCountsByUserId = query({
 
 // Distinct users with at least one transaction "today" (Africa/Nairobi day boundary,
 // same convention as eatDayStart/messageDailyStats.getDayStart).
+// Marks a user as active for the day containing `time` — cheap existence check + insert into
+// the small activeUsersToday table (see schema.ts). Called from every real message-creation path
+// so getDistinctUserCountForToday never has to scan actual message rows.
+async function markUserActiveToday(ctx: MutationCtx, userId: string, time: number) {
+  const dayStart = eatDayStart(time);
+  const existing = await ctx.db
+    .query("activeUsersToday")
+    .withIndex("by_user_day", (q) => q.eq("userId", userId).eq("dayStart", dayStart))
+    .first();
+  if (!existing) {
+    await ctx.db.insert("activeUsersToday", { userId, dayStart });
+  }
+}
+
 export const getDistinctUserCountForToday = query({
   args: {},
   handler: async (ctx) => {
     const dayStart = eatDayStart(Date.now());
     const dayEnd = dayStart + 86_400_000;
-    const todayMessages = await ctx.db
-      .query("mpesaMessages")
-      .withIndex("by_time", (q) => q.gte("time", dayStart).lt("time", dayEnd))
+    const activeToday = await ctx.db
+      .query("activeUsersToday")
+      .withIndex("by_day", (q) => q.eq("dayStart", dayStart))
       .collect();
-    const distinctUserIds = new Set(todayMessages.map((m) => m.userId));
+    const distinctUserIds = new Set(activeToday.map((r) => r.userId));
     return { count: distinctUserIds.size, dayStart, dayEnd };
   },
 });

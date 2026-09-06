@@ -337,14 +337,17 @@ export const createBundle = httpAction(async (ctx, request) => {
     // silently saves this bundle as disabled instead when another active one shares the price.
     // Exception: a Smart Offers re-add (source="smart_offer") is allowed through even on a name
     // match, as long as it's not also an exact price match — see createBundleFromAPI for why.
-    const existingBundle = await ctx.runQuery(api.features.bundles.getBundleByUserAndNameOrPrice, {
+    // Checks EVERY bundle sharing this name, not just one — once 2+ bundles already share a
+    // name (a legitimate Smart Offers variant scenario), checking only one arbitrary match let a
+    // real duplicate slip through whenever it happened to be a differently-priced sibling.
+    const sameNameBundles = await ctx.runQuery(api.features.bundles.getBundleByUserAndNameOrPrice, {
       userId,
       offerName,
       price,
     })
 
-    if (existingBundle && existingBundle.offerName === offerName) {
-      const isExactDuplicate = existingBundle.price === price;
+    if (sameNameBundles.length > 0) {
+      const isExactDuplicate = sameNameBundles.some((b) => b.price === price);
       const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
       if (!allowedSmartOfferVariant) {
         return createResponse(
@@ -373,6 +376,17 @@ export const createBundle = httpAction(async (ctx, request) => {
       patternSteps,
       source
     })
+
+    // createBundleFromAPI returns null when its own internal duplicate check rejects the create
+    // (a second, independent safety net behind the check above) — that must be reported as a
+    // real failure, not "success" with a null bundleId.
+    if (newBundleId === null) {
+      return createResponse(
+        "error",
+        null,
+        `A bundle with the name "${offerName}" already exists. Please choose a different name.`,
+      )
+    }
 
     return createResponse("success", { bundleId: newBundleId }, "Bundle created successfully")
   } catch (error) {
@@ -701,20 +715,25 @@ export const updateBundle = httpAction(async (ctx, request) => {
       }
     }
     
+    // Only check for a name collision when the name is actually CHANGING. The Android app
+    // always sends offerName on every edit (even price-only edits, unchanged), so checking
+    // merely "offerName present" — instead of "offerName different from what's already saved" —
+    // blocked ANY edit to a bundle whose name happened to match another bundle, even edits that
+    // never touched the name at all. Confirmed live against this exact handler.
     // Only the name blocks here — a price conflict is never rejected, the updateBundle mutation
     // silently saves this bundle as disabled instead when another active one shares the price.
     // Exception: a Smart Offers Replace (source="smart_offer") is allowed through even on a name
     // match, as long as it's not also an exact price match — see the updateBundle mutation for why.
-    if (offerName) {
-      const duplicateBundle = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
+    if (offerName && offerName !== existingBundle.offerName) {
+      const duplicateBundles = await ctx.runQuery(api.features.bundles.getDuplicateBundle, {
         userId,
         offerName,
         excludeId: id as Id<"bundles">,
       })
 
-      if (duplicateBundle) {
+      if (duplicateBundles.length > 0) {
         const effectivePrice = price !== undefined ? price : existingBundle.price;
-        const isExactDuplicate = duplicateBundle.price === effectivePrice;
+        const isExactDuplicate = duplicateBundles.some((b) => b.price === effectivePrice);
         const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
         if (!allowedSmartOfferVariant) {
           return createResponse(
