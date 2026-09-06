@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "../_generated/server";
+import { mutation, query, internalMutation, MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { api, internal } from "../_generated/api";
 
@@ -23,10 +23,40 @@ export function bridgeStatusBucket(status: string): "successful" | "failed" | "p
   return null;
 }
 
-// Internal helper — apply a delta to a user's daily bridge-transaction counts. Called via
-// ctx.scheduler.runAfter(0, ...) from every place a transaction is created, changes status, or
-// is deleted — same decoupled-from-the-main-write pattern as messageDailyStats.applyDailyStatsDelta,
-// so contention on one day's row can't make the original transaction write retry.
+// Shared apply logic — reused by the legacy direct mutation below (kept for any external caller)
+// and by drainOnlineBridgeDeltaQueue, which is now the ONLY thing actually called from the 7
+// transaction create/update/delete/cleanup call sites (see onlineBridgeDeltaQueue in schema.ts).
+async function applyBridgeDeltaToRow(
+  ctx: MutationCtx,
+  args: { userId: string; dayStart: number; successfulDelta: number; failedDelta: number; pendingDelta: number }
+) {
+  const { userId, dayStart, successfulDelta, failedDelta, pendingDelta } = args;
+
+  const existing = await ctx.db
+    .query("onlineBridgeDailyCounts")
+    .withIndex("by_user_day", (q) => q.eq("userId", userId).eq("dayStart", dayStart))
+    .first();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      successful: Math.max(0, existing.successful + successfulDelta),
+      failed: Math.max(0, existing.failed + failedDelta),
+      pending: Math.max(0, existing.pending + pendingDelta),
+    });
+  } else if (successfulDelta > 0 || failedDelta > 0 || pendingDelta > 0) {
+    await ctx.db.insert("onlineBridgeDailyCounts", {
+      userId,
+      dayStart,
+      successful: Math.max(0, successfulDelta),
+      failed: Math.max(0, failedDelta),
+      pending: Math.max(0, pendingDelta),
+    });
+  }
+}
+
+// Legacy direct-apply mutation — no longer called from this file (all 7 call sites now insert
+// into onlineBridgeDeltaQueue instead, see below), kept only in case something external still
+// references it directly. New code should insert into the queue, not call this.
 export const applyOnlineBridgeDailyDelta = internalMutation({
   args: {
     userId: v.string(),
@@ -35,28 +65,52 @@ export const applyOnlineBridgeDailyDelta = internalMutation({
     failedDelta: v.number(),
     pendingDelta: v.number(),
   },
-  handler: async (ctx, args) => {
-    const { userId, dayStart, successfulDelta, failedDelta, pendingDelta } = args;
+  handler: async (ctx, args) => applyBridgeDeltaToRow(ctx, args),
+});
 
-    const existing = await ctx.db
-      .query("onlineBridgeDailyCounts")
-      .withIndex("by_user_day", (q) => q.eq("userId", userId).eq("dayStart", dayStart))
-      .first();
+// Drains onlineBridgeDeltaQueue: this is the ONLY writer of onlineBridgeDailyCounts now, so there
+// is never more than one thing patching a given day's row — the OCC-collision storm (2026-09-01,
+// [[project_onlinebridge_dailycounts_occ_storm]]) is structurally impossible after this change,
+// not just less likely. Run every 5s via cron (crons.ts). Bounded batch + self-reschedule so a
+// traffic spike drains in a few quick hops instead of piling into the next scheduled tick.
+const BRIDGE_DELTA_DRAIN_LIMIT = 1000;
 
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        successful: Math.max(0, existing.successful + successfulDelta),
-        failed: Math.max(0, existing.failed + failedDelta),
-        pending: Math.max(0, existing.pending + pendingDelta),
-      });
-    } else if (successfulDelta > 0 || failedDelta > 0 || pendingDelta > 0) {
-      await ctx.db.insert("onlineBridgeDailyCounts", {
-        userId,
-        dayStart,
-        successful: Math.max(0, successfulDelta),
-        failed: Math.max(0, failedDelta),
-        pending: Math.max(0, pendingDelta),
-      });
+export const drainOnlineBridgeDeltaQueue = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const pending = await ctx.db.query("onlineBridgeDeltaQueue").take(BRIDGE_DELTA_DRAIN_LIMIT);
+    if (pending.length === 0) return;
+
+    const aggregated = new Map<
+      string,
+      { userId: string; dayStart: number; successfulDelta: number; failedDelta: number; pendingDelta: number }
+    >();
+    for (const row of pending) {
+      const key = `${row.userId}|${row.dayStart}`;
+      const delta = aggregated.get(key) ?? {
+        userId: row.userId,
+        dayStart: row.dayStart,
+        successfulDelta: 0,
+        failedDelta: 0,
+        pendingDelta: 0,
+      };
+      delta.successfulDelta += row.successfulDelta;
+      delta.failedDelta += row.failedDelta;
+      delta.pendingDelta += row.pendingDelta;
+      aggregated.set(key, delta);
+    }
+
+    for (const delta of aggregated.values()) {
+      await applyBridgeDeltaToRow(ctx, delta);
+    }
+    for (const row of pending) {
+      await ctx.db.delete(row._id);
+    }
+
+    // Hit the batch cap — more may still be waiting, drain again right away instead of
+    // waiting for the next 5s cron tick.
+    if (pending.length === BRIDGE_DELTA_DRAIN_LIMIT) {
+      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.drainOnlineBridgeDeltaQueue, {});
     }
   },
 });
@@ -425,7 +479,7 @@ export const createOnlineBridgeTransaction = mutation({
 
     const bucket = bridgeStatusBucket(args.status);
     if (bucket) {
-      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+      await ctx.db.insert("onlineBridgeDeltaQueue", {
         userId: args.userId,
         dayStart: getBridgeDayStart(now),
         successfulDelta: bucket === "successful" ? 1 : 0,
@@ -469,7 +523,7 @@ export const updateOnlineBridgeTransactionStatus = mutation({
       const oldBucket = bridgeStatusBucket(before.status);
       const newBucket = bridgeStatusBucket(args.status);
       if (oldBucket !== newBucket) {
-        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+        await ctx.db.insert("onlineBridgeDeltaQueue", {
           userId: before.userId,
           dayStart: getBridgeDayStart(before.createdAt),
           successfulDelta: (newBucket === "successful" ? 1 : 0) - (oldBucket === "successful" ? 1 : 0),
@@ -504,7 +558,7 @@ export const deleteOnlineBridgeTransaction = mutation({
 
     const bucket = bridgeStatusBucket(transaction.status);
     if (bucket) {
-      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+      await ctx.db.insert("onlineBridgeDeltaQueue", {
         userId: transaction.userId,
         dayStart: getBridgeDayStart(transaction.createdAt),
         successfulDelta: bucket === "successful" ? -1 : 0,
@@ -760,7 +814,7 @@ export const cleanupStaleExecutingTransactions = mutation({
       // leftover from before deletes were changed to hard-delete) was never in the daily tally
       // in the first place, so it must not be double-subtracted here.
       if (!t.isDeleted) {
-        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, {
+        await ctx.db.insert("onlineBridgeDeltaQueue", {
           userId: args.userId,
           dayStart: getBridgeDayStart(t.createdAt),
           successfulDelta: 0,
@@ -777,7 +831,7 @@ export const cleanupStaleExecutingTransactions = mutation({
 });
 
 // One-time backfill for onlineBridgeDailyCounts — needed because that table starts empty and the
-// live delta-nudges (see applyOnlineBridgeDailyDelta and its 6 call sites above) only account for
+// live delta-nudges (see onlineBridgeDeltaQueue and drainOnlineBridgeDeltaQueue above) only account for
 // activity from the moment they're deployed onward. Mirrors migrateUserMessageStats
 // (messageDailyStats.ts) exactly: paginates a user's existing transactions in batches of 1000,
 // newest first (so today's numbers are correct even if the chain dies partway through an old
@@ -910,7 +964,7 @@ export const deleteOldOnlineBridgeTransactions = internalMutation({
 
     for (const delta of dailyDeltas.values()) {
       if (delta.successfulDelta !== 0 || delta.failedDelta !== 0 || delta.pendingDelta !== 0) {
-        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, delta);
+        await ctx.db.insert("onlineBridgeDeltaQueue", delta);
       }
     }
 
@@ -1035,7 +1089,7 @@ export const batchCreateOnlineBridgeTransactions = mutation({
     }
 
     for (const delta of dailyDeltas.values()) {
-      await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, delta);
+      await ctx.db.insert("onlineBridgeDeltaQueue", delta);
     }
 
     return { transactionIds, count: transactionIds.length };
@@ -1102,7 +1156,7 @@ export const batchUpdateOnlineBridgeTransactionStatuses = mutation({
 
     for (const delta of dailyDeltas.values()) {
       if (delta.successfulDelta !== 0 || delta.failedDelta !== 0 || delta.pendingDelta !== 0) {
-        await ctx.scheduler.runAfter(0, internal.features.onlineBridge.applyOnlineBridgeDailyDelta, delta);
+        await ctx.db.insert("onlineBridgeDeltaQueue", delta);
       }
     }
 

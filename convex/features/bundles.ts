@@ -148,14 +148,18 @@ export const createBundleFromAPI = mutation({
     // Time Config's inactive side sit disabled at the same price as its active sibling). Mirrors
     // BundleRepository.doesOfferAmountExist on the Android side — see
     // project_offer_time_config_feature memory.
-    const nameDuplicate = await ctx.db
+    // Checks EVERY same-named bundle, not just the first one found — once 2+ bundles already
+    // share a name (a legitimate Smart Offers variant scenario), checking only .first() let an
+    // exact-duplicate slip through whenever Convex happened to return a differently-priced sibling
+    // first. isExactDuplicate must be true only if ANY same-named bundle matches this exact price.
+    const sameNameBundles = await ctx.db
       .query("bundles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .filter((q) => q.eq(q.field("offerName"), offerName))
-      .first();
+      .collect();
 
-    if (nameDuplicate) {
-      const isExactDuplicate = nameDuplicate.price === price;
+    if (sameNameBundles.length > 0) {
+      const isExactDuplicate = sameNameBundles.some((b) => b.price === price);
       const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
       if (!allowedSmartOfferVariant) {
         return null;
@@ -288,18 +292,27 @@ export const updateBundle = mutation({
       }
     }
 
-    if (offerName) {
-      const nameDuplicate = await ctx.db
+    // Only check for a name collision when the name is actually CHANGING. The Android app always
+    // sends offerName on every edit (even price-only edits, unchanged), so checking merely
+    // "offerName present" — instead of "offerName different from what's already saved" — blocked
+    // ANY edit to a bundle whose name happened to match another bundle, even edits that never
+    // touched the name at all. Confirmed live: editing a price-only field on a bundle sharing its
+    // name with another bundle got permanently rejected with this exact "already exists" message,
+    // even though nothing about the name was being changed.
+    if (offerName && offerName !== existingBundle.offerName) {
+      // Checks EVERY same-named bundle, not just the first one found — see createBundleFromAPI's
+      // matching fix for why .first() let real duplicates slip through once 2+ bundles share a name.
+      const sameNameBundles = await ctx.db
         .query("bundles")
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .filter((q) => q.and(q.neq(q.field("_id"), id), q.eq(q.field("offerName"), offerName)))
-        .first();
+        .collect();
 
-      if (nameDuplicate) {
+      if (sameNameBundles.length > 0) {
         // Same relaxation as createBundleFromAPI: a Smart Offers Replace is let through even on a
         // name match, as long as it's not also an exact price match with the colliding bundle.
         const effectivePrice = price !== undefined ? price : existingBundle.price;
-        const isExactDuplicate = nameDuplicate.price === effectivePrice;
+        const isExactDuplicate = sameNameBundles.some((b) => b.price === effectivePrice);
         const allowedSmartOfferVariant = source === "smart_offer" && !isExactDuplicate;
         if (!allowedSmartOfferVariant) {
           return {
@@ -481,21 +494,21 @@ export const getBundleByUserAndNameOrPrice = query({
     price: v.number(),
   },
   handler: async (ctx, args) => {
-    const { userId, offerName, price } = args;
+    const { userId, offerName } = args;
 
-    // Query the bundles table for matching entries
-    const existingBundle = await ctx.db
+    // Returns EVERY bundle sharing this name, not just one — the caller (createBundle httpAction)
+    // needs to know if ANY of them is also an exact price match, which a single .first() result
+    // can't answer once 2+ bundles already share a name (a legitimate Smart Offers variant
+    // scenario — see createBundleFromAPI's matching fix for the full story). The old OR-by-price
+    // branch is dropped: the caller only ever acted on a name match anyway (it checked
+    // existingBundle.offerName === offerName before doing anything with the result).
+    const sameNameBundles = await ctx.db
       .query("bundles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) =>
-        q.or(
-          q.eq(q.field("offerName"), offerName),
-          q.eq(q.field("price"), price)
-        )
-      )
-      .first();
+      .filter((q) => q.eq(q.field("offerName"), offerName))
+      .collect();
 
-    return existingBundle;
+    return sameNameBundles;
   },
 });
 
@@ -509,6 +522,13 @@ export const addOrReplaceFromCatalog = mutation({
   args: {
     userId: v.string(),
     offerId: v.id("serverPatternOffers"),
+    // Defaults to the catalog's own price (today's behavior) when omitted. The Add-to-Offers
+    // price-confirmation dialog can pass a different one — same overwrite-by-price rule either
+    // way, no branching by what currently occupies that price. Mirrors the Android app's
+    // SmartUssdViewModel.addOrReplaceOffer(targetPrice) — see its doc comment for the full
+    // reasoning, including why a custom price leaves this catalog offer showing "Add to Offers"
+    // again (computeState in SmartOffersMain.tsx matches purely by offer.price).
+    targetPrice: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { userId, offerId } = args;
@@ -521,10 +541,12 @@ export const addOrReplaceFromCatalog = mutation({
       } as BackendResponse;
     }
 
+    const targetPrice = args.targetPrice ?? offer.price;
+
     const existing = await ctx.db
       .query("bundles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
-      .filter((q) => q.eq(q.field("price"), offer.price))
+      .filter((q) => q.eq(q.field("price"), targetPrice))
       .first();
     const wasReplaced = existing !== null;
 
@@ -540,7 +562,7 @@ export const addOrReplaceFromCatalog = mutation({
       offerName: offer.name,
       duration: existing?.duration ?? "N/A",
       bundlesUSSD: offer.ussdBaseCode,
-      price: offer.price,
+      price: targetPrice,
       commission: existing?.commission ?? 0,
       status: "available" as const,
       isMultiSession: true,
@@ -566,12 +588,20 @@ export const addOrReplaceFromCatalog = mutation({
       }))
     );
 
+    const isCustomPrice = targetPrice !== offer.price;
+    const message = isCustomPrice
+      ? `'${offer.name}' added to your offers at KES ${targetPrice}.`
+      : wasReplaced
+        ? `'${offer.name}' replaced in your offers.`
+        : `'${offer.name}' added to your offers.`;
+
     return {
       status: "success",
-      message: wasReplaced ? `'${offer.name}' replaced in your offers.` : `'${offer.name}' added to your offers.`,
+      message,
       bundleId: bundleId.toString(),
       offerName: offer.name,
       wasReplaced,
+      isCustomPrice,
     };
   },
 });
@@ -588,10 +618,14 @@ export const getDuplicateBundle = query({
 
     // If neither offerName nor price is provided, no need to check for duplicates
     if (offerName === undefined && price === undefined) {
-      return null;
+      return [];
     }
 
-    const duplicateBundle = await ctx.db
+    // Returns EVERY matching bundle, not just one — the caller needs to know if ANY of them is
+    // also an exact price match, which a single .first() result can't answer once 2+ bundles
+    // already share a name (a legitimate Smart Offers variant scenario) — see
+    // createBundleFromAPI's matching fix for the full story.
+    const duplicateBundles = await ctx.db
       .query("bundles")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .filter((q) =>
@@ -603,8 +637,8 @@ export const getDuplicateBundle = query({
           )
         )
       )
-      .first();
+      .collect();
 
-    return duplicateBundle;
+    return duplicateBundles;
   },
 });

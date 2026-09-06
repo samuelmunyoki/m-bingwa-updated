@@ -113,8 +113,8 @@ export const clearAllLogs = mutation({
 // actively tracking something). Batches are throttled so draining a large backlog never overwhelms
 // Convex the way the old runAfter(0) chain did.
 const LOG_RETENTION_MS = 4 * 60 * 60 * 1000; // 4 hours
-const LOG_DELETE_BATCH = 1000;
-const LOG_PRUNE_DELAY_MS = 1000; // gap between retention batches
+const LOG_DELETE_BATCH = 5000;
+const LOG_PRUNE_DELAY_MS = 300; // gap between retention batches
 const LOG_WIPE_DELAY_MS = 500;   // gap between manual full-wipe batches
 
 // CRON target: delete ONLY logs older than the retention window (uses the by_timestamp index), in
