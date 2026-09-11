@@ -51,8 +51,9 @@ import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMai
 import SmartOffersMain from "@/app/_components/smart_offers/SmartOffersMain";
 import RevenueMain from "@/app/_components/revenue/RevenueMain";
 import AppConfigMain from "@/app/_components/app_config/AppConfigMain";
-import { IconCurrencyDollar, IconAppWindow, IconHelpCircle } from "@tabler/icons-react";
+import { IconCurrencyDollar, IconAppWindow, IconHelpCircle, IconCoin } from "@tabler/icons-react";
 import HelpMain from "@/app/_components/help/HelpMain";
+import TokenBundlesMain from "@/app/_components/token_bundles/TokenBundlesMain";
 // import DownloadMain from "@/app/_components/download/DownloadMain";
 
 export default function Dashboard() {
@@ -378,6 +379,13 @@ export default function Dashboard() {
         <IconAppWindow className="text-rose-500 h-5 w-5 flex-shrink-0" />
       ),
     },
+    {
+      label: "Token Bundles",
+      href: "#",
+      icon: (
+        <IconCoin className="text-amber-500 h-5 w-5 flex-shrink-0" />
+      ),
+    },
   ];
 
   const isSubscribed =
@@ -393,6 +401,8 @@ export default function Dashboard() {
     isSubscribed: selectedProfileUser?.isSubscribed ?? dbUser?.isSubscribed,
     subscriptionEnds: selectedProfileUser?.subscriptionEnds ?? dbUser?.subscriptionEnds,
     subscriptionId: selectedProfileUser?.subscriptionId ?? dbUser?.subscriptionId,
+    // Token Subscription — see project_token_subscription_feature.
+    tokenBalance: selectedProfileUser?.tokenBalance ?? dbUser?.tokenBalance,
   } as typeof dbUser;
 
   return (
@@ -548,6 +558,7 @@ export default function Dashboard() {
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
         {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
         {navItem === "App Config" && isAdmin && <AppConfigMain userId={userId} />}
+        {navItem === "Token Bundles" && isAdmin && <TokenBundlesMain />}
         {navItem === "Help" && <HelpMain userId={userId} isAdmin={isAdmin} />}
         {/* {navItem === "Download App" && <DownloadMain />} */}
       </div>

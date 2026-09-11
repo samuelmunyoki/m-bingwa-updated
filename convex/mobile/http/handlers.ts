@@ -1841,24 +1841,35 @@ export const updateSubscription = httpAction(async (ctx, request) => {
     return createResponse("error", null, "Invalid JSON body");
   }
 
-  if (!body || !body.userId || !body.phoneNumber || !body.amount || !body.subscriptionEnds) {
+  if (!body || !body.userId || !body.phoneNumber) {
     return createResponse(
-      "error", 
-      null, 
-      "Missing required fields: userId, phoneNumber, amount, subscriptionEnds"
+      "error",
+      null,
+      "Missing required fields: userId, phoneNumber"
     );
   }
 
-  if (typeof body.subscriptionEnds !== "number") {
-    return createResponse("error", null, "subscriptionEnds must be a number (timestamp)");
-  }
-
-  if (typeof body.amount !== "string") {
-    return createResponse("error", null, "amount must be a string");
+  // A token-bundle purchase sends tokenBundleId instead of amount/subscriptionEnds — a Normal
+  // subscription purchase (unchanged from before Token Subscription existed) still requires both.
+  // See project_token_subscription_feature.
+  if (!body.tokenBundleId) {
+    if (!body.amount || !body.subscriptionEnds) {
+      return createResponse(
+        "error",
+        null,
+        "Missing required fields: amount, subscriptionEnds (or tokenBundleId for a token purchase)"
+      );
+    }
+    if (typeof body.subscriptionEnds !== "number") {
+      return createResponse("error", null, "subscriptionEnds must be a number (timestamp)");
+    }
+    if (typeof body.amount !== "string") {
+      return createResponse("error", null, "amount must be a string");
+    }
   }
 
   try {
-    const { userId, phoneNumber, amount, subscriptionEnds } = body;
+    const { userId, phoneNumber, amount, subscriptionEnds, tokenBundleId } = body;
 
     // Call the action and GET the response
     const result = await ctx.runAction(api.actions.subscriptions.updateSubscription, {
@@ -1866,6 +1877,7 @@ export const updateSubscription = httpAction(async (ctx, request) => {
       phoneNumber,
       amount,
       subscriptionEnds,
+      tokenBundleId,
     });
 
     // Check if STK push was successful
@@ -1890,6 +1902,47 @@ export const updateSubscription = httpAction(async (ctx, request) => {
   } catch (error: any) {
     console.error("Error updating subscription:", error);
     return createResponse("error", null, error.message || "Failed to update subscription");
+  }
+});
+
+export const getTokenBundles = httpAction(async (ctx, request) => {
+  try {
+    const bundles = await ctx.runQuery(api.features.tokenBundles.getActiveTokenBundles);
+    return createResponse("success", { bundles }, null);
+  } catch (error: any) {
+    console.error("Error fetching token bundles:", error);
+    return createResponse("error", null, error.message || "Failed to fetch token bundles");
+  }
+});
+
+export const consumeToken = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  if (!body || !body.userId) {
+    return createResponse("error", null, "Missing required field: userId");
+  }
+
+  try {
+    const result = await ctx.runMutation(api.users.consumeToken, {
+      userId: body.userId,
+    });
+
+    if (result.status === "success") {
+      return createResponse("success", { tokenBalance: result.tokenBalance }, null);
+    }
+    return createResponse("error", null, result.error || "Failed to consume token");
+  } catch (error: any) {
+    console.error("Error consuming token:", error);
+    return createResponse("error", null, error.message || "Failed to consume token");
   }
 });
 
@@ -3170,26 +3223,41 @@ export const createAirtimeTransaction = httpAction(async (ctx, request) => {
     );
   }
 
-  const requiredFields = [
-    "userId",
-    "phoneNumber",
-    "recipientNumber",
-    "amount",
-    "ussdCode",
-    "ussdResponse",
-    "status",
-    "subscriptionEnds",
-    "subscriptionDays",
-    "paidDays",
-    "simSlot",
-  ];
+  // A token-bundle airtime purchase passes tokenBundleId instead of the three days-subscription
+  // fields — a days purchase (the pre-existing, unchanged path) still requires all three exactly
+  // as before. See project_token_subscription_feature.
+  const requiredFields = body.tokenBundleId
+    ? [
+        "userId",
+        "phoneNumber",
+        "recipientNumber",
+        "amount",
+        "ussdCode",
+        "ussdResponse",
+        "status",
+        "simSlot",
+        "tokenBundleId",
+      ]
+    : [
+        "userId",
+        "phoneNumber",
+        "recipientNumber",
+        "amount",
+        "ussdCode",
+        "ussdResponse",
+        "status",
+        "subscriptionEnds",
+        "subscriptionDays",
+        "paidDays",
+        "simSlot",
+      ];
 
   for (const field of requiredFields) {
     if (!body[field] && body[field] !== 0) {
       return new Response(
-        JSON.stringify({ 
-          status: "error", 
-          error: `Missing required field: ${field}` 
+        JSON.stringify({
+          status: "error",
+          error: `Missing required field: ${field}`
         }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
