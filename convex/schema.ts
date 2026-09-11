@@ -774,6 +774,12 @@ export default defineSchema({
     .index("by_session", ["sessionId"])
     .index("by_timestamp", ["timestamp"]),
 
+  // Single-row table for health_check.sh's liveness probe (logsHealthCheck in appLogs.ts).
+  // Always exactly 1 document, overwritten in place — never grows, never needs pruning.
+  healthCheck: defineTable({
+    timestamp: v.number(),
+  }),
+
   fcmTokens: defineTable({
     userId: v.string(),
     deviceId: v.string(),

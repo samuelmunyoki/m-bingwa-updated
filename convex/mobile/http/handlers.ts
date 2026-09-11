@@ -6599,18 +6599,19 @@ export const getLogsHttp = httpAction(async (ctx, request) => {
 export const deleteLogsHandler = httpAction(async (ctx, _request) => {
   try {
     await ctx.runMutation(internal.features.appLogs.clearAllLogsScheduled, {});
-    return createResponse("success", { message: "Log deletion started. Poll GET /api/logs/count to check progress." });
+    return createResponse("success", { message: "Log deletion started." });
   } catch (e) {
     return createResponse("error", null, `Failed to start log deletion: ${e}`);
   }
 });
 
-export const countLogsHttp = httpAction(async (ctx, _request) => {
+// health_check.sh liveness probe — see logsHealthCheck in appLogs.ts for what this actually checks.
+export const logsHealthCheckHttp = httpAction(async (ctx, _request) => {
   try {
-    const result = await ctx.runQuery(api.features.appLogs.countAllLogs, {});
+    const result = await ctx.runMutation(api.features.appLogs.logsHealthCheck, {});
     return createResponse("success", result);
   } catch (e) {
-    return createResponse("error", null, `Failed to count logs: ${e}`);
+    return createResponse("error", null, `Health check failed: ${e}`);
   }
 });
 

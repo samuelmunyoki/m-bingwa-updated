@@ -113,7 +113,7 @@ export const clearAllLogs = mutation({
 // actively tracking something). Batches are throttled so draining a large backlog never overwhelms
 // Convex the way the old runAfter(0) chain did.
 const LOG_RETENTION_MS = 4 * 60 * 60 * 1000; // 4 hours
-const LOG_DELETE_BATCH = 5000;
+const LOG_DELETE_BATCH = 1000; // must stay under Convex's 4096-reads-per-function limit; smaller for now while the system drains a large backlog under load
 const LOG_PRUNE_DELAY_MS = 300; // gap between retention batches
 const LOG_WIPE_DELAY_MS = 500;   // gap between manual full-wipe batches
 
@@ -153,10 +153,35 @@ export const clearAllLogsScheduled = internalMutation({
   },
 });
 
-export const countAllLogs = query({
+// Liveness probe for health_check.sh. Writes+reads back a single row in the dedicated
+// `healthCheck` table (never grows — always exactly 1 row, unlike the old countAllLogs this
+// replaces, which read up to 16384 appLogs rows and broke Convex's 4096-reads-per-function limit).
+// A write+read proves the full path (HTTP -> function -> Postgres) works, not just reads — a
+// read-only check could report healthy even if new writes were silently failing.
+// The appLogs peek is informational only (returned for visibility), not a pass/fail signal —
+// quiet real traffic shouldn't look like an outage.
+export const logsHealthCheck = mutation({
   args: {},
   handler: async (ctx) => {
-    const logs = await ctx.db.query("appLogs").take(16384);
-    return { count: logs.length, isMore: logs.length === 16384 };
+    const now = Date.now();
+    const existing = await ctx.db.query("healthCheck").take(1);
+    if (existing.length > 0) {
+      await ctx.db.patch(existing[0]._id, { timestamp: now });
+    } else {
+      await ctx.db.insert("healthCheck", { timestamp: now });
+    }
+    const readBack = await ctx.db.query("healthCheck").take(1);
+
+    const latestLog = await ctx.db
+      .query("appLogs")
+      .withIndex("by_timestamp")
+      .order("desc")
+      .take(1);
+
+    return {
+      ok: true,
+      heartbeatTimestamp: readBack[0]?.timestamp ?? null,
+      latestAppLogTimestamp: latestLog[0]?.timestamp ?? null,
+    };
   },
 });

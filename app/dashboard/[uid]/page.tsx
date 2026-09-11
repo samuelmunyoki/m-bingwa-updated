@@ -166,7 +166,9 @@ export default function Dashboard() {
     if (dbUser !== null && dbUser !== undefined) {
       if (!navInitialized.current) {
         navInitialized.current = true;
-        if (dbUser.isSubscribed) {
+        // Token Subscription — a token balance is an equally valid reason to land on
+        // Transactions instead of being pushed to the Subscription tab. See project_token_subscription_feature.
+        if (dbUser.isSubscribed || (dbUser.tokenBalance ?? 0) > 0) {
           setnavItem("Transactions");
         } else {
           setnavItem("Subscription");
@@ -390,6 +392,13 @@ export default function Dashboard() {
 
   const isSubscribed =
     selectedProfileUser?.isSubscribed ?? dbUser?.isSubscribed ?? false;
+  // Token Subscription — a token balance is an equally valid reason to keep the sidebar
+  // tabs unlocked once the days-subscription is invalid/absent, mirroring the app's
+  // Navigation.kt (isSubscriptionValid() || hasTokenBalance()) and this site's own
+  // subscriptions.tsx badge logic. See project_token_subscription_feature.
+  const hasTokenBalance =
+    (selectedProfileUser?.tokenBalance ?? dbUser?.tokenBalance ?? 0) > 0;
+  const hasAccess = isSubscribed || hasTokenBalance;
   const isAdmin = dbUser?.isAdmin ?? false;
 
   // effectiveUser — uses selectedProfileId as the data key for all components
@@ -427,7 +436,7 @@ export default function Dashboard() {
                 {generalLinks.map((link, idx) => (
                   <SidebarLink
                     onClick={() => {
-                      if (isSubscribed || link.label === "Subscription") {
+                      if (hasAccess || link.label === "Subscription") {
                         setnavItem(link.label);
                         setOpen(false);
                         setAccordionValue(undefined);
@@ -438,11 +447,11 @@ export default function Dashboard() {
                     className={cn(
                       "pl-3 hover:bg-gray-200/70 rounded-md",
                       navItem === link.label && "bg-gray-300/50",
-                      !isSubscribed &&
+                      !hasAccess &&
                         link.label !== "Subscription" &&
                         "opacity-50 pointer-events-none"
                     )}
-                    disabled={!isSubscribed && link.label !== "Subscription"}
+                    disabled={!hasAccess && link.label !== "Subscription"}
                   />
                 ))}
 

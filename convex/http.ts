@@ -114,7 +114,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   insertLogsHttp,
   getLogsHttp,
   deleteLogsHandler,
-  countLogsHttp,
+  logsHealthCheckHttp,
   clearAllDataHandler,
   setAdminByEmailHttp,
   updateUserProfile,
@@ -1364,9 +1364,9 @@ http.route({
 });
 
 http.route({
-  path: "/api/logs/count",
+  path: "/api/logs/health",
   method: "GET",
-  handler: countLogsHttp,
+  handler: logsHealthCheckHttp,
 });
 
 http.route({
