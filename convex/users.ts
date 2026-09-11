@@ -423,6 +423,76 @@ export const activateSubscription = mutation({
   },
 });
 
+// Token Subscription equivalent of activateSubscription above — credits tokens instead of
+// setting subscriptionEnds. Bundle is looked up live at credit time, not snapshotted at
+// purchase time (an admin edit/delete mid-payment is an accepted rare edge case, not guarded
+// against — see project_token_subscription_feature).
+export const creditTokenBundlePurchase = mutation({
+  args: {
+    checkoutRequestID: v.string(),
+  },
+  handler: async (ctx, args) => {
+    try {
+      const transaction = await ctx.db
+        .query("mpesa_transactions")
+        .withIndex("by_checkoutRequestID", (q) =>
+          q.eq("checkoutRequestID", args.checkoutRequestID)
+        )
+        .first();
+
+      if (!transaction || !transaction.tokenBundleId || !transaction.userId) {
+        console.log("Transaction or token bundle data not found");
+        return;
+      }
+
+      const bundle = await ctx.db.get(transaction.tokenBundleId);
+      if (!bundle) {
+        console.log("Token bundle no longer exists — cannot credit tokens for checkoutRequestID:", args.checkoutRequestID);
+        return;
+      }
+
+      const user = await ctx.db
+        .query("users")
+        .withIndex("by_user_id", (q) => q.eq("userId", transaction.userId!))
+        .first();
+
+      if (user) {
+        await ctx.db.patch(user._id, {
+          tokenBalance: (user.tokenBalance ?? 0) + bundle.tokens,
+        });
+      }
+    } catch (error) {
+      console.log("Error crediting token bundle purchase: ", error);
+    }
+  },
+});
+
+// Deducts exactly 1 token after a successful USSD dial that wasn't covered by a valid
+// days-subscription. A single-document patch on Convex is inherently serialized (no
+// multi-writer race like the OCC issues seen elsewhere in this codebase), so this can never
+// go negative — floors at 0 if called when the balance is already 0 or absent. See
+// project_token_subscription_feature.
+export const consumeToken = mutation({
+  args: {
+    userId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
+      .first();
+
+    if (!user) {
+      return { status: "error", error: "User not found" };
+    }
+
+    const newBalance = Math.max(0, (user.tokenBalance ?? 0) - 1);
+    await ctx.db.patch(user._id, { tokenBalance: newBalance });
+
+    return { status: "success", tokenBalance: newBalance };
+  },
+});
+
 export const deActivateSubscription = mutation({
   args: { checkoutRequestID: v.string() },
   handler: async (ctx, args) => {

@@ -173,6 +173,8 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   createOfferFallbackConfig,
   updateOfferFallbackConfig,
   deleteOfferFallbackConfig,
+  getTokenBundles,
+  consumeToken,
 } from "./mobile/http/handlers";
 
 const http = httpRouter();
@@ -553,6 +555,20 @@ http.route({
   pathPrefix: "/api/subscriptions/update/",
   method: "POST",
   handler: updateSubscription,
+});
+
+//API Route to get the active token bundle catalog
+http.route({
+  pathPrefix: "/api/token-bundles/",
+  method: "GET",
+  handler: getTokenBundles,
+});
+
+//API Route to deduct 1 token after a successful USSD dial not covered by a days-subscription
+http.route({
+  pathPrefix: "/api/token-bundles/consume/",
+  method: "POST",
+  handler: consumeToken,
 });
 
 // Route to get user subscription status

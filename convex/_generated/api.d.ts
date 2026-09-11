@@ -54,6 +54,7 @@ import type * as features_sms from "../features/sms.js";
 import type * as features_statistics from "../features/statistics.js";
 import type * as features_stores from "../features/stores.js";
 import type * as features_subscription_price from "../features/subscription_price.js";
+import type * as features_tokenBundles from "../features/tokenBundles.js";
 import type * as features_totalCommission from "../features/totalCommission.js";
 import type * as features_transactions from "../features/transactions.js";
 import type * as features_userModeSettings from "../features/userModeSettings.js";
@@ -125,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   "features/statistics": typeof features_statistics;
   "features/stores": typeof features_stores;
   "features/subscription_price": typeof features_subscription_price;
+  "features/tokenBundles": typeof features_tokenBundles;
   "features/totalCommission": typeof features_totalCommission;
   "features/transactions": typeof features_transactions;
   "features/userModeSettings": typeof features_userModeSettings;

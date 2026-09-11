@@ -14,6 +14,11 @@ export default defineSchema({
     storageID: v.optional(v.string()),
     subscriptionEnds: v.optional(v.number()),
     subscriptionId: v.optional(v.string()),
+    // Token Subscription — a separate, no-expiry usage pool alongside the days-based subscription
+    // above. A valid days-subscription always takes precedence for gating dials; tokens are only
+    // drawn from once it's absent/expired. Never wiped by a cron (unlike subscriptionEnds), only
+    // ever changed by a purchase credit or a successful-dial deduction. See project_token_subscription_feature.
+    tokenBalance: v.optional(v.number()),
     phoneNumber: v.optional(v.string()),
     webSessionToken: v.optional(v.string()),
     // Cleaned-up copy of phoneNumber (formatting stripped, Kenyan-number rules applied — see
@@ -151,14 +156,31 @@ export default defineSchema({
     paymentAccount: v.string(),
     amount: v.optional(v.number()),
     mpesaReceiptNumber: v.optional(v.string()),
-    paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
+    paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION"), v.literal("TOKEN_BUNDLE")),
     subscriptionEnds: v.optional(v.number()), // ADD THIS
     userId: v.optional(v.string()), // ADD THIS
     verified: v.optional(v.boolean()),
+    // TOKEN_BUNDLE only — which bundle to credit once M-Pesa confirms. Looked up live at credit
+    // time (not snapshotted) — a bundle edited/deleted mid-payment is an accepted rare edge case,
+    // not guarded against. See project_token_subscription_feature.
+    tokenBundleId: v.optional(v.id("tokenBundles")),
   })
     .index("by_checkoutRequestID", ["checkoutRequestID"])
     .index("by_paymentAccount", ["paymentAccount"])
     .index("by_phoneNumber", ["phoneNumber"]),
+
+  // Admin-managed catalog of purchasable token packages (e.g. "300 USSD Requests" / KES 50 / 300
+  // tokens) — a user can only buy one of these exact bundles, never a custom amount. See
+  // project_token_subscription_feature.
+  tokenBundles: defineTable({
+    name: v.string(),
+    price: v.number(),
+    tokens: v.number(),
+    description: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+  })
+    .index("by_active", ["isActive"]),
 
   sms: defineTable({
     smsContent: v.string(),
@@ -432,13 +454,17 @@ export default defineSchema({
      parsedAmount: v.optional(v.number()), 
      parsedRecipient: v.optional(v.string()), 
      status: v.union(v.literal("PENDING"), v.literal("SUCCESS"), v.literal("FAILED")),
-     subscriptionEnds: v.number(), 
-     subscriptionDays: v.number(), 
-     paidDays: v.number(), 
-     promoDays: v.optional(v.number()), 
-     promoCode: v.optional(v.string()), 
-     failureReason: v.optional(v.string()), 
-     simSlot: v.string(), 
+     // Optional as of Token Subscription — a token-bundle airtime purchase has no meaningful
+     // days/end-date, only tokenBundleId below is set. Days-purchase callers still always pass
+     // these three exactly as before. See project_token_subscription_feature.
+     subscriptionEnds: v.optional(v.number()),
+     subscriptionDays: v.optional(v.number()),
+     paidDays: v.optional(v.number()),
+     promoDays: v.optional(v.number()),
+     promoCode: v.optional(v.string()),
+     failureReason: v.optional(v.string()),
+     simSlot: v.string(),
+     tokenBundleId: v.optional(v.id("tokenBundles")),
 })
      .index("by_user", ["userId"])
      .index("by_status", ["status"])

@@ -30,15 +30,19 @@ export const getRevenueStats = query({
       (u) => u.isSubscribed === true && (u.subscriptionEnds ?? 0) > nowSeconds
     ).length;
 
-    // Date boundaries (ms)
+    // Day/month boundaries in Africa/Nairobi (EAT, UTC+3, no DST) — matches
+    // messageDailyStats.ts getDayStart() / transactions.tsx nairobiStartOfDay().
+    // NOT the server's UTC midnight, or sales made between midnight and 3 AM
+    // Kenya time get filed under the previous day/month and today/this-month read short.
+    const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+    const now = Date.now();
     const todayStart = (() => {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      return d.getTime();
+      const shifted = now + EAT_OFFSET_MS;
+      return shifted - (shifted % 86_400_000) - EAT_OFFSET_MS;
     })();
     const monthStart = (() => {
-      const d = new Date();
-      return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+      const shifted = new Date(now + EAT_OFFSET_MS);
+      return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - EAT_OFFSET_MS;
     })();
 
     // M-Pesa uses _creationTime (ms); Airtime uses transactionDate (seconds)

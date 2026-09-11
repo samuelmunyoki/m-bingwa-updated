@@ -48,6 +48,8 @@ interface dbUser {
   phoneNumber?: string;
   subscriptionEnds?: number;
   isSubscribed?: boolean;
+  // Token Subscription — see project_token_subscription_feature.
+  tokenBalance?: number;
 }
 
 interface SettingsMainProps {
@@ -229,6 +231,14 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
   const [responseMessage, setResponseMessage] = useState("");
   const [showValidationError, setShowValidationError] = useState(false);
 
+  // Token Subscription — a separate, no-expiry usage pool alongside days above. Set only when
+  // the payment dialog was opened from a token bundle card (not the days calendar flow); the
+  // same dialog and handlePurchase below serve both, branching on this. See
+  // project_token_subscription_feature.
+  const [selectedTokenBundle, setSelectedTokenBundle] = useState<{ _id: string; name: string; price: number; tokens: number; description?: string } | null>(null);
+  const [isTokenMode, setIsTokenMode] = useState(false);
+  const tokenBundles = useQuery(api.features.tokenBundles.getActiveTokenBundles, {});
+
   const handlePurchase = async () => {
     setShowValidationError(true);
     if (!payingNumber.match(/^0\d{9}$/)) {
@@ -258,12 +268,23 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
     try {
       const formattedPhoneNumber = `254${payingNumber.slice(1)}`;
 
-      await initiatePayment({
-        amount: `${Math.round(totalCharge)}`,
-        phoneNumber: formattedPhoneNumber,
-        subscriptionEnds: timestamp,
-        userId: user.userId,
-      });
+      // Same initiatePayment action either way — it's the shared updateSubscription action,
+      // generalized to accept tokenBundleId instead of amount/subscriptionEnds. See
+      // project_token_subscription_feature.
+      if (selectedTokenBundle) {
+        await initiatePayment({
+          userId: user.userId,
+          phoneNumber: formattedPhoneNumber,
+          tokenBundleId: selectedTokenBundle._id as any,
+        });
+      } else {
+        await initiatePayment({
+          amount: `${Math.round(totalCharge)}`,
+          phoneNumber: formattedPhoneNumber,
+          subscriptionEnds: timestamp,
+          userId: user.userId,
+        });
+      }
 
       setResponseStatus("success");
       setResponseMessage(
@@ -282,11 +303,18 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
     setResponseStatus(null);
     setResponseMessage("");
     setShowValidationError(false);
+    setSelectedTokenBundle(null);
   };
 
-  const openDialog = () => {
+  const openDialog = (tokenBundle?: { _id: string; name: string; price: number; tokens: number; description?: string }) => {
+    setSelectedTokenBundle(tokenBundle ?? null);
     setIsDialogOpen(true);
   };
+
+  const dialogTitle = selectedTokenBundle
+    ? selectedTokenBundle.name
+    : `${user.isSubscribed ? "Extension" : "Subscription"} of ${subscriptionDays} Days`;
+  const dialogPrice = selectedTokenBundle ? selectedTokenBundle.price : totalCharge;
 
   const remainingDays = user.subscriptionEnds
     ? Math.max(
@@ -325,35 +353,41 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
             ) : (
               <div className="flex flex-col gap-6">
 
-                {/* Active Subscription Card */}
-                {user.isSubscribed && (
-                  <div className="border border-neutral-200 rounded-lg p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                      <BadgeCheck className="w-5 h-5 text-green-600" />
-                      <h3 className="font-semibold text-neutral-700">Current Subscription</h3>
-                      <span className="ml-auto text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-full px-2 py-0.5">Active</span>
+                {/* Current Subscription Card — Token Subscription: always shown now (not gated
+                    on user.isSubscribed), both pools displayed together regardless of which is
+                    actually active. See project_token_subscription_feature. */}
+                <div className="border border-neutral-200 rounded-lg p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <BadgeCheck className={`w-5 h-5 ${(user.isSubscribed || (user.tokenBalance ?? 0) > 0) ? "text-green-600" : "text-gray-400"}`} />
+                    <h3 className="font-semibold text-neutral-700">Current Subscription</h3>
+                    <span className={`ml-auto text-xs font-medium rounded-full px-2 py-0.5 border ${(user.isSubscribed || (user.tokenBalance ?? 0) > 0) ? "text-green-700 bg-green-50 border-green-200" : "text-gray-500 bg-gray-50 border-gray-200"}`}>
+                      {(user.isSubscribed || (user.tokenBalance ?? 0) > 0) ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="flex-1 flex flex-col items-center justify-center border border-neutral-100 rounded-lg p-4">
+                      <span className="text-4xl font-bold text-neutral-800">{remainingDays}</span>
+                      <span className="text-sm text-gray-500 mt-1">day{remainingDays !== 1 ? "s" : ""} remaining</span>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1 flex flex-col items-center justify-center border border-neutral-100 rounded-lg p-4">
-                        <span className="text-4xl font-bold text-neutral-800">{remainingDays}</span>
-                        <span className="text-sm text-gray-500 mt-1">day{remainingDays !== 1 ? "s" : ""} remaining</span>
-                      </div>
-                      <div className="flex-1 flex flex-col justify-center gap-3">
-                        <div className="flex items-center gap-2">
-                          <CalendarRange className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs text-gray-500">Subscription Ends</p>
-                            <p className="text-sm font-medium text-neutral-700">
-                              {user.subscriptionEnds
-                                ? format(new Date(user.subscriptionEnds * 1000), "MMMM d, yyyy 'at' hh:mm a")
-                                : "Not available"}
-                            </p>
-                          </div>
+                    <div className="flex-1 flex flex-col items-center justify-center border border-neutral-100 rounded-lg p-4">
+                      <span className="text-4xl font-bold text-purple-700">{user.tokenBalance ?? 0}</span>
+                      <span className="text-sm text-gray-500 mt-1">token{(user.tokenBalance ?? 0) !== 1 ? "s" : ""}</span>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <CalendarRange className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-gray-500">Subscription Ends</p>
+                          <p className="text-sm font-medium text-neutral-700">
+                            {user.subscriptionEnds
+                              ? format(new Date(user.subscriptionEnds * 1000), "MMMM d, yyyy 'at' hh:mm a")
+                              : "Not available"}
+                          </p>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* Promo Code Section */}
                 <div className="border border-neutral-200 rounded-lg p-5">
@@ -429,6 +463,27 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
                   )}
                 </div>
 
+                {/* Token Subscription — mode toggle controls whether the Normal (days) purchase
+                    flow below or the Token bundle list shows. See project_token_subscription_feature. */}
+                <div className="flex gap-2">
+                  <Button
+                    variant={!isTokenMode ? "default" : "outline"}
+                    className="flex-1"
+                    onClick={() => setIsTokenMode(false)}
+                  >
+                    Normal Subscription
+                  </Button>
+                  <Button
+                    variant={isTokenMode ? "default" : "outline"}
+                    className="flex-1"
+                    onClick={() => setIsTokenMode(true)}
+                  >
+                    Token Subscription
+                  </Button>
+                </div>
+
+                {!isTokenMode && (
+                <>
                 {/* Calendar + Details — unified panel */}
                 <div className="border border-neutral-200 rounded-lg p-5">
                   <div className="flex items-center gap-2 mb-1">
@@ -530,6 +585,43 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
                     </div>
                   </div>
                 </div>
+                </>
+                )}
+
+                {isTokenMode && (
+                  <div className="border border-neutral-200 rounded-lg p-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CreditCard className="w-5 h-5 text-neutral-500" />
+                      <h3 className="font-semibold text-neutral-700">Token Bundles</h3>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">
+                      Pick a bundle — only these exact packages are purchasable, no custom amount.
+                    </p>
+                    <div className="flex flex-col gap-3">
+                      {tokenBundles === undefined && (
+                        <p className="text-sm text-gray-400">Loading...</p>
+                      )}
+                      {tokenBundles?.length === 0 && (
+                        <p className="text-sm text-gray-400">No token bundles available right now.</p>
+                      )}
+                      {tokenBundles?.map((bundle) => (
+                        <div
+                          key={bundle._id}
+                          className="border border-neutral-200 rounded-lg p-4 flex items-center justify-between gap-3"
+                        >
+                          <div>
+                            <p className="font-semibold text-green-600">{bundle.name}</p>
+                            <p className="text-sm font-bold text-neutral-800">KES {bundle.price} /-</p>
+                            {bundle.description && (
+                              <p className="text-xs text-gray-400">{bundle.description}</p>
+                            )}
+                          </div>
+                          <Button onClick={() => openDialog(bundle as any)}>Activate</Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               </div>
             )}
@@ -544,7 +636,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
             <DialogContent className=" bg-white rounded-lg shadow-xl">
               <DialogHeader className="pb-6 !m-0  rounded-t-md border-b-gray-200 border-b">
                 <DialogTitle className="text-3xl font-normal text-center">
-                  {user.isSubscribed ? "Extension" : "Subscription"} of {subscriptionDays} Days
+                  {dialogTitle}
                 </DialogTitle>
               </DialogHeader>
 
@@ -571,7 +663,7 @@ const SubscriptionMain = ({ user }: SettingsMainProps) => {
                     <div className="items-center gap-4 w-full  my-3 ">
                       <h2 className="w-full text-center flex justify-center items-center">
                         <CreditCard className="h-4 w-4 mr-2 text-black" />{" "}
-                        Price: <span className="ml-2"> KES {totalCharge}</span>
+                        Price: <span className="ml-2"> KES {dialogPrice}</span>
                       </h2>
                     </div>
 

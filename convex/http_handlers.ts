@@ -118,6 +118,16 @@ export const postStKPushCallback = httpAction(async (ctx, request) => {
           checkoutRequestID: existingMpesaTransaction.checkoutRequestID,
         });
       }
+
+      // HANDLE TOKEN BUNDLE LOGIC
+      if (
+        ResultCode === 0 &&
+        existingMpesaTransaction.paymentFor === "TOKEN_BUNDLE"
+      ) {
+        await ctx.runMutation(api.users.creditTokenBundlePurchase, {
+          checkoutRequestID: existingMpesaTransaction.checkoutRequestID,
+        });
+      }
     }
     return new Response(JSON.stringify(body), {
       status: 200,

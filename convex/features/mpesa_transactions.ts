@@ -13,9 +13,10 @@ export const createMpesaTransaction = mutation({
     transactionDesc: v.string(),
     paymentMethod: v.string(),
     paymentAccount: v.string(),
-    paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION")),
+    paymentFor: v.union(v.literal("STORE"), v.literal("SUBSCRIPTION"), v.literal("TOKEN_BUNDLE")),
     subscriptionEnds: v.optional(v.number()), // ADD THIS
     userId: v.optional(v.string()), // ADD THIS
+    tokenBundleId: v.optional(v.id("tokenBundles")), // TOKEN_BUNDLE only
   },
   handler: async (ctx, args) => {
     try {
@@ -32,6 +33,7 @@ export const createMpesaTransaction = mutation({
         paymentFor: args.paymentFor,
         subscriptionEnds: args.subscriptionEnds, // ADD THIS
         userId: args.userId, // ADD THIS
+        tokenBundleId: args.tokenBundleId,
       };
 
       await ctx.db.insert("mpesa_transactions", createFields);

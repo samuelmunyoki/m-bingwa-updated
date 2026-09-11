@@ -15,13 +15,18 @@ export const createAirtimeTransaction = mutation({
     parsedAmount: v.optional(v.number()),
     parsedRecipient: v.optional(v.string()),
     status: v.union(v.literal("PENDING"), v.literal("SUCCESS"), v.literal("FAILED")),
-    subscriptionEnds: v.number(),
-    subscriptionDays: v.number(),
-    paidDays: v.number(),
+    // subscriptionEnds/subscriptionDays/paidDays are optional as of Token Subscription — a
+    // token-bundle airtime purchase passes tokenBundleId instead and omits these three. A
+    // days-purchase caller must still pass all three exactly as before (enforced below, at
+    // handler time, matching the original required-field behavior for that branch).
+    subscriptionEnds: v.optional(v.number()),
+    subscriptionDays: v.optional(v.number()),
+    paidDays: v.optional(v.number()),
     promoDays: v.optional(v.number()),
     promoCode: v.optional(v.string()),
     failureReason: v.optional(v.string()),
     simSlot: v.string(),
+    tokenBundleId: v.optional(v.id("tokenBundles")),
   },
   handler: async (ctx, args) => {
     const transactionId = await ctx.db.insert("airtimeTransactions", {
@@ -31,29 +36,41 @@ export const createAirtimeTransaction = mutation({
 
     console.log("✓ Airtime transaction created:", transactionId);
 
-    // If transaction is successful, update user subscription
+    // If transaction is successful, credit the right pool — tokens if this was a token-bundle
+    // purchase, otherwise days (unchanged from before Token Subscription existed).
     if (args.status === "SUCCESS") {
       const user = await ctx.db
         .query("users")
-        .withIndex("by_user_id", (q) => q.eq("userId", args.userId)) 
+        .withIndex("by_user_id", (q) => q.eq("userId", args.userId))
         .first();
 
       if (user) {
-        await ctx.db.patch(user._id, {
-          isSubscribed: true,
-          subscriptionEnds: args.subscriptionEnds,
-          subscriptionId: transactionId,
-        });
-
-        console.log("✓ User subscription updated via airtime payment");
+        if (args.tokenBundleId) {
+          const bundle = await ctx.db.get(args.tokenBundleId);
+          if (bundle) {
+            await ctx.db.patch(user._id, {
+              tokenBalance: (user.tokenBalance ?? 0) + bundle.tokens,
+            });
+            console.log("✓ User token balance updated via airtime payment");
+          } else {
+            console.log("Token bundle no longer exists — cannot credit tokens for transactionId:", transactionId);
+          }
+        } else if (args.subscriptionEnds !== undefined) {
+          await ctx.db.patch(user._id, {
+            isSubscribed: true,
+            subscriptionEnds: args.subscriptionEnds,
+            subscriptionId: transactionId,
+          });
+          console.log("✓ User subscription updated via airtime payment");
+        }
       }
     }
 
     return {
       status: "success",
       transactionId,
-      message: args.status === "SUCCESS" 
-        ? "Subscription activated successfully"
+      message: args.status === "SUCCESS"
+        ? (args.tokenBundleId ? "Tokens credited successfully" : "Subscription activated successfully")
         : "Transaction recorded",
     };
   },
