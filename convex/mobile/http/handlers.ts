@@ -4630,6 +4630,134 @@ export const deleteOnlineBridgeDevice = httpAction(async (ctx, request) => {
   }
 });
 
+// ============= ONLINE BRIDGE TIME CONFIG HTTP ACTIONS =============
+
+export const createOnlineBridgeTimeConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const {
+    userId, price, isEnabled, variantAOfferId, variantAStartTime, variantAEndTime,
+    variantBOfferId, variantBStartTime, variantBEndTime, deviceIds
+  } = body;
+
+  if (!userId || price === undefined || isEnabled === undefined || !variantAOfferId ||
+      !variantAStartTime || !variantAEndTime || !deviceIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    const configId = await ctx.runMutation(api.features.onlineBridge.createOnlineBridgeTimeConfig, {
+      userId,
+      price,
+      isEnabled,
+      variantAOfferId,
+      variantAStartTime,
+      variantAEndTime,
+      variantBOfferId: variantBOfferId ?? undefined,
+      variantBStartTime: variantBStartTime ?? "",
+      variantBEndTime: variantBEndTime ?? "",
+      deviceIds
+    });
+
+    return createResponse("success", { configId }, "Time Config created successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const getOnlineBridgeTimeConfigs = httpAction(async (ctx, request) => {
+  const url = new URL(request.url);
+  const userId = url.searchParams.get("userId");
+
+  if (!userId) {
+    return createResponse("error", null, "Missing userId parameter");
+  }
+
+  try {
+    const configs = await ctx.runQuery(api.features.onlineBridge.getOnlineBridgeTimeConfigs, { userId });
+    return createResponse("success", { configs }, null);
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const updateOnlineBridgeTimeConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "PATCH") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch (error) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+
+  const {
+    configId, userId, price, isEnabled, variantAOfferId, variantAStartTime, variantAEndTime,
+    variantBOfferId, variantBStartTime, variantBEndTime, deviceIds
+  } = body;
+
+  if (!configId || !userId || price === undefined || isEnabled === undefined || !variantAOfferId ||
+      !variantAStartTime || !variantAEndTime || !deviceIds) {
+    return createResponse("error", null, "Missing required fields");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.updateOnlineBridgeTimeConfig, {
+      configId: configId as Id<"onlineBridgeTimeConfigs">,
+      userId,
+      price,
+      isEnabled,
+      variantAOfferId,
+      variantAStartTime,
+      variantAEndTime,
+      variantBOfferId: variantBOfferId ?? undefined,
+      variantBStartTime: variantBStartTime ?? "",
+      variantBEndTime: variantBEndTime ?? "",
+      deviceIds
+    });
+
+    return createResponse("success", null, "Time Config updated successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
+export const deleteOnlineBridgeTimeConfig = httpAction(async (ctx, request) => {
+  if (request.method !== "DELETE") {
+    return createResponse("error", null, "Method not allowed");
+  }
+
+  const url = new URL(request.url);
+  const configId = url.searchParams.get("configId");
+  const userId = url.searchParams.get("userId");
+
+  if (!configId || !userId) {
+    return createResponse("error", null, "Missing configId or userId");
+  }
+
+  try {
+    await ctx.runMutation(api.features.onlineBridge.deleteOnlineBridgeTimeConfig, {
+      configId: configId as Id<"onlineBridgeTimeConfigs">,
+      userId
+    });
+
+    return createResponse("success", null, "Time Config deleted successfully");
+  } catch (error: any) {
+    return createResponse("error", null, error.message);
+  }
+});
+
 // ============= ONLINE BRIDGE WHITELIST HTTP ACTIONS =============
 
 export const addToOnlineWhitelist = httpAction(async (ctx, request) => {

@@ -58,6 +58,10 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   updateOnlineBridgeDevice,
   updateOnlineDeviceOffers,
   deleteOnlineBridgeDevice,
+  createOnlineBridgeTimeConfig,
+  getOnlineBridgeTimeConfigs,
+  updateOnlineBridgeTimeConfig,
+  deleteOnlineBridgeTimeConfig,
   addToOnlineWhitelist,
   getOnlineWhitelist,
   isOnlineWhitelisted,
@@ -957,6 +961,32 @@ http.route({
   pathPrefix: "/api/online-bridge/devices/delete/",
   method: "DELETE",
   handler: deleteOnlineBridgeDevice,
+});
+
+// ============= ONLINE BRIDGE TIME CONFIG ROUTES =============
+
+http.route({
+  pathPrefix: "/api/online-bridge/time-configs/create/",
+  method: "POST",
+  handler: createOnlineBridgeTimeConfig,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/time-configs/",
+  method: "GET",
+  handler: getOnlineBridgeTimeConfigs,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/time-configs/update/",
+  method: "PATCH",
+  handler: updateOnlineBridgeTimeConfig,
+});
+
+http.route({
+  pathPrefix: "/api/online-bridge/time-configs/delete/",
+  method: "DELETE",
+  handler: deleteOnlineBridgeTimeConfig,
 });
 
 // ============= ONLINE BRIDGE WHITELIST ROUTES =============
