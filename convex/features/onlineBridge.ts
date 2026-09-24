@@ -291,6 +291,97 @@ export const deleteOnlineBridgeDevice = mutation({
   }
 });
 
+// ============= TIME CONFIG MUTATIONS =============
+// Pairs two onlineBridgeOffers sharing a price with daily time windows (or just one, on/off) so a
+// chosen set of onlineBridgeDevices auto-switch which offer they're eligible for. The app writes
+// device.selectedOfferIds directly (self-heal, no alarms) — this table just mirrors the config
+// itself so it survives a reinstall. No website UI touches this.
+
+export const createOnlineBridgeTimeConfig = mutation({
+  args: {
+    userId: v.string(),
+    price: v.number(),
+    isEnabled: v.boolean(),
+    variantAOfferId: v.string(),
+    variantAStartTime: v.string(),
+    variantAEndTime: v.string(),
+    variantBOfferId: v.optional(v.string()),
+    variantBStartTime: v.string(),
+    variantBEndTime: v.string(),
+    deviceIds: v.array(v.string())
+  },
+  handler: async (ctx, args) => {
+    const configId = await ctx.db.insert("onlineBridgeTimeConfigs", {
+      userId: args.userId,
+      price: args.price,
+      isEnabled: args.isEnabled,
+      variantAOfferId: args.variantAOfferId,
+      variantAStartTime: args.variantAStartTime,
+      variantAEndTime: args.variantAEndTime,
+      variantBOfferId: args.variantBOfferId,
+      variantBStartTime: args.variantBStartTime,
+      variantBEndTime: args.variantBEndTime,
+      deviceIds: args.deviceIds,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+
+    return configId;
+  }
+});
+
+export const updateOnlineBridgeTimeConfig = mutation({
+  args: {
+    configId: v.id("onlineBridgeTimeConfigs"),
+    userId: v.string(),
+    price: v.number(),
+    isEnabled: v.boolean(),
+    variantAOfferId: v.string(),
+    variantAStartTime: v.string(),
+    variantAEndTime: v.string(),
+    variantBOfferId: v.optional(v.string()),
+    variantBStartTime: v.string(),
+    variantBEndTime: v.string(),
+    deviceIds: v.array(v.string())
+  },
+  handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+
+    if (!config || config.userId !== args.userId) {
+      throw new Error("Time Config not found or unauthorized");
+    }
+
+    await ctx.db.patch(args.configId, {
+      price: args.price,
+      isEnabled: args.isEnabled,
+      variantAOfferId: args.variantAOfferId,
+      variantAStartTime: args.variantAStartTime,
+      variantAEndTime: args.variantAEndTime,
+      variantBOfferId: args.variantBOfferId,
+      variantBStartTime: args.variantBStartTime,
+      variantBEndTime: args.variantBEndTime,
+      deviceIds: args.deviceIds,
+      updatedAt: Date.now()
+    });
+  }
+});
+
+export const deleteOnlineBridgeTimeConfig = mutation({
+  args: {
+    configId: v.id("onlineBridgeTimeConfigs"),
+    userId: v.string()
+  },
+  handler: async (ctx, args) => {
+    const config = await ctx.db.get(args.configId);
+
+    if (!config || config.userId !== args.userId) {
+      throw new Error("Time Config not found or unauthorized");
+    }
+
+    await ctx.db.delete(args.configId);
+  }
+});
+
 // ============= WHITELIST MUTATIONS =============
 
 export const addToOnlineWhitelist = mutation({
@@ -381,6 +472,18 @@ export const getOnlineBridgeDeviceById = query({
   args: { deviceId: v.id("onlineBridgeDevices") },
   handler: async (ctx, args) => {
     return await ctx.db.get(args.deviceId);
+  }
+});
+
+// ============= TIME CONFIG QUERIES =============
+
+export const getOnlineBridgeTimeConfigs = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("onlineBridgeTimeConfigs")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .collect();
   }
 });
 

@@ -571,6 +571,27 @@ export default defineSchema({
     .index("by_user", ["userId"])
     .index("by_phone", ["phoneNumber"]),
 
+  // Pairs two onlineBridgeOffers sharing a price with daily time windows (or just one, on/off in
+  // its own window) so a chosen set of onlineBridgeDevices auto-switch which offer they're
+  // eligible for, by time of day. Local-write-driven from the app (self-heal, no alarms) — this
+  // table only exists so the config itself survives a reinstall / shows up on another device
+  // logged into the same account. No website UI reads/writes this.
+  onlineBridgeTimeConfigs: defineTable({
+    userId: v.string(),
+    price: v.number(),
+    isEnabled: v.boolean(),
+    variantAOfferId: v.string(),
+    variantAStartTime: v.string(),
+    variantAEndTime: v.string(),
+    variantBOfferId: v.optional(v.string()), // absent/undefined = single-offer mode
+    variantBStartTime: v.string(),
+    variantBEndTime: v.string(),
+    deviceIds: v.array(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number()
+  })
+    .index("by_user", ["userId"]),
+
   onlineBridgeWhitelist: defineTable({
     userId: v.string(),
     phoneNumber: v.string(),           // Receiver phone number (owner)
