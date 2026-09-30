@@ -172,7 +172,7 @@ export default function RevenueMain({ userId }: { userId: string }) {
               />
               <SummaryCard
                 title="Today"
-                value={data ? fmtKsh(data.summary.todayRevenue) : "—"}
+                value={data ? `KSh ${data.summary.todayRevenue.toLocaleString("en-US")}` : "—"}
                 icon={<TrendingUp className="h-4 w-4 text-purple-600" />}
                 gradient="bg-purple-50 dark:bg-purple-950/30"
                 border="border-purple-200 dark:border-purple-800"
