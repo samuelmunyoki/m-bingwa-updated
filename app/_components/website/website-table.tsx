@@ -59,6 +59,7 @@ type Bundle = {
   isSimpleUSSD?: boolean;
   responseValidatorText?: string;
   isPatternOffer?: boolean;
+  isSafAppOffer?: boolean;
 };
 
 const offerTypeConfig: Record<string, { icon: React.ReactNode; className: string }> = {

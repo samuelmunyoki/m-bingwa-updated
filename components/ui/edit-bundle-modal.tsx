@@ -64,6 +64,7 @@ type Bundle = {
   isSimpleUSSD?: boolean;
   responseValidatorText?: string;
   isPatternOffer?: boolean;
+  isSafAppOffer?: boolean;
 };
 
 type EditBundleModalProps = {
@@ -227,12 +228,17 @@ export function EditBundleModal({ bundle, onClose }: EditBundleModalProps) {
               id="bundlesUSSD"
               value={bundlesUSSD}
               onChange={(e) => { setBundlesUSSD(e.target.value); clearError(); }}
-              disabled={bundle.isPatternOffer}
+              disabled={bundle.isPatternOffer || bundle.isSafAppOffer}
               required
             />
             {bundle.isPatternOffer && (
               <p className="text-xs text-muted-foreground mt-1">
                 Pattern offer — USSD code is locked here
+              </p>
+            )}
+            {bundle.isSafAppOffer && (
+              <p className="text-xs text-muted-foreground mt-1">
+                SafApp offer — bought through the My Safaricom app, USSD code is locked here
               </p>
             )}
           </div>

@@ -63,6 +63,8 @@ export default defineSchema({
     // (added via the app's Smart Offers catalog). Plain multi-session bundles created
     // manually never set this and never have pattern steps — that's expected, not data loss.
     isPatternOffer: v.optional(v.boolean()),
+    isSafAppOffer: v.optional(v.boolean()),
+    safAppOfferId: v.optional(v.string()),
   }).index("by_user", ["userId"]),
 
   // Pairs two offers sharing a price with daily time windows, so the Android app can
@@ -928,6 +930,24 @@ export default defineSchema({
       pattern: v.optional(v.string()),
       type: v.string(),
       inputMode: v.string(),
+    })),
+  }).index("by_isActive", ["isActive"]),
+
+  // Admin-written recipes for buying a bundle through the My Safaricom app (SafApp).
+  serverSafAppOffers: defineTable({
+    name: v.string(),
+    price: v.number(),
+    offerType: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    createdBy: v.string(),
+    steps: v.array(v.object({
+      stepIndex: v.number(),
+      action: v.string(),
+      target: v.optional(v.string()),
+      button: v.optional(v.string()),
+      value: v.optional(v.string()),
+      timeoutMs: v.optional(v.number()),
     })),
   }).index("by_isActive", ["isActive"]),
 

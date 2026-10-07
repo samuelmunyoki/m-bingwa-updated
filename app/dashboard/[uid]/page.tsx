@@ -49,6 +49,7 @@ import { TransactionsMain } from "@/app/_components/transactions/transactions";
 import BalanceBar from "@/app/_components/balance/BalanceBar";
 import PatternOffersMain from "@/app/_components/pattern_offers/PatternOffersMain";
 import SmartOffersMain from "@/app/_components/smart_offers/SmartOffersMain";
+import SafAppOffersMain from "@/app/_components/safapp_offers/SafAppOffersMain";
 import RevenueMain from "@/app/_components/revenue/RevenueMain";
 import AppConfigMain from "@/app/_components/app_config/AppConfigMain";
 import { IconCurrencyDollar, IconAppWindow, IconHelpCircle, IconCoin } from "@tabler/icons-react";
@@ -368,6 +369,13 @@ export default function Dashboard() {
       ),
     },
     {
+      label: "SafApp Offers",
+      href: "#",
+      icon: (
+        <IconPhoneCall className="text-cyan-500 h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
       label: "Revenue",
       href: "#",
       icon: (
@@ -565,6 +573,7 @@ export default function Dashboard() {
         {navItem === "Statistics" && <StatisticsMain userId={activeProfileId} />}
         {navItem === "Data Migration" && isAdmin && <ConvexMigration />}
         {navItem === "Pattern Offers" && isAdmin && <PatternOffersMain userId={userId} />}
+        {navItem === "SafApp Offers" && isAdmin && <SafAppOffersMain userId={userId} />}
         {navItem === "Revenue" && isAdmin && <RevenueMain userId={userId} />}
         {navItem === "App Config" && isAdmin && <AppConfigMain userId={userId} />}
         {navItem === "Token Bundles" && isAdmin && <TokenBundlesMain />}
