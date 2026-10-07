@@ -100,6 +100,8 @@ export const createBundleFromAPI = mutation({
       v.literal("Other")
     ),
     isPatternOffer: v.optional(v.boolean()),
+    isSafAppOffer: v.optional(v.boolean()),
+    safAppOfferId: v.optional(v.string()),
     patternSteps: v.optional(v.array(patternStepArgs)),
     // Set by the app's Smart Offers "Add" flow only (see addOrReplaceOffer /
     // queueNewBundleCreate on the Android side) — relaxes the name-duplicate rule below so a
@@ -124,6 +126,8 @@ export const createBundleFromAPI = mutation({
       dialingSIM,
       offerType,
       isPatternOffer = false,
+      isSafAppOffer,
+      safAppOfferId,
       patternSteps,
       source
     } = args;
@@ -197,7 +201,9 @@ export const createBundleFromAPI = mutation({
         autoReschedule,
         dialingSIM,
         offerType,
-        isPatternOffer
+        isPatternOffer,
+        ...(isSafAppOffer !== undefined ? { isSafAppOffer } : {}),
+        ...(safAppOfferId !== undefined ? { safAppOfferId } : {}),
       });
       if (patternSteps && patternSteps.length > 0) {
         await replaceBundleSteps(ctx, id.toString(), userId, patternSteps);
@@ -235,6 +241,8 @@ export const updateBundle = mutation({
       v.literal("Other")
     )),
     isPatternOffer: v.optional(v.boolean()),
+    isSafAppOffer: v.optional(v.boolean()),
+    safAppOfferId: v.optional(v.string()),
     patternSteps: v.optional(v.array(patternStepArgs)),
     // Same meaning as createBundleFromAPI's source arg — set only by the app's Smart Offers
     // Replace path (BundleRepository.syncPendingSyncItems, when the bundle's local

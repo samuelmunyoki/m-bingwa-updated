@@ -48,6 +48,7 @@ import type * as features_retryConfigs from "../features/retryConfigs.js";
 import type * as features_revenue from "../features/revenue.js";
 import type * as features_scheduled_events from "../features/scheduled_events.js";
 import type * as features_serverPatternOffers from "../features/serverPatternOffers.js";
+import type * as features_serverSafAppOffers from "../features/serverSafAppOffers.js";
 import type * as features_serviceStatus from "../features/serviceStatus.js";
 import type * as features_skips from "../features/skips.js";
 import type * as features_sms from "../features/sms.js";
@@ -120,6 +121,7 @@ declare const fullApi: ApiFromModules<{
   "features/revenue": typeof features_revenue;
   "features/scheduled_events": typeof features_scheduled_events;
   "features/serverPatternOffers": typeof features_serverPatternOffers;
+  "features/serverSafAppOffers": typeof features_serverSafAppOffers;
   "features/serviceStatus": typeof features_serviceStatus;
   "features/skips": typeof features_skips;
   "features/sms": typeof features_sms;

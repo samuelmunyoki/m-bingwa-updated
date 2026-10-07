@@ -221,6 +221,8 @@ export const createBundle = httpAction(async (ctx, request) => {
     dialingSIM,
     offerType = "Data",
     isPatternOffer = false,
+    isSafAppOffer,
+    safAppOfferId,
     patternSteps,
     source
   } = body
@@ -246,6 +248,13 @@ export const createBundle = httpAction(async (ctx, request) => {
 
   if (patternSteps !== undefined && !Array.isArray(patternSteps)) {
     return createResponse("error", null, "patternSteps must be an array")
+  }
+
+  if (isSafAppOffer !== undefined && typeof isSafAppOffer !== "boolean") {
+    return createResponse("error", null, "isSafAppOffer must be a boolean")
+  }
+  if (safAppOfferId !== undefined && typeof safAppOfferId !== "string") {
+    return createResponse("error", null, "safAppOfferId must be a string")
   }
 
   if (typeof price !== "number") {
@@ -373,6 +382,8 @@ export const createBundle = httpAction(async (ctx, request) => {
       dialingSIM,
       offerType,
       isPatternOffer,
+      isSafAppOffer,
+      safAppOfferId,
       patternSteps,
       source
     })
@@ -588,6 +599,8 @@ export const updateBundle = httpAction(async (ctx, request) => {
     dialingSIM,
     offerType,
     isPatternOffer,
+    isSafAppOffer,
+    safAppOfferId,
     patternSteps,
     source
   } = body
@@ -605,6 +618,12 @@ export const updateBundle = httpAction(async (ctx, request) => {
   }
   if (isPatternOffer !== undefined && typeof isPatternOffer !== "boolean") {
     return createResponse("error", null, "isPatternOffer must be a boolean")
+  }
+  if (isSafAppOffer !== undefined && typeof isSafAppOffer !== "boolean") {
+    return createResponse("error", null, "isSafAppOffer must be a boolean")
+  }
+  if (safAppOfferId !== undefined && typeof safAppOfferId !== "string") {
+    return createResponse("error", null, "safAppOfferId must be a string")
   }
 
   // Validate id
@@ -762,6 +781,8 @@ export const updateBundle = httpAction(async (ctx, request) => {
       dialingSIM: dialingSIM,
       offerType: offerType,
       isPatternOffer: isPatternOffer,
+      isSafAppOffer: isSafAppOffer,
+      safAppOfferId: safAppOfferId,
       patternSteps: patternSteps,
       source: source
     })
@@ -7585,6 +7606,15 @@ export const getOrCreatePhoneProfileHttp = httpAction(async (ctx, request) => {
 export const getServerPatternOffersHttp = httpAction(async (ctx, _request) => {
   try {
     const offers = await ctx.runQuery(api.features.serverPatternOffers.getAllActive, {});
+    return createResponse("success", { offers });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const getServerSafAppOffersHttp = httpAction(async (ctx, _request) => {
+  try {
+    const offers = await ctx.runQuery(api.features.serverSafAppOffers.getAllActive, {});
     return createResponse("success", { offers });
   } catch (e: any) {
     return createResponse("error", null, `Failed: ${e.message}`);
