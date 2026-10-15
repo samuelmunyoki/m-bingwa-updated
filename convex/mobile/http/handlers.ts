@@ -784,7 +784,9 @@ export const updateBundle = httpAction(async (ctx, request) => {
       isSafAppOffer: isSafAppOffer,
       safAppOfferId: safAppOfferId,
       patternSteps: patternSteps,
-      source: source
+      source: source,
+      // The phone enforces its own SafApp switch locally; its sync pushes must not be refused here.
+      skipSafAppSwitchCheck: true
     })
 
     // The mutation can fail internally (e.g. a schema validation error) and return
@@ -7616,6 +7618,33 @@ export const getServerSafAppOffersHttp = httpAction(async (ctx, _request) => {
   try {
     const offers = await ctx.runQuery(api.features.serverSafAppOffers.getAllActive, {});
     return createResponse("success", { offers });
+  } catch (e: any) {
+    return createResponse("error", null, `Failed: ${e.message}`);
+  }
+});
+
+export const setSafAppSwitchHttp = httpAction(async (ctx, request) => {
+  if (request.method !== "POST") {
+    return createResponse("error", null, "Method not allowed");
+  }
+  let body;
+  try {
+    body = await request.json();
+  } catch (e) {
+    return createResponse("error", null, "Invalid JSON body");
+  }
+  if (!body || typeof body.userId !== "string" || !body.userId || typeof body.enabled !== "boolean") {
+    return createResponse("error", null, "userId (string) and enabled (boolean) are required");
+  }
+  try {
+    const result = await ctx.runMutation(api.features.bundles.setSafAppSwitch, {
+      userId: body.userId,
+      enabled: body.enabled,
+    });
+    if (result?.status !== "success") {
+      return createResponse("error", null, (result as any)?.message ?? "Failed to save the SafApp switch");
+    }
+    return createResponse("success", result, "SafApp switch saved");
   } catch (e: any) {
     return createResponse("error", null, `Failed: ${e.message}`);
   }

@@ -1,7 +1,18 @@
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { mutation } from "../functions";
 import { query, MutationCtx } from "../_generated/server";
 import { BackendResponse } from "../../lib/custom_types";
+
+const SAFAPP_OFF_MESSAGE = "SafApp is OFF on the phone — turn it ON in the app first, then enable this offer.";
+
+// Unknown (phone never sent it) counts as OFF.
+async function isSafAppSwitchOn(ctx: MutationCtx, userId: string): Promise<boolean> {
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_user_id", (q) => q.eq("userId", userId))
+    .first();
+  return user?.safAppEnabled === true;
+}
 
 const patternStepArgs = v.object({
   stepIndex: v.number(),
@@ -244,6 +255,9 @@ export const updateBundle = mutation({
     isSafAppOffer: v.optional(v.boolean()),
     safAppOfferId: v.optional(v.string()),
     patternSteps: v.optional(v.array(patternStepArgs)),
+    // Set only by the phone's HTTP handler: the phone enforces its own SafApp switch locally, so its
+    // sync pushes must never be refused here (that would race the switch push). The website omits it.
+    skipSafAppSwitchCheck: v.optional(v.boolean()),
     // Same meaning as createBundleFromAPI's source arg — set only by the app's Smart Offers
     // Replace path (BundleRepository.syncPendingSyncItems, when the bundle's local
     // pendingSyncSource=="smart_offer"). Must be destructured out below so it never leaks into
@@ -251,7 +265,7 @@ export const updateBundle = mutation({
     source: v.optional(v.literal("smart_offer")),
   },
   handler: async (ctx, args) => {
-    const { id, userId, offerName, price, isMultiSession, isSimpleUSSD, responseValidatorText, patternSteps, isPatternOffer, source, ...updates } = args;
+    const { id, userId, offerName, price, isMultiSession, isSimpleUSSD, responseValidatorText, patternSteps, isPatternOffer, source, skipSafAppSwitchCheck, ...updates } = args;
 
     const existingBundle = await ctx.db.get(id);
     if (!existingBundle || existingBundle.userId !== userId) {
@@ -259,6 +273,17 @@ export const updateBundle = mutation({
         status: "error",
         message: "Bundle not found or you don't have permission to update it.",
       } as BackendResponse;
+    }
+
+    // Website path: a SafApp offer cannot be switched to "available" while the phone's SafApp switch is OFF.
+    if (
+      !skipSafAppSwitchCheck &&
+      existingBundle.isSafAppOffer &&
+      updates.status === "available" &&
+      existingBundle.status !== "available" &&
+      !(await isSafAppSwitchOn(ctx, userId))
+    ) {
+      return { status: "error", message: SAFAPP_OFF_MESSAGE } as BackendResponse;
     }
 
     // Validation: Ensure only one of isMultiSession or isSimpleUSSD is true
@@ -444,6 +469,9 @@ export const toggleBundleStatus = mutation({
       );
     }
     const newStatus = bundle.status === "available" ? "disabled" : "available";
+    if (bundle.isSafAppOffer && newStatus === "available" && !(await isSafAppSwitchOn(ctx, userId))) {
+      throw new ConvexError(SAFAPP_OFF_MESSAGE);
+    }
     await ctx.db.patch(id, { status: newStatus });
     return {
       status: "success",
@@ -476,6 +504,37 @@ export const toggleBundleStatusFromAPI = mutation({
       message: `Bundle ${newStatus === "available" ? "enabled" : "disabled"} successfully`,
       newStatus: newStatus
     };
+  },
+});
+
+// Called by the phone (via /api/safapp-switch/) whenever its SafApp switch changes, on SafApp page open
+// and at app start. OFF also disables that user's SafApp offers so every view matches; ON changes no offer.
+export const setSafAppSwitch = mutation({
+  args: { userId: v.string(), enabled: v.boolean() },
+  handler: async (ctx, { userId, enabled }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", userId))
+      .first();
+    if (!user) {
+      return { status: "error", message: "User not found" } as BackendResponse;
+    }
+    await ctx.db.patch(user._id, { safAppEnabled: enabled });
+
+    let disabledCount = 0;
+    if (!enabled) {
+      const bundles = await ctx.db
+        .query("bundles")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .collect();
+      for (const b of bundles) {
+        if (b.isSafAppOffer && b.status !== "disabled") {
+          await ctx.db.patch(b._id, { status: "disabled" });
+          disabledCount++;
+        }
+      }
+    }
+    return { status: "success", enabled, disabledCount };
   },
 });
 

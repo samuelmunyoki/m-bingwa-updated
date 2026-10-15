@@ -161,6 +161,7 @@ import { getAllBundles, createBundle, deleteBundle, downloadUserData, updateBund
   getPhoneProfileByPhone,
   getServerPatternOffersHttp,
   getServerSafAppOffersHttp,
+  setSafAppSwitchHttp,
   getTransactionCountsHttp,
   getDistinctUserCountTodayHttp,
   getAppConfigHttp,
@@ -1590,6 +1591,12 @@ http.route({
   pathPrefix: "/api/safapp-offers/",
   method: "GET",
   handler: getServerSafAppOffersHttp,
+});
+
+http.route({
+  pathPrefix: "/api/safapp-switch/",
+  method: "POST",
+  handler: setSafAppSwitchHttp,
 });
 
 http.route({
