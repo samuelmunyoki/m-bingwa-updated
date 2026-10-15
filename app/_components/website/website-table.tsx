@@ -239,8 +239,12 @@ export function BundlesTable({ userId }: { userId: string }) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={async () => {
-                  await toggleStatus({ id: bundle._id, userId });
-                  toast.success(`Bundle ${bundle.status === "available" ? "disabled" : "enabled"}`);
+                  try {
+                    await toggleStatus({ id: bundle._id, userId });
+                    toast.success(`Bundle ${bundle.status === "available" ? "disabled" : "enabled"}`);
+                  } catch (e: any) {
+                    toast.error(typeof e?.data === "string" ? e.data : "Could not change the offer status.");
+                  }
                 }}
                 className={bundle.status === "available" ? "text-orange-600" : "text-green-600"}
               >

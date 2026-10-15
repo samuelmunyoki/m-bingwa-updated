@@ -8,6 +8,8 @@ export default defineSchema({
     userId: v.string(),
     isAdmin: v.boolean(),
     isSubscribed: v.optional(v.boolean()),
+    // Mirror of the phone's SafApp ON/OFF switch (phone is the source of truth; it pushes this).
+    safAppEnabled: v.optional(v.boolean()),
     isSubscriptionEndingSMSsent: v.optional(v.boolean()),
     profileImage: v.string(),
     suspended: v.boolean(),
