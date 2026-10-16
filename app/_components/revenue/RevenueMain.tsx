@@ -13,8 +13,11 @@ import {
   ResponsiveContainer,
   Cell,
   Legend,
+  LabelList,
 } from "recharts";
-import { TrendingUp, Calendar, DollarSign, Users, Smartphone, Wallet } from "lucide-react";
+import { TrendingUp, Calendar, DollarSign, Users, Smartphone, Wallet, ChevronLeft, ChevronRight } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as DayCalendar } from "@/components/ui/calendar";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,6 +129,114 @@ function BreakdownCard({ title, value, sub, icon, color }: {
   );
 }
 
+// ─── Active Users (7 days) ────────────────────────────────────────────────────
+
+const EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
+
+// Nairobi midnight (ms) of the Sunday that starts the week containing `ms` — same day boundary the server uses.
+function weekStartEAT(ms: number): number {
+  const shifted = ms + EAT_OFFSET_MS;
+  const dayStart = shifted - (shifted % DAY_MS);
+  const weekday = new Date(dayStart).getUTCDay(); // 0 = Sunday
+  return dayStart - weekday * DAY_MS - EAT_OFFSET_MS;
+}
+
+function fmtEAT(ms: number, opts: Intl.DateTimeFormatOptions): string {
+  return new Date(ms + EAT_OFFSET_MS).toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
+}
+
+const UsersTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 shadow-xl text-xs">
+      <p className="font-bold text-neutral-700 dark:text-neutral-200 mb-1">{label}</p>
+      <p style={{ color: "#f97316" }}>{payload[0].value} active users</p>
+    </div>
+  );
+};
+
+function ActiveUsersChart({ userId }: { userId: string }) {
+  // Any moment inside the week being shown; starts on the current week.
+  const [anchor, setAnchor] = useState<number>(() => Date.now());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const weekStart = weekStartEAT(anchor);
+  const isCurrentWeek = weekStart >= weekStartEAT(Date.now());
+  const stats = useQuery(api.features.revenue.getActiveUsersByDay, { requestingUserId: userId, weekStart });
+
+  const bars = useMemo(() => {
+    if (!stats) return [];
+    return stats.days.map((d) => ({
+      label: fmtEAT(d.dayStart, { weekday: "short", day: "numeric" }),
+      count: d.count,
+    }));
+  }, [stats]);
+
+  const rangeLabel = `${fmtEAT(weekStart, { day: "numeric", month: "short" })} – ${fmtEAT(weekStart + 6 * DAY_MS, { day: "numeric", month: "short", year: "numeric" })}`;
+  const trackingNote = stats && weekStart < stats.trackingStart
+    ? `Tracking started ${fmtEAT(stats.trackingStart, { day: "numeric", month: "short", year: "numeric" })} — earlier days show 0.`
+    : null;
+
+  const navBtn = "p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed";
+
+  return (
+    <div className="rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Active Users</span>
+          <span className="text-xs text-neutral-400">{rangeLabel}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button className={navBtn} onClick={() => setAnchor(weekStart - DAY_MS)} aria-label="Previous week">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <button className={cn(navBtn, "flex items-center gap-1 px-2.5 text-xs font-medium")}>
+                <Calendar className="h-3.5 w-3.5" /> Pick date
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <DayCalendar
+                mode="single"
+                selected={new Date(anchor)}
+                onSelect={(d) => {
+                  if (d) {
+                    setAnchor(d.getTime() + 12 * 3_600_000);
+                    setCalendarOpen(false);
+                  }
+                }}
+                disabled={(d) => d.getTime() > Date.now()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+          <button className={navBtn} disabled={isCurrentWeek} onClick={() => setAnchor(weekStart + 7 * DAY_MS)} aria-label="Next week">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {stats ? (
+        <ResponsiveContainer width="100%" height={200}>
+          <BarChart data={bars} barCategoryGap="25%" margin={{ top: 16, right: 4, left: 4, bottom: 0 }}>
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#9CA3AF" }} axisLine={false} tickLine={false} />
+            <Tooltip content={<UsersTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }} />
+            <Bar dataKey="count" name="Active users" fill="#f97316" radius={[4, 4, 0, 0]} opacity={0.85}>
+              <LabelList dataKey="count" position="top" style={{ fontSize: 10, fill: "#9CA3AF" }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      ) : (
+        <div className="h-[200px] flex items-center justify-center text-sm text-neutral-400">Loading chart...</div>
+      )}
+
+      {trackingNote && <p className="mt-2 text-[11px] text-neutral-400">{trackingNote}</p>}
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function RevenueMain({ userId }: { userId: string }) {
@@ -178,8 +289,8 @@ export default function RevenueMain({ userId }: { userId: string }) {
                 border="border-purple-200 dark:border-purple-800"
               />
               <SummaryCard
-                title="Active Subscribers"
-                value={data ? String(data.summary.activeSubscribers) : "—"}
+                title="Active Today"
+                value={data ? String(data.summary.activeToday) : "—"}
                 icon={<Users className="h-4 w-4 text-orange-600" />}
                 gradient="bg-orange-50 dark:bg-orange-950/30"
                 border="border-orange-200 dark:border-orange-800"
@@ -252,6 +363,9 @@ export default function RevenueMain({ userId }: { userId: string }) {
                 </div>
               )}
             </div>
+
+            {/* Active users — 7 days at a time, week picked with arrows or the calendar */}
+            <ActiveUsersChart userId={userId} />
 
           </div>
         </ScrollArea>
