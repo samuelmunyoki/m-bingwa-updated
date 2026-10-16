@@ -45,6 +45,13 @@ export const getRevenueStats = query({
       return Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1) - EAT_OFFSET_MS;
     })();
 
+    // Distinct users active today (Nairobi day) — one presence row per user per day in activeUsersToday.
+    const activeTodayRows = await ctx.db
+      .query("activeUsersToday")
+      .withIndex("by_day", (q) => q.eq("dayStart", todayStart))
+      .collect();
+    const activeToday = new Set(activeTodayRows.map((r) => r.userId)).size;
+
     // M-Pesa uses _creationTime (ms); Airtime uses transactionDate (seconds)
     const mpesaTotal   = mpesaTxs.reduce((s, t) => s + (t.amount ?? 0), 0);
     const mpesaToday   = mpesaTxs.filter((t) => t._creationTime >= todayStart).reduce((s, t) => s + (t.amount ?? 0), 0);
@@ -60,6 +67,7 @@ export const getRevenueStats = query({
         todayRevenue:      mpesaToday + airtimeToday,
         monthRevenue:      mpesaMonth + airtimeMonth,
         activeSubscribers,
+        activeToday,
       },
       breakdown: {
         mpesa:   mpesaTotal,
@@ -71,5 +79,35 @@ export const getRevenueStats = query({
         airtime: airtimeTxs.map((t) => ({ ts: t.transactionDate * 1000, amount: t.amount })),
       },
     };
+  },
+});
+
+// Distinct active users for each of 7 consecutive Nairobi days starting at `weekStart` (ms, the Nairobi
+// midnight of the first day — the website sends a Sunday). Reads the activeUsersToday presence table by
+// its by_day index, so it never scans message rows. Admin-only, like getRevenueStats.
+const ACTIVE_USERS_EAT_OFFSET_MS = 3 * 60 * 60 * 1000;
+// The table's real daily series starts here (older rows are strays); the UI uses it for a "no data" note.
+const ACTIVE_USERS_TRACKING_START_MS = Date.UTC(2026, 8, 1) - ACTIVE_USERS_EAT_OFFSET_MS;
+
+export const getActiveUsersByDay = query({
+  args: { requestingUserId: v.string(), weekStart: v.number() },
+  handler: async (ctx, args) => {
+    const requestingUser = await ctx.db
+      .query("users")
+      .withIndex("by_user_id", (q) => q.eq("userId", args.requestingUserId))
+      .first();
+    if (!requestingUser?.isAdmin) throw new Error("Unauthorized");
+
+    const DAY_MS = 86_400_000;
+    const days: { dayStart: number; count: number }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const dayStart = args.weekStart + i * DAY_MS;
+      const rows = await ctx.db
+        .query("activeUsersToday")
+        .withIndex("by_day", (q) => q.eq("dayStart", dayStart))
+        .collect();
+      days.push({ dayStart, count: new Set(rows.map((r) => r.userId)).size });
+    }
+    return { days, trackingStart: ACTIVE_USERS_TRACKING_START_MS };
   },
 });
