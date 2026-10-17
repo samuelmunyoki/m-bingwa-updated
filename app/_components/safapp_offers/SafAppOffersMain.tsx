@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
@@ -57,6 +57,9 @@ const fieldLabel = (action: string, field: Field) => {
   return action === "VERIFY" ? "Must contain (separate with |)" : "Text to type";
 };
 
+const normName = (n: string) => n.trim().replace(/\s+/g, " ").toLowerCase();
+const errText = (e: any, fallback: string) => (typeof e?.data === "string" ? e.data : e?.message ?? fallback);
+
 export default function SafAppOffersMain({ userId }: { userId: string }) {
   const offers = useQuery(api.features.serverSafAppOffers.getAll, {});
   const createOffer = useMutation(api.features.serverSafAppOffers.create);
@@ -76,9 +79,15 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
   const [error, setError] = useState("");
   const [listError, setListError] = useState("");
 
+  const formRef = useRef<HTMLDivElement>(null);
+  const [scrollTick, setScrollTick] = useState(0);
+  useEffect(() => {
+    if (scrollTick > 0) formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollTick]);
+
   const runAction = async (fn: () => Promise<unknown>) => {
     setListError("");
-    try { await fn(); } catch (e: any) { setListError(e.message ?? "Action failed."); }
+    try { await fn(); } catch (e: any) { setListError(errText(e, "Action failed.")); }
   };
 
   const resetForm = () => {
@@ -87,6 +96,22 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
   };
 
   const openCreate = () => { resetForm(); setShowForm(true); };
+
+  // New offer pre-filled from an existing one: type + steps copied, price left blank, saves as a new offer.
+  const openCopy = (offer: Offer) => {
+    resetForm();
+    setName(`${offer.name} (copy)`);
+    setOfferType(offer.offerType);
+    setSteps(offer.steps.map(s => ({
+      action: s.action,
+      target: s.target ?? "",
+      button: s.button ?? "",
+      value: s.value ?? "",
+      timeoutMs: s.timeoutMs !== undefined ? String(s.timeoutMs) : "",
+    })));
+    setShowForm(true);
+    setScrollTick(t => t + 1);
+  };
 
   const openEdit = (offer: Offer) => {
     setEditingOffer(offer);
@@ -101,6 +126,7 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
       timeoutMs: s.timeoutMs !== undefined ? String(s.timeoutMs) : "",
     })));
     setShowForm(true);
+    setScrollTick(t => t + 1);
   };
 
   const addStep = () => setSteps(s => [...s, emptyStep()]);
@@ -117,6 +143,14 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
         if (!s[f].trim()) { setError(`Step ${i + 1} (${s.action}): "${fieldLabel(s.action, f)}" is required.`); return; }
       }
     }
+    const others = (offers ?? []).filter(o => !editingOffer || o._id !== editingOffer._id);
+    const nameClash = others.find(o => normName(o.name) === normName(name));
+    if (nameClash) { setError(`An offer named "${nameClash.name}" already exists.`); return; }
+    const willBeActive = editingOffer
+      ? (offers?.find(o => o._id === editingOffer._id)?.isActive ?? editingOffer.isActive)
+      : true;
+    const priceClash = willBeActive ? others.find(o => o.isActive && o.price === parseFloat(price)) : undefined;
+    if (priceClash) { setError(`Another active offer ("${priceClash.name}") is already at price ${price}. Make it inactive first or use a different price.`); return; }
     setSaving(true); setError("");
     try {
       const payload = {
@@ -145,7 +179,7 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
       }
       resetForm(); setShowForm(false);
     } catch (e: any) {
-      setError(e.message ?? "Failed to save offer.");
+      setError(errText(e, "Failed to save offer."));
     }
     setSaving(false);
   };
@@ -167,7 +201,7 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
         <div className="flex flex-col gap-4 flex-1 overflow-y-auto">
 
           {showForm && (
-            <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-white dark:bg-neutral-900 flex flex-col gap-3">
+            <div ref={formRef} className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 bg-white dark:bg-neutral-900 flex flex-col gap-3">
               <h3 className="font-medium text-neutral-700 dark:text-neutral-200">
                 {editingOffer ? "Edit Offer" : "New Offer"}
               </h3>
@@ -281,6 +315,8 @@ export default function SafAppOffersMain({ userId }: { userId: string }) {
                     </button>
                     <button onClick={() => openEdit(offer as unknown as Offer)}
                       className="text-xs text-neutral-500 hover:text-neutral-700">Edit</button>
+                    <button onClick={() => openCopy(offer as unknown as Offer)}
+                      className="text-xs text-neutral-500 hover:text-neutral-700">Copy</button>
                     <button
                       onClick={() => {
                         if (window.confirm(`Delete "${offer.name}"? Offers that use it will stop working.`)) {

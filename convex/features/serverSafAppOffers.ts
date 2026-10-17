@@ -1,5 +1,5 @@
 import { mutation, query, MutationCtx } from "../_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 
 // Admin-managed recipes for buying a bundle through the My Safaricom app (SafApp).
 const stepValidator = v.object({
@@ -65,6 +65,26 @@ function checkAndNormalize(name: string, price: number, offerType: string, steps
   });
 }
 
+const normName = (n: string) => n.trim().replace(/\s+/g, " ").toLowerCase();
+
+// Names are unique across every offer; an ACTIVE offer's price must be unique among active offers.
+// ConvexError so the message reaches the website. excludeId = the offer being edited (never its own duplicate).
+async function assertNoDuplicate(
+  ctx: MutationCtx,
+  name: string,
+  price: number,
+  isActive: boolean,
+  excludeId?: string
+) {
+  const others = (await ctx.db.query("serverSafAppOffers").collect()).filter((o) => o._id !== excludeId);
+  const clash = others.find((o) => normName(o.name) === normName(name));
+  if (clash) throw new ConvexError(`An offer named "${clash.name}" already exists`);
+  if (isActive) {
+    const same = others.find((o) => o.isActive && o.price === price);
+    if (same) throw new ConvexError(`Another active offer ("${same.name}") is already at price ${price}. Make it inactive first or use a different price.`);
+  }
+}
+
 export const getAll = query({
   args: {},
   handler: async (ctx) => {
@@ -93,6 +113,7 @@ export const create = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx, args.requestingUserId);
     const steps = checkAndNormalize(args.name, args.price, args.offerType, args.steps);
+    await assertNoDuplicate(ctx, args.name, args.price, true);
     return ctx.db.insert("serverSafAppOffers", {
       name: args.name.trim(),
       price: args.price,
@@ -118,6 +139,7 @@ export const update = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx, args.requestingUserId);
     const steps = checkAndNormalize(args.name, args.price, args.offerType, args.steps);
+    await assertNoDuplicate(ctx, args.name, args.price, args.isActive, args.id);
     await ctx.db.patch(args.id, {
       name: args.name.trim(),
       price: args.price,
@@ -144,6 +166,10 @@ export const toggleActive = mutation({
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx, args.requestingUserId);
+    if (args.isActive) {
+      const offer = await ctx.db.get(args.id);
+      if (offer) await assertNoDuplicate(ctx, offer.name, offer.price, true, args.id);
+    }
     await ctx.db.patch(args.id, { isActive: args.isActive });
   },
 });

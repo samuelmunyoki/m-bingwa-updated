@@ -57,7 +57,7 @@ export function EditStoreModal({
     const { name, value } = e.target;
     if (name === "storeName") {
       // Only allow lowercase letters
-      const sanitizedValue = value.replace(/[^a-z]/g, "").toLowerCase();
+      const sanitizedValue = value.toLowerCase().replace(/[^a-z]/g, "");
       setFormData({ ...formData, [name]: sanitizedValue });
     } else {
       setFormData({ ...formData, [name]: value });

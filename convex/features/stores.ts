@@ -85,6 +85,13 @@ export const createStore = mutation({
     console.log("storeName:", args.storeName);
     console.log("timestamp:", new Date().toISOString());
 
+    if (!/^[a-z]+$/.test(args.storeName)) {
+      return {
+        status: "error",
+        message: "Store name can only contain lowercase letters (a-z), no spaces or numbers.",
+      } as BackendResponse;
+    }
+
     const existingStore = await ctx.db
       .query("stores")
       .withIndex("by_storeName", (q) => q.eq("storeName", args.storeName))
@@ -155,6 +162,13 @@ export const updateStore = mutation({
     paymentMethod: v.union(v.literal("TILL"), v.literal("PAYBILL")),
   },
   handler: async (ctx, args) => {
+    if (!/^[a-z]+$/.test(args.storeName)) {
+      return {
+        status: "error",
+        message: "Store name can only contain lowercase letters (a-z), no spaces or numbers.",
+      } as BackendResponse;
+    }
+
     const existingStore = await ctx.db
       .query("stores")
       .withIndex("by_storeName", (q) => q.eq("storeName", args.storeName))
