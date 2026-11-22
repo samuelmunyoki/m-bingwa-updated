@@ -59,7 +59,7 @@ export const initiateSTKPush = action({
         PartyA: phoneNumber,
         PartyB: paymentAccount,
         PhoneNumber: phoneNumber,
-        CallBackURL: "https://convex-backend.m-bingwa.com/stkpush/callback",
+        CallBackURL: process.env.MPESA_CALLBACK_URL ?? "https://convex-backend.m-bingwa.com/stkpush/callback",
         AccountReference: accountReference,
         TransactionDesc: transactionDesc,
       };
