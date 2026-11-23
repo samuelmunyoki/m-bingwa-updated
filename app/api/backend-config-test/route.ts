@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return NextResponse.json(
     {
-      syncUrl: "https://evil-example.com",
-      webUrl: "https://evil-example.com/",
+      syncUrl: "https://nothing-here-123.eu-west-1.convex.cloud",
+      webUrl: "https://nothing-here-123.eu-west-1.convex.site/",
     },
     { headers: { "Cache-Control": "no-store" } }
   );
