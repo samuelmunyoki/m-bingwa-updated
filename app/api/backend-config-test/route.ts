@@ -5,7 +5,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   return NextResponse.json(
-    { error: "test failure" },
-    { status: 500, headers: { "Cache-Control": "no-store" } }
+    {
+      syncUrl: "https://hip-heron-290.eu-west-1.convex.cloud",
+      webUrl: "https://hip-heron-290.eu-west-1.convex.site/",
+    },
+    { headers: { "Cache-Control": "no-store" } }
   );
 }
