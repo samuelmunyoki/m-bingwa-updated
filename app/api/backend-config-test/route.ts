@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return NextResponse.json(
     {
-      syncUrl: "https://hip-heron-290.eu-west-1.convex.cloud",
-      webUrl: "https://hip-heron-290.eu-west-1.convex.site/",
+      syncUrl: "https://convex-backend.m-bingwa.com:3210",
+      webUrl: "http://convex-backend.m-bingwa.com:3211/",
     },
     { headers: { "Cache-Control": "no-store" } }
   );
